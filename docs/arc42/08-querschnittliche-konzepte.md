@@ -112,6 +112,18 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - Ein Tool-Loop mit serverseitiger Websuche (max. `AI_MAX_WEB_SEARCHES_TRIP`) und max. 4 Runden; Claude liefert das Ergebnis über das Werkzeug `submit_trip_plan`, dessen Eingabe gegen ein Schema geprüft wird (fehlerhafte Einreichung → Claude bekommt den Fehler und korrigiert). Nur `https`-Links aus Suchergebnissen.
 - Nur Vorschläge – keine Buchung; Hinweis in der Oberfläche.
 - Gemessen: ~20 Cent für ein Wochenende.
+- Anreise wählbar oder offen (dann entscheidet Claude nach Budget und Entfernung): Deutschlandticket, jeder Zug, Fernbus (z. B. FlixBus), Auto, Flug. Für Fernbusse gibt es keine öffentliche API; Claude sucht Verbindungen und Links per Websuche.
+- Darstellung: Anreise als Ticket (bei echtem Zug mit Zeiten, Gleis und bahn.de-Link), Tage als Zeitleiste.
+
+## Zugverbindungen
+
+- **Quelle:** offizielle DB Timetables API (Free-Plan) für Abfahrten/Ankünfte mit Echtzeit, Bahnhofsliste aus StaDa (einmalig per `npm run rail:stations`, im Repo). Kein Routing: nur **Direktverbindungen**.
+- **Suche:** Hinweg ab dem Startbahnhof – Züge, deren Laufweg einen Bahnhof nahe dem Ziel enthält; Ankunft über die Fahrt-ID im Fahrplan des Zielbahnhofs. Heimweg gespiegelt ab den Ankünften am Heimatbahnhof, damit nicht die nächste S-Bahn-Station ohne Direktzug gewählt wird. Exakte Bahnhofsnummer über den Namen aus dem Laufweg (z. B. „München Hbf Gl.5-10“).
+- **Plan:** Nach der Planung werden geschätzte Zugabschnitte durch echte Züge ersetzt; spätere Punkte rücken bei Bedarf nach hinten. Losgehzeit nach planmäßiger Abfahrt minus Weg zum Bahnhof (Anreise-Routine bzw. Fußweg). Fahrpläne reichen nur ~1 Tag voraus, danach bleibt die Schätzung.
+- **Deutschlandticket:** Fernverkehr (ICE, IC, EC, RJ, Flix …) ausgeschlossen; passt nur ein Fernzug, wird er mit Hinweis gezeigt.
+- **Live:** Startseite zeigt den nächsten Zug eines gespeicherten Dates (bis 12 h vorher) mit Verspätung, Gleis und Ausfall; Abfrage alle 60 s nur bei sichtbarer Seite.
+- **Trips:** Hin- (1. Tag ab 8 Uhr) und Rückfahrt (letzter Tag ab 14 Uhr) bekommen einen echten Direktzug, sonst bleiben Claudes Hinweise.
+- **Datenschutz/Quote:** Für den Heimatbahnhof nur das ~1-km-Raster; max. 50 Abfragen/min (API: 60), Fahrpläne 6 h, Echtzeit 30 s gecacht. Fehler → Schätzung bleibt, Hinweis im Plan.
 
 ## Gespeicherte Pläne
 
@@ -128,6 +140,8 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - Mobil: Tab-Leiste unten (Home, Our dates, Trips); Desktop: Navigation oben.
 - Startseite: Suchfeld = Frage an Claude (öffnet den Chat), Kacheln „Plan a date“ (Wizard) und „Surprise us tonight“ (Sofortplan), dazu anstehende Dates und Ideen für heute Abend.
 - Wizard `/new` in fünf Schritten (Wann, Wo, Wie, Stimmung, Essen); jeder Schritt überspringbar, danach der Plan.
+- **Nächster Ausflug** (Kachel „Surprise us …“, „Ideas for …“, Wizard-Vorauswahl): Start bis 16 Uhr → „today“ (ab 10 bis 22 Uhr), bis 21 Uhr → „tonight“ (max. 5 h, Ende spätestens 2 Uhr), danach → „tomorrow“ (18–23 Uhr).
+- **Start/Ende am Zielort:** Mit gewähltem Ort wählbar „From home / Already there“ und „Back home / Staying there“. Schon dort = keine Hinfahrt, der erste Ort wird um den Zielort gesucht; dort bleiben = kein Heimweg und keine Ideen zu Hause.
 - Radius „Fit to time“ statt „Auto“, damit es nicht mit dem Verkehrsmittel Auto verwechselt wird.
 
 ## Tests

@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { requireSession } from '@/auth/session';
 import { listUpcoming } from '@/planner/saved';
-import { ideasForTonight } from '@/planner/service';
+import { nextOuting } from '@/planner/outing';
+import { ideasForNextOuting } from '@/planner/service';
+import { nextTrain } from '@/rail/live';
 import { AskBar } from './ask-bar';
+import { LiveTrainCard } from './live-train';
 import { PlanCard } from './plan-card';
 
 const TODAY = new Intl.DateTimeFormat('en-GB', {
@@ -42,7 +45,12 @@ function Pill({ children, onDark }: { children: React.ReactNode; onDark?: boolea
 
 export default async function HomePage() {
   await requireSession();
-  const [upcoming, ideas] = await Promise.all([listUpcoming(), ideasForTonight()]);
+  const { when } = nextOuting();
+  const [upcoming, ideas, train] = await Promise.all([
+    listUpcoming(),
+    ideasForNextOuting(),
+    nextTrain().catch(() => null),
+  ]);
 
   return (
     <div className="flex flex-col gap-7">
@@ -71,6 +79,8 @@ export default async function HomePage() {
         </Link>
       </header>
 
+      {train && <LiveTrainCard initial={train} />}
+
       <AskBar />
 
       <section className="grid grid-cols-2 gap-3">
@@ -88,7 +98,7 @@ export default async function HomePage() {
           href="/new?quick=1"
           className="flex min-h-48 flex-col justify-between rounded-[28px] bg-butter p-5 hover:bg-butter-deep"
         >
-          <span className="text-xl leading-snug font-semibold">Surprise us tonight</span>
+          <span className="text-xl leading-snug font-semibold">Surprise us {when}</span>
           <span className="flex items-end justify-between">
             <PlayDot tone="ink" />
             <Pill>instant</Pill>
@@ -112,7 +122,7 @@ export default async function HomePage() {
 
       {ideas.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Ideas for tonight</h2>
+          <h2 className="text-lg font-semibold">Ideas for {when}</h2>
           {ideas.map((idea, i) => (
             <Link
               key={idea.id}

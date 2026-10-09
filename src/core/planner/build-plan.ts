@@ -130,8 +130,11 @@ function travelTo(
   return estimateTravel(state.location, target, request.transport, routine);
 }
 
+const startsInArea = (request: PlanRequest) => Boolean(request.area && request.startInArea);
+const endsInArea = (request: PlanRequest) => Boolean(request.area && request.endInArea);
+
 function travelHome(location: LatLng, request: PlanRequest, ctx: PlanContext): Travel | null {
-  if (distanceKm(location, ctx.home) < 0.05) return null;
+  if (endsInArea(request) || distanceKm(location, ctx.home) < 0.05) return null;
   return estimateTravel(location, ctx.home, request.transport, routineFor(ctx, request));
 }
 
@@ -171,7 +174,7 @@ function searchRegion(state: State, request: PlanRequest, ctx: PlanContext): Reg
     };
   }
 
-  const goal = area ?? ctx.home;
+  const goal = area ?? (endsInArea(request) ? request.area!.location : ctx.home);
   const near = LEG_RADIUS_KM[request.transport];
   // A chosen distance is the radius around the destination; otherwise a default per transport.
   const areaRadius = request.maxDistanceKm ?? AREA_RADIUS_KM[request.transport];
@@ -336,6 +339,7 @@ async function fillSlot(
   const candidates = ctx.activities.filter(
     (a) =>
       (pass.homeAllowed || !a.atHome) &&
+      !(a.atHome && endsInArea(request)) &&
       isCandidate(a, {
         slot,
         slotStart: state.cursor,
@@ -485,8 +489,9 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
   const format = request.format ?? formatFor(duration);
   const state: State = {
     cursor: request.start,
-    location: ctx.home,
-    atHomeLocation: true,
+    // Starting in the area: the first stop is still searched around its centre.
+    location: startsInArea(request) ? request.area!.location : ctx.home,
+    atHomeLocation: !startsInArea(request),
     reachedArea: false,
     spentEur: 0,
     used: new Set(),
@@ -576,6 +581,7 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
   if (overBudgetEur > 0) state.warnings.add('over_budget');
   return {
     format,
+    startsInArea: startsInArea(request),
     items,
     travelHome: home,
     totalCostEur,

@@ -16,7 +16,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         >
           Weather data by Open-Meteo.com
         </a>
-        {' · Location data based on GeoNames · Places from Google / © OpenStreetMap contributors'}
+        {
+          ' · Location data based on GeoNames · Places from Google / © OpenStreetMap contributors · Train data © Deutsche Bahn (CC BY 4.0)'
+        }
       </footer>
       <BottomNav />
     </div>

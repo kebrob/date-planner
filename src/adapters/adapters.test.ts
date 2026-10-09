@@ -324,4 +324,26 @@ describe('OpenMeteoGeocoder', () => {
   it('returns null when nothing matches', async () => {
     expect(await new OpenMeteoGeocoder(async () => json({})).find('Nowhere')).toBeNull();
   });
+
+  it('prefers a town over an airport with the same name', async () => {
+    const geocoder = new OpenMeteoGeocoder(async () =>
+      json({
+        results: [
+          { name: 'Flughafen Nürnberg', latitude: 49.49, longitude: 11.07, feature_code: 'AIRP' },
+          { name: 'Nürnberg', latitude: 49.45, longitude: 11.07, feature_code: 'PPLA2' },
+        ],
+      }),
+    );
+    expect((await geocoder.find('Nuremberg'))?.name).toBe('Nürnberg');
+  });
+
+  it('retries spellings without umlauts', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async (url) =>
+      String(url).includes('M%C3%BCnchen')
+        ? json({ results: [{ name: 'München', latitude: 48.137, longitude: 11.575 }] })
+        : json({}),
+    );
+    expect((await new OpenMeteoGeocoder(fetchFn).find('Muenchen'))?.name).toBe('München');
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
 });

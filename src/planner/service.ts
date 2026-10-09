@@ -1,6 +1,6 @@
 import { and, eq, max, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { getGeocoder, getPlacesProvider, getWeatherProvider } from '@/adapters';
+import { getGeocoder, getPlacesProvider, getRail, getWeatherProvider } from '@/adapters';
 import { getLimits } from '@/config/limits';
 import { buildPlan } from '@/core/planner/build-plan';
 import {
@@ -15,8 +15,10 @@ import { summarizeWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
 import { activity, apiUsage, settings, suggestionLog, tagWeight, travelRoutine } from '@/db/schema';
 import { dayKey } from '@/guard/periods';
+import { nextOuting } from './outing';
+import { attachTrains } from './trains';
 import { fitsWeather, seasonOf, timeOfDay } from '@/core/planner/rules';
-import { fromLocal, toLocalDate } from '@/lib/time';
+import { fromLocal } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
 import type { LatLng, Place } from '@/ports/places';
 
@@ -71,6 +73,9 @@ export const planInputSchema = z
       })
       .optional(),
     maxDistanceKm: z.number().int().min(1).max(300).nullable().optional(),
+    /** With a chosen area: already there at the start / staying there afterwards. */
+    startInArea: z.boolean().optional(),
+    endInArea: z.boolean().optional(),
     requiredActivityIds: z.array(z.string().uuid()).max(3).optional(),
     requiredStops: z
       .array(
@@ -272,6 +277,8 @@ export async function generatePlan(
       food: input.food,
       cuisine: input.cuisine ?? null,
       area,
+      startInArea: input.startInArea,
+      endInArea: input.endInArea,
       // Always allowed; the planner still tries to stay within budget first.
       allowOverBudget: true,
       maxDistanceKm: input.maxDistanceKm ?? null,
@@ -306,6 +313,33 @@ export async function generatePlan(
     },
   );
 
+  const rail = getRail();
+  const hasTrains =
+    plan.items.some((i) => i.travelBefore?.mode === 'train') || plan.travelHome?.mode === 'train';
+  if (rail && hasTrains) {
+    const routine = routines.find((r) => r.transport === input.transport);
+    await attachTrains(
+      plan,
+      {
+        start,
+        end,
+        transport: input.transport,
+        home: homePoint(home),
+        homeGrid: townLocation,
+        startPoint: plan.startsInArea && area ? area.location : undefined,
+        routine: routine && {
+          transport: routine.transport as Transport,
+          firstLegMinutes: routine.firstLegMinutes,
+          bufferMinutes: routine.bufferMinutes,
+        },
+      },
+      rail,
+    ).catch(() => {
+      // Estimates stay in place; the plan is still usable.
+      plan.warnings = [...plan.warnings, 'trains_unavailable'];
+    });
+  }
+
   const suggested = plan.items
     .map((i) => i.activity.id)
     // Ad-hoc stops from the chat are not stored activities.
@@ -327,19 +361,19 @@ export type IdeaTeaser = {
 };
 
 /**
- * A few catalog ideas that fit tonight (season, time of day, weather) – no place lookups,
- * so showing them on the home screen costs nothing.
+ * A few catalog ideas that fit the next outing (season, time of day, weather) – no place
+ * lookups, so showing them on the home screen costs nothing.
  */
-export async function ideasForTonight(now = new Date(), count = 3): Promise<IdeaTeaser[]> {
+export async function ideasForNextOuting(now = new Date(), count = 3): Promise<IdeaTeaser[]> {
   const db = getDb();
   const [[home], rows] = await Promise.all([
     db.select().from(settings).where(eq(settings.id, 1)).limit(1),
     db.select().from(activity).where(eq(activity.status, 'active')),
   ]);
   if (!home) return [];
-  const evening = fromLocal(toLocalDate(now), '18:00');
-  const start = now > evening ? now : evening;
-  const end = new Date(start.getTime() + 4 * 3_600_000);
+  const outing = nextOuting(now);
+  const start = fromLocal(outing.date, outing.startTime);
+  const end = fromLocal(outing.endDate, outing.endTime);
   const hours = await getWeatherProvider()
     .hourly({ lat: home.homeLat, lng: home.homeLng }, start, end)
     .catch(() => []);

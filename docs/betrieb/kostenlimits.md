@@ -52,6 +52,7 @@ Die App-Limits liegen bewusst **unter** den Anbieter-Limits, damit die App saube
 | Google                 | Maps URLs (Links) / Maps Embed  | unbegrenzt                  | kostenlos                                             |
 | Open-Meteo             | Wetter                          | Fair Use, nicht-kommerziell | kostenlos                                             |
 | OpenStreetMap Overpass | Ortssuche (Fallback)            | Fair Use                    | kostenlos                                             |
+| Deutsche Bahn          | Timetables / StaDa              | 60 Aufrufe/min (Free-Plan)  | kostenlos; App bremst bei 50/min                      |
 
 Quellen: [Google Maps Platform Pricing](https://developers.google.com/maps/billing-and-pricing/pricing), [Claude Web Search Pricing](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)
 

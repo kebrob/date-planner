@@ -63,7 +63,8 @@ export const tripInputSchema = z
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     budgetEur: z.number().int().min(0).max(20_000),
-    transport: z.enum(['deutschlandticket', 'car', 'train', 'flight']),
+    /** Null = no preference. */
+    transport: z.enum(['deutschlandticket', 'train', 'bus', 'car', 'flight']).nullable(),
     moods: z.array(z.enum(MOOD_TAGS)).max(5),
     destination: z.string().trim().max(100).optional(),
     notes: z.string().trim().max(300).optional(),
@@ -75,10 +76,11 @@ export const tripInputSchema = z
 
 export type TripInput = z.infer<typeof tripInputSchema>;
 
-const TRANSPORT_TEXT: Record<TripInput['transport'], string> = {
+const TRANSPORT_TEXT: Record<NonNullable<TripInput['transport']>, string> = {
   deutschlandticket: 'regional trains only (Deutschlandticket: no ICE/IC/EC)',
   car: 'their own car',
   train: 'any trains including long-distance',
+  bus: 'long-distance buses such as FlixBus, plus regional trains',
   flight: 'a flight is fine for longer distances',
 };
 
@@ -86,7 +88,9 @@ export function tripPrompt(input: TripInput, homeName: string): string {
   return [
     `Plan a trip for a couple from ${homeName}, Germany, from ${input.startDate} to ${input.endDate}.`,
     `Total budget for both: about ${input.budgetEur} € including travel and accommodation.`,
-    `Getting there: ${TRANSPORT_TEXT[input.transport]}.`,
+    input.transport
+      ? `Getting there: ${TRANSPORT_TEXT[input.transport]}.`
+      : 'Getting there: no preference – choose what suits budget and distance (train, bus, car or flight).',
     input.destination
       ? `Destination: ${input.destination}.`
       : 'Suggest a fitting destination yourself.',

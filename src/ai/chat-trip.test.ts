@@ -172,6 +172,11 @@ describe('planTrip', () => {
     expect(prompt).toContain('no ICE/IC/EC');
   });
 
+  it('lets Claude choose the transport when there is no preference', () => {
+    const prompt = tripPrompt({ ...tripInput, transport: null }, 'Rosenheim');
+    expect(prompt).toContain('no preference');
+  });
+
   it('returns the submitted plan and stops right after submission', async () => {
     const createMessage = vi.fn<CreateMessage>(async () =>
       message('tool_use', [toolUse('submit_trip_plan', plan)]),

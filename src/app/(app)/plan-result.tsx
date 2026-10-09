@@ -1,6 +1,7 @@
 'use client';
 
 import type { PlanView } from '@/planner/view';
+import { TravelIcon } from './travel-icon';
 
 const TIME = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Europe/Berlin',
@@ -26,6 +27,11 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
   places_daily_limit:
     'Daily Google place search limit reached – fewer venues available until tomorrow.',
   food_skipped: 'Food did not fit the budget or time — raise the budget or re-roll.',
+  train_times_adjusted: 'Times were moved to match real train departures.',
+  train_ticket_needed:
+    'Only a long-distance train fits – it is not covered by the Deutschlandticket.',
+  train_late_return: 'The last fitting train gets you home after the planned end.',
+  trains_unavailable: 'Live train times are unavailable right now – train times are estimates.',
 };
 
 type Leg = NonNullable<PlanView['travelHome']>;
@@ -41,40 +47,28 @@ const MODE: Record<Leg['mode'], string> = {
   train: 'by train',
 };
 
-const MODE_ICON: Record<Leg['mode'], React.ReactNode> = {
-  walk: (
-    <>
-      <circle cx="13" cy="4.5" r="1.5" />
-      <path d="m10 21 2-6 3 3v3M12 15l-1-5 3-1 2 3h3M11 10l-3 2v3" />
-    </>
-  ),
-  bike: (
-    <>
-      <circle cx="6" cy="16" r="3.5" />
-      <circle cx="18" cy="16" r="3.5" />
-      <path d="m6 16 4-7h5l3 7M10 9l2 7h-6M14 6h2" />
-    </>
-  ),
-  car: (
-    <>
-      <path d="M4 16v-3l2-5h12l2 5v3zM4 13h16" />
-      <circle cx="8" cy="16.5" r="1.5" />
-      <circle cx="16" cy="16.5" r="1.5" />
-    </>
-  ),
-  local_transit: (
-    <>
-      <rect x="6" y="3" width="12" height="14" rx="3" />
-      <path d="M6 10h12M9 21l1.5-4M15 21l-1.5-4" />
-    </>
-  ),
-  train: (
-    <>
-      <rect x="6" y="3" width="12" height="14" rx="3" />
-      <path d="M6 10h12M9 21l1.5-4M15 21l-1.5-4M10 13.5h.01M14 13.5h.01" />
-    </>
-  ),
-};
+const delayMinutes = (planned: string, actual: string) =>
+  Math.round((new Date(actual).getTime() - new Date(planned).getTime()) / 60_000);
+
+function TrainInfo({ train }: { train: NonNullable<Leg['train']> }) {
+  const delay = delayMinutes(train.plannedDeparture, train.departure);
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="text-ink">
+        {train.line} · {TIME.format(new Date(train.plannedDeparture))} {train.from.name} →{' '}
+        {TIME.format(new Date(train.plannedArrival))} {train.to.name}
+      </span>
+      <span className="text-xs">
+        Leave {TIME.format(new Date(train.leaveAt))}
+        {train.platform && ` · Platform ${train.platform}`}
+        {delay > 0 && <span className="text-amber-700"> · +{delay} min</span>}
+        {!train.regional && (
+          <span className="text-amber-700"> · not covered by the Deutschlandticket</span>
+        )}
+      </span>
+    </span>
+  );
+}
 
 /** Travel between two stops, shown as a quiet connector between the cards. */
 function LegRow({ leg }: { leg: Leg }) {
@@ -82,33 +76,31 @@ function LegRow({ leg }: { leg: Leg }) {
   return (
     <div className="flex items-center gap-3 px-2 text-sm text-mist">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cream text-ink">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          {MODE_ICON[leg.mode]}
-        </svg>
+        <TravelIcon kind={leg.mode} />
       </span>
-      <span>
-        {leg.minutes} min {MODE[leg.mode]}
-        {suffix}
-      </span>
-      {leg.directionsUrl && (
-        <a
-          href={leg.directionsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={`ml-auto ${linkPill}`}
-        >
-          Directions
+      {leg.train ? (
+        <TrainInfo train={leg.train} />
+      ) : (
+        <span>
+          {leg.minutes} min {MODE[leg.mode]}
+          {suffix}
+        </span>
+      )}
+      {leg.trainUrl ? (
+        <a href={leg.trainUrl} target="_blank" rel="noreferrer" className={`ml-auto ${linkPill}`}>
+          bahn.de
         </a>
+      ) : (
+        leg.directionsUrl && (
+          <a
+            href={leg.directionsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`ml-auto ${linkPill}`}
+          >
+            Directions
+          </a>
+        )
       )}
     </div>
   );

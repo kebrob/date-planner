@@ -2,11 +2,13 @@ import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getSettings } from '@/admin/service';
 import { getAnthropic, MODEL } from '@/ai/client';
-import { planTrip, tripInputSchema, type TripInput, type TripPlan } from '@/ai/trip';
+import { getGeocoder, getRail } from '@/adapters';
+import { planTrip, tripInputSchema, type TripInput } from '@/ai/trip';
 import { getLimits } from '@/config/limits';
 import { getDb } from '@/db/client';
 import { trip } from '@/db/schema';
 import { getCostGuard } from '@/guard';
+import { attachTripTrains, type StoredTripPlan } from './trains';
 
 export class TripsDisabledError extends Error {}
 
@@ -26,9 +28,24 @@ export async function createTrip(raw: unknown): Promise<string> {
     maxIterations: Math.min(limits.ai.maxToolIterations, MAX_TRIP_ITERATIONS),
     maxWebSearches: limits.ai.maxWebSearches.trip,
   });
+  const rail = getRail();
+  const stored: StoredTripPlan = rail
+    ? await attachTripTrains(
+        plan,
+        input,
+        { lat: home.homeLat, lng: home.homeLng },
+        { ...rail, geocoder: getGeocoder() },
+      ).catch(() => plan)
+    : plan;
   const [row] = await getDb()
     .insert(trip)
-    .values({ title: plan.title, startDate: input.startDate, endDate: input.endDate, input, plan })
+    .values({
+      title: plan.title,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      input,
+      plan: stored,
+    })
     .returning({ id: trip.id });
   return row!.id;
 }
@@ -49,7 +66,7 @@ export function listTrips() {
 export async function getTrip(id: string) {
   if (!z.string().uuid().safeParse(id).success) return null;
   const [row] = await getDb().select().from(trip).where(eq(trip.id, id)).limit(1);
-  return row ? { ...row, input: row.input as TripInput, plan: row.plan as TripPlan } : null;
+  return row ? { ...row, input: row.input as TripInput, plan: row.plan as StoredTripPlan } : null;
 }
 
 export async function setTripFavorite(id: string, isFavorite: boolean) {

@@ -2,13 +2,21 @@ import type {
   Plan,
   PlanWarning,
   Slot,
+  TrainLeg,
   Travel,
   TravelMode,
   WeatherSummary,
 } from '@/core/planner/types';
+import { toLocalDate, toLocalTime } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
 
-export type Leg = Travel & { from: string; to: string; directionsUrl: string | null };
+export type Leg = Travel & {
+  from: string;
+  to: string;
+  directionsUrl: string | null;
+  /** Connection search on bahn.de for a real train. */
+  trainUrl: string | null;
+};
 
 /** Serializable plan for client components (dates as ISO strings). */
 export type PlanView = {
@@ -64,6 +72,24 @@ export function directionsUrl(from: Point, to: Point, mode: TravelMode): string 
   return `https://www.google.com/maps/dir/?${params}`;
 }
 
+/** Opens the connection search on bahn.de (and the DB Navigator app where it handles the link). */
+export function trainUrl(train: TrainLeg): string {
+  const station = (eva: string) => `A=1@L=${eva}`;
+  const departure = toLocalDate(new Date(train.plannedDeparture));
+  const time = toLocalTime(new Date(train.plannedDeparture));
+  const params = new URLSearchParams({
+    sts: 'true',
+    so: train.from.name,
+    zo: train.to.name,
+    soid: station(train.from.eva),
+    zoid: station(train.to.eva),
+    hd: `${departure}T${time}:00`,
+    hza: 'D',
+    kl: '2',
+  });
+  return `https://www.bahn.de/buchung/fahrplan/suche#${params}`;
+}
+
 function leg(travel: Travel | null, from: Point, to: Point): Leg | null {
   if (!travel) return null;
   return {
@@ -71,6 +97,7 @@ function leg(travel: Travel | null, from: Point, to: Point): Leg | null {
     from: from.name,
     to: to.name,
     directionsUrl: directionsUrl(from, to, travel.mode),
+    trainUrl: travel.train ? trainUrl(travel.train) : null,
   };
 }
 
@@ -80,7 +107,8 @@ export function toPlanView(
   area: { name: string; location: LatLng } | null,
 ): PlanView {
   const homePoint: Point = { name: 'Home', location: home };
-  let previous = homePoint;
+  let previous: Point =
+    plan.startsInArea && area ? { name: area.name, location: area.location } : homePoint;
   const items = plan.items.map((item) => {
     const here: Point = item.activity.atHome
       ? homePoint

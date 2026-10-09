@@ -682,6 +682,44 @@ describe('route planning', () => {
     expect(findPlaces).not.toHaveBeenCalled();
   });
 
+  it('starts in the destination when already there, without a trip from home', async () => {
+    const munich = { lat: 48.14, lng: 11.58 };
+    const plan = await buildPlan(
+      request({
+        format: 'single',
+        food: 'none',
+        area: { name: 'München', location: munich },
+        startInArea: true,
+      }),
+      context({
+        activities: [cinema],
+        findPlaces: async (a, center) => [placeAt(center, 0.3, a.id)],
+      }),
+    );
+    expect(plan.startsInArea).toBe(true);
+    expect(plan.items[0]!.travelBefore!.distanceKm).toBeLessThan(2);
+    expect(plan.travelHome!.distanceKm).toBeGreaterThan(30);
+  });
+
+  it('plans no way home when staying in the destination', async () => {
+    const munich = { lat: 48.14, lng: 11.58 };
+    const plan = await buildPlan(
+      request({
+        format: 'single',
+        food: 'none',
+        area: { name: 'München', location: munich },
+        startInArea: true,
+        endInArea: true,
+      }),
+      context({
+        activities: [cinema, boardGames],
+        findPlaces: async (a, center) => [placeAt(center, 0.3, a.id)],
+      }),
+    );
+    expect(plan.travelHome).toBeNull();
+    expect(plan.items.every((i) => !i.activity.atHome)).toBe(true);
+  });
+
   it('does not suggest home activities when a destination is set', async () => {
     const plan = await buildPlan(
       request({ format: 'single', food: 'none', area: { name: 'X', location: north(30) } }),

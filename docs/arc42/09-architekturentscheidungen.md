@@ -53,12 +53,13 @@
 - **Begründung:** Hochrechnung ~4 $/Monat normal, ~19 $ Worst Case; hartes Limit 20 $.
 - **Ergänzung (2026-10-09):** Ideen-Generierung ohne Websuche (allgemeine Ideen, echte Orte kommen aus der Ortssuche); gemessen ~1–2 Cent pro Aufruf mit 3 Ideen. Ablehnungen über `fallbacks: "default"`.
 
-## ADR-009: Zugverbindungen über inoffizielle DB-Schnittstelle (Phase 2)
+## ADR-009: Zugverbindungen über offizielle DB-APIs (nur Direktzüge)
 
-- **Status:** vorgeschlagen
-- **Entscheidung:** Verbindungssuche über die von bahn.de genutzte Schnittstelle mit Filter auf Regionalverkehr; vorher Machbarkeits-Spike. Fallback: Link auf bahn.de.
-- **Begründung:** Offizielle DB-API liefert nur Abfahrtstafeln, keine Verbindungssuche.
-- **Risiko:** Kann sich jederzeit ändern (→ Kapitel 11).
+- **Status:** angenommen (2026-10-09), ersetzt den Vorschlag „inoffizielle DB-Schnittstelle“
+- **Kontext:** Die inoffizielle bahn.de-/Navigator-Schnittstelle (`db-vendo-client`) wird von der DB aktiv blockiert (`OPS_BLOCKED`); die Maintainer raten ab. Transitous erlaubt nur Open-Source-Projekte, RIS::Stations ist nicht dauerhaft kostenlos, Overpass für Bahnhöfe zu unzuverlässig.
+- **Entscheidung:** DB Timetables API (Free) für Fahrpläne und Echtzeit; Bahnhofsliste aus StaDa (Free) als Datei im Repo. Nur Direktverbindungen; Umstiege bleiben Schätzung bzw. Link auf bahn.de.
+- **Begründung:** Offiziell, kostenlos, stabil; für Rosenheim → München/Salzburg/Kufstein meist direkt.
+- **Risiko:** API im Beta-Status, Horizont ~1 Tag (→ Kapitel 11).
 
 ## ADR-010: Abhängigkeiten mit 7 Tagen Mindestalter
 

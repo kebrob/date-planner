@@ -3,18 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { autoAreaRadiusKm, autoRadiusKm } from '@/core/planner/build-plan';
-import {
-  addMinutes,
-  fromLocal,
-  localParts,
-  minutesBetween,
-  toLocalDate,
-  toLocalTime,
-} from '@/lib/time';
+import { fromLocal, minutesBetween } from '@/lib/time';
 import type { PlanInput } from '@/planner/service';
 import { LocationPicker, type Point } from '../location-picker';
 import { SessionResult, usePlanSession } from '../plan-session';
-import { Face, type FaceVariant } from './face';
+import { MOODS } from '../moods';
+import { Face } from './face';
+import { outingPreset, presets } from './presets';
 
 type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
@@ -31,18 +26,6 @@ export type WizardDefaults = {
 
 const STEPS = ['when', 'where', 'how', 'mood', 'food'] as const;
 type Step = (typeof STEPS)[number];
-
-const MOODS: { tag: string; label: string; face: FaceVariant; tint: string }[] = [
-  { tag: 'chill', label: 'Cozy', face: 'cozy', tint: 'bg-mint' },
-  { tag: 'romantic', label: 'Romantic', face: 'love', tint: 'bg-blush' },
-  { tag: 'active', label: 'Active', face: 'excited', tint: 'bg-butter' },
-  { tag: 'social', label: 'Social', face: 'happy', tint: 'bg-lilac' },
-  { tag: 'culture', label: 'Curious', face: 'curious', tint: 'bg-cream' },
-  { tag: 'creative', label: 'Creative', face: 'curious', tint: 'bg-lilac' },
-  { tag: 'outdoor', label: 'Outdoors', face: 'happy', tint: 'bg-mint' },
-  { tag: 'indoor', label: 'Indoors', face: 'calm', tint: 'bg-cream' },
-  { tag: 'home', label: 'At home', face: 'cozy', tint: 'bg-blush' },
-];
 
 const TRANSPORTS: { value: Transport; label: string; hint: string }[] = [
   {
@@ -80,34 +63,6 @@ const FORMATS: { value: Format | null; label: string }[] = [
   { value: 'day', label: 'Full day' },
 ];
 
-const pad = (n: number) => String(n).padStart(2, '0');
-
-function addDays(date: string, days: number): string {
-  const [y, m, d] = date.split('-').map(Number);
-  return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
-}
-
-// Built on Europe/Berlin wall-clock time so server render and browser agree.
-function timeWindow(date: string, startHour: number, durationHours: number) {
-  const day = startHour >= 24 ? addDays(date, 1) : date;
-  const startTime = `${pad(startHour % 24)}:00`;
-  const end = addMinutes(fromLocal(day, startTime), durationHours * 60);
-  return { date: day, startTime, endDate: toLocalDate(end), endTime: toLocalTime(end) };
-}
-
-function presets() {
-  const now = new Date();
-  const today = toLocalDate(now);
-  const { hour, weekday } = localParts(now);
-  const daysToSaturday = (6 - weekday + 7) % 7 || 7;
-  return [
-    { label: 'Right now', ...timeWindow(today, hour + 1, 4) },
-    { label: 'Tonight', ...timeWindow(today, Math.max(18, hour + 1), 5) },
-    { label: 'Tomorrow evening', ...timeWindow(addDays(today, 1), 18, 5) },
-    { label: 'Saturday', ...timeWindow(addDays(today, daysToSaturday), 10, 12) },
-  ];
-}
-
 function Choice({
   selected,
   onClick,
@@ -130,6 +85,52 @@ function Choice({
     >
       {children}
     </button>
+  );
+}
+
+/** Whether the date starts/ends at home or already in the chosen place (no train there/back). */
+function TripEnds(props: {
+  place: string | null;
+  startInArea: boolean;
+  onStartChange: (v: boolean) => void;
+  endInArea: boolean;
+  onEndChange: (v: boolean) => void;
+}) {
+  const there = props.place ? `in ${props.place}` : 'there';
+  const rows = [
+    {
+      label: 'Starting',
+      value: props.startInArea,
+      onChange: props.onStartChange,
+      options: ['From home', `Already ${there}`],
+    },
+    {
+      label: 'Afterwards',
+      value: props.endInArea,
+      onChange: props.onEndChange,
+      options: ['Back home', `Staying ${there}`],
+    },
+  ];
+  return (
+    <div className="flex flex-col gap-3">
+      {rows.map((row) => (
+        <div key={row.label} className="flex flex-col gap-1.5">
+          <span className="text-xs text-mist">{row.label}</span>
+          <div className="grid grid-cols-2 gap-2">
+            {row.options.map((option, i) => (
+              <Choice
+                key={option}
+                selected={row.value === (i === 1)}
+                onClick={() => row.onChange(i === 1)}
+                className="truncate"
+              >
+                {option}
+              </Choice>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -193,8 +194,10 @@ export function Wizard({
 }) {
   const session = usePlanSession();
   const [step, setStep] = useState<Step | 'result'>(quick ? 'result' : 'when');
-  const [when, setWhen] = useState(() => presets()[1]!);
+  const [when, setWhen] = useState(() => outingPreset());
   const [center, setCenter] = useState<Point | null>(null);
+  const [startInArea, setStartInArea] = useState(false);
+  const [endInArea, setEndInArea] = useState(false);
   const [maxDistanceKm, setMaxDistanceKm] = useState<number | null>(null);
   const [transport, setTransport] = useState<Transport>(defaults.transport);
   const [budgetEur, setBudgetEur] = useState(defaults.budgetEur);
@@ -229,6 +232,8 @@ export function Wizard({
     food,
     cuisine: food === 'meal' || food === 'auto' ? cuisine : null,
     areaPoint: center ?? undefined,
+    startInArea: center ? startInArea : undefined,
+    endInArea: center ? endInArea : undefined,
     maxDistanceKm,
     requiredActivityIds: idea ? [idea.id] : undefined,
     excludeActivityIds: [],
@@ -432,6 +437,15 @@ export function Wizard({
                   onRadiusChange={setMaxDistanceKm}
                   autoRadiusKm={autoKm}
                 />
+                {center && (
+                  <TripEnds
+                    place={center.name === 'Pinned location' ? null : center.name.split(',')[0]!}
+                    startInArea={startInArea}
+                    onStartChange={setStartInArea}
+                    endInArea={endInArea}
+                    onEndChange={setEndInArea}
+                  />
+                )}
               </>
             )}
 

@@ -19,6 +19,7 @@ import {
 } from '@/planner/saved';
 import { AreaNotFoundError, generatePlan, homePoint, type PlanInput } from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
+import { nextTrain, type LiveTrain } from '@/rail/live';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -130,4 +131,10 @@ export async function deletePasskeyAction(id: string): Promise<void> {
   await requireSession();
   await getDb().delete(passkey).where(eq(passkey.id, id));
   revalidatePath('/settings/security');
+}
+
+/** Polled by the live train card on the home screen. */
+export async function liveTrainAction(): Promise<LiveTrain | null> {
+  await requireSession();
+  return nextTrain().catch(() => null);
 }

@@ -84,6 +84,10 @@ export type PlanRequest = {
   cuisine?: Cuisine | null;
   /** Optional destination; the first venue is searched around it instead of home. */
   area?: { name: string; location: LatLng } | null;
+  /** With an area: start there instead of at home (already in town). */
+  startInArea?: boolean;
+  /** With an area: stay there afterwards instead of going home (e.g. a hotel). */
+  endInArea?: boolean;
   /** Allows going up to 50 % over budget if nothing else fits; flagged in the plan. */
   allowOverBudget?: boolean;
   /** Slot layout of a previous plan; used when re-rolling a single item so `keep` indices match. */
@@ -113,7 +117,33 @@ export type PlanContext = {
 
 export type TravelMode = 'walk' | 'bike' | 'car' | 'local_transit' | 'train';
 
-export type Travel = { minutes: number; distanceKm: number; mode: TravelMode; costEur: number };
+/** A real train for a leg; times are ISO strings so the leg survives JSON storage. */
+export type TrainLeg = {
+  line: string;
+  category: string;
+  /** Covered by the Deutschlandticket. */
+  regional: boolean;
+  from: { eva: string; name: string };
+  to: { eva: string; name: string };
+  /** Timetable stop id at `from`, for live updates. */
+  stopId: string;
+  /** When to leave the previous place to catch the train. */
+  leaveAt: string;
+  plannedDeparture: string;
+  departure: string;
+  plannedArrival: string;
+  arrival: string;
+  platform: string | null;
+  plannedPlatform: string | null;
+};
+
+export type Travel = {
+  minutes: number;
+  distanceKm: number;
+  mode: TravelMode;
+  costEur: number;
+  train?: TrainLeg;
+};
 
 export type PlanItem = {
   slot: Slot;
@@ -137,10 +167,16 @@ export type PlanWarning =
   | 'food_skipped'
   | 'over_budget'
   | 'required_skipped'
-  | 'places_daily_limit';
+  | 'places_daily_limit'
+  | 'train_times_adjusted'
+  | 'train_ticket_needed'
+  | 'train_late_return'
+  | 'trains_unavailable';
 
 export type Plan = {
   format: PlanFormat;
+  /** The first leg leaves from the area instead of home. */
+  startsInArea: boolean;
   items: PlanItem[];
   travelHome: Travel | null;
   totalCostEur: number;
