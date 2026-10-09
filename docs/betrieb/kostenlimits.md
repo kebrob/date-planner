@@ -14,40 +14,43 @@ Die App-Limits liegen bewusst **unter** den Anbieter-Limits, damit die App saube
 
 ## 1. Checkliste Ersteinrichtung
 
-| #   | Wo                                                         | Was                                                                         | Empfohlener Wert                   | Erledigt |
-| --- | ---------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------- | -------- |
-| 1   | Anthropic Console → Workspaces                             | Eigenen Workspace `date-planner` anlegen                                    | –                                  | ☐        |
-| 2   | Anthropic Console → Workspace `date-planner` → Limits      | **Monatliches Spend-Limit** des Workspaces                                  | **20 $**                           | ☐        |
-| 3   | Anthropic Console → Workspace `date-planner` → API Keys    | API-Key **nur in diesem Workspace** erzeugen                                | –                                  | ☐        |
-| 4   | Anthropic Console → Billing                                | Auto-Reload **aus**, Guthaben manuell aufladen (z. B. 20 $)                 | aus                                | ☐        |
-| 5   | Google Cloud → neues Projekt `date-planner`                | Billing-Konto verknüpfen, nur **Places API (New)** aktivieren               | –                                  | ☐        |
-| 6   | Google Cloud → APIs & Services → Places API (New) → Quotas | **Tageskontingent** für Text Search                                         | **30 / Tag**                       | ☐        |
-| 7   | Google Cloud → APIs & Services → Places API (New) → Quotas | **Tageskontingent** für Place Details                                       | **30 / Tag**                       | ☐        |
-| 8   | Google Cloud → Credentials                                 | API-Key auf **Places API (New)** beschränken (API restriction)              | –                                  | ☐        |
-| 9   | Google Cloud → Billing → Budgets & alerts                  | Budget mit Mail-Alarm                                                       | **1 €**, Alarm bei 50 / 90 / 100 % | ☐        |
-| 10  | Vercel / Neon                                              | **Keine** Zahlungsmethode hinterlegen (Free Tier stoppt statt zu berechnen) | –                                  | ☐        |
-| 11  | Vercel → Project → Settings → Environment Variables        | App-Limits aus Abschnitt 3 setzen                                           | siehe unten                        | ☐        |
+| #   | Wo                                                      | Was                                                                                                                                                   | Empfohlener Wert                   | Erledigt |
+| --- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------- |
+| 1   | Anthropic Console → Workspaces                          | Eigenen Workspace `date-planner` anlegen                                                                                                              | –                                  | ☐        |
+| 2   | Anthropic Console → Workspace `date-planner` → Limits   | **Monatliches Spend-Limit** des Workspaces                                                                                                            | **20 $**                           | ☐        |
+| 3   | Anthropic Console → Workspace `date-planner` → API Keys | API-Key **nur in diesem Workspace** erzeugen                                                                                                          | –                                  | ☐        |
+| 4   | Anthropic Console → Billing                             | Auto-Reload **aus**, Guthaben manuell aufladen (z. B. 20 $)                                                                                           | aus                                | ☐        |
+| 5   | Google Cloud → neues Projekt `date-planner`             | Billing-Konto verknüpfen, nur **Places API (New)** aktivieren                                                                                         | –                                  | ☐        |
+| 6   | Google Maps Platform → Kontingente → Places API (New)   | Tageskontingente `SearchTextRequest per day`, `SearchNearbyRequest per day`, `GetPlaceRequest per day` (Checkbox anhaken → ⋮ → Kontingent bearbeiten) | je **30 / Tag**                    | ☐        |
+| 7   | Google Maps Platform → Kontingente → Places API (New)   | Nicht genutzte Tageskontingente `AutocompletePlacesRequest per day`, `GetPhotoMediaRequest per day`                                                   | **1**                              | ☐        |
+| 8   | Google Cloud → Credentials                              | API-Key auf **Places API (New)** beschränken (API restriction)                                                                                        | –                                  | ☐        |
+| 9   | Google Cloud → Billing → Budgets & alerts               | Budget mit Mail-Alarm                                                                                                                                 | **1 €**, Alarm bei 50 / 90 / 100 % | ☐        |
+| 10  | Vercel / Neon                                           | **Keine** Zahlungsmethode hinterlegen (Free Tier stoppt statt zu berechnen)                                                                           | –                                  | ☐        |
+| 11  | Vercel → Project → Settings → Environment Variables     | App-Limits aus Abschnitt 3 setzen                                                                                                                     | siehe unten                        | ☐        |
 
 ### Warum diese Werte
 
 - **Anthropic 20 $/Monat:** Worst-Case-Hochrechnung liegt bei ~19 $ (Sonnet 5.5), Normalfall ~4 $. Das Spend-Limit ist hart – darüber lehnt die API ab.
 - **Eigener Workspace:** Limit und Key gelten nur für diese App; andere Projekte bleiben unberührt, und ein geleakter Key kann nicht mehr als das Workspace-Limit verbrauchen.
 - **Google 30/Tag:** Abfragen mit Öffnungszeiten/Bewertungen laufen über die Enterprise-SKU mit **1.000 kostenlosen Abfragen/Monat**. 30 × 31 = 930 → bleibt garantiert im Freikontingent.
+- **Google Places (New):** Text Search, Nearby Search und Place Details haben getrennte Kontingente und getrennte Freikontingente – deshalb jedes einzeln begrenzen.
+- **Google-Testzeitraum:** Im kostenlosen Testzeitraum lassen sich Kontingente ggf. nicht bearbeiten. Kein Kostenrisiko, solange nicht manuell auf ein vollständiges Konto umgestellt wird. **Vor dem Upgrade** Schritte 6 und 7 erledigen.
 - **Google Budget ≠ Limit:** Google-Budgets **alarmieren nur, sie stoppen nichts**. Das harte Limit sind ausschließlich die Quotas (Schritt 6/7).
 
 ---
 
 ## 2. Anbieterpreise (Stand 2026-10)
 
-| Anbieter               | Leistung                       | Freikontingent              | Preis danach                                          |
-| ---------------------- | ------------------------------ | --------------------------- | ----------------------------------------------------- |
-| Anthropic              | Claude Sonnet 5.5              | –                           | 2 $ / 10 $ pro 1 Mio. Input-/Output-Tokens            |
-| Anthropic              | Websuche                       | –                           | 10 $ pro 1.000 Suchen (+ Ergebnisse als Input-Tokens) |
-| Google                 | Places Text Search Enterprise  | 1.000 / Monat               | 35 $ pro 1.000                                        |
-| Google                 | Places Details Enterprise      | 1.000 / Monat               | 20 $ pro 1.000                                        |
-| Google                 | Maps URLs (Links) / Maps Embed | unbegrenzt                  | kostenlos                                             |
-| Open-Meteo             | Wetter                         | Fair Use, nicht-kommerziell | kostenlos                                             |
-| OpenStreetMap Overpass | Ortssuche (Fallback)           | Fair Use                    | kostenlos                                             |
+| Anbieter               | Leistung                        | Freikontingent              | Preis danach                                          |
+| ---------------------- | ------------------------------- | --------------------------- | ----------------------------------------------------- |
+| Anthropic              | Claude Sonnet 5.5               | –                           | 2 $ / 10 $ pro 1 Mio. Input-/Output-Tokens            |
+| Anthropic              | Websuche                        | –                           | 10 $ pro 1.000 Suchen (+ Ergebnisse als Input-Tokens) |
+| Google                 | Places Text Search Enterprise   | 1.000 / Monat               | 35 $ pro 1.000                                        |
+| Google                 | Places Nearby Search Enterprise | 1.000 / Monat               | 35 $ pro 1.000                                        |
+| Google                 | Places Details Enterprise       | 1.000 / Monat               | 20 $ pro 1.000                                        |
+| Google                 | Maps URLs (Links) / Maps Embed  | unbegrenzt                  | kostenlos                                             |
+| Open-Meteo             | Wetter                          | Fair Use, nicht-kommerziell | kostenlos                                             |
+| OpenStreetMap Overpass | Ortssuche (Fallback)            | Fair Use                    | kostenlos                                             |
 
 Quellen: [Google Maps Platform Pricing](https://developers.google.com/maps/billing-and-pricing/pricing), [Claude Web Search Pricing](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)
 
