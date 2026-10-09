@@ -26,7 +26,8 @@ Ausgabe: Ablaufplan mit Uhrzeiten, konkreten Orten, Kosten, Wetterhinweis, Anrei
 - Wetter (Open-Meteo), Ortssuche (Google Places, Fallback OpenStreetMap)
 - Claude-Chat mit Zugriff auf Planner-Funktionen (Tool Use)
 - Mehrtägige Ausflüge als Vorschlag mit Links (keine Buchung)
-- Plan speichern, Verlauf, Abwechslungslogik
+- Pläne speichern (mehrere kommende Pläne), bearbeiten, Favoriten, „Plan again“, automatisches Archiv; Abwechslungslogik
+- Essen konkret mit 2 Alternativen, optionaler Küchen-Filter
 - Kostenschutz für alle kostenpflichtigen APIs (→ [Kapitel 8](08-querschnittliche-konzepte.md#kostenschutz))
 
 ### Phase 2

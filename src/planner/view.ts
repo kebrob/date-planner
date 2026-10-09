@@ -8,7 +8,7 @@ import type {
 } from '@/core/planner/types';
 import type { LatLng, Place } from '@/ports/places';
 
-type Leg = Travel & { from: string; to: string; directionsUrl: string | null };
+export type Leg = Travel & { from: string; to: string; directionsUrl: string | null };
 
 /** Serializable plan for client components (dates as ISO strings). */
 export type PlanView = {
@@ -22,6 +22,9 @@ export type PlanView = {
     preparation: string | null;
     atHome: boolean;
     place: Place | null;
+    /** Kept when full place data was removed after the date (archived plans). */
+    placeName: string | null;
+    alternatives: Place[];
     travelBefore: Leg | null;
     start: string;
     end: string;
@@ -92,6 +95,8 @@ export function toPlanView(
       preparation: item.activity.preparation,
       atHome: item.activity.atHome,
       place: item.place,
+      placeName: item.place?.name ?? null,
+      alternatives: item.alternatives,
       travelBefore: leg(item.travelBefore, previous, here),
       start: item.start.toISOString(),
       end: item.end.toISOString(),

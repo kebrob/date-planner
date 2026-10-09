@@ -31,3 +31,8 @@ export type PlaceSearch = {
 export interface PlacesProvider {
   search(request: PlaceSearch): Promise<Place[]>;
 }
+
+/** Re-fetches full data for a stored place id (used when re-planning archived plans). */
+export interface PlaceDetailsProvider {
+  details(id: string): Promise<Place | null>;
+}

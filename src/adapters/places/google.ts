@@ -1,7 +1,14 @@
 import type { CostGuard } from '@/guard/guard';
-import type { OpeningHours, Place, PlaceSearch, PlacesProvider } from '@/ports/places';
+import type {
+  OpeningHours,
+  Place,
+  PlaceDetailsProvider,
+  PlaceSearch,
+  PlacesProvider,
+} from '@/ports/places';
 
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchText';
+const DETAILS_ENDPOINT = 'https://places.googleapis.com/v1/places/';
 // Rating and opening hours put this request into the Text Search Enterprise SKU (1,000 free/month).
 const FIELD_MASK = [
   'places.id',
@@ -44,7 +51,21 @@ export function parseOpeningHours(raw: GooglePlace['regularOpeningHours']): Open
   return parsed.length > 0 ? { alwaysOpen: false, periods: parsed } : null;
 }
 
-export class GooglePlacesProvider implements PlacesProvider {
+function toPlace(p: GooglePlace): Place | null {
+  if (!p.location || !p.displayName?.text) return null;
+  return {
+    provider: 'google',
+    id: p.id,
+    name: p.displayName.text,
+    location: { lat: p.location.latitude, lng: p.location.longitude },
+    address: p.formattedAddress,
+    rating: p.rating,
+    openingHours: parseOpeningHours(p.regularOpeningHours),
+    mapsUrl: p.googleMapsUri,
+  };
+}
+
+export class GooglePlacesProvider implements PlacesProvider, PlaceDetailsProvider {
   constructor(
     private readonly apiKey: string,
     private readonly guard: CostGuard,
@@ -76,19 +97,24 @@ export class GooglePlacesProvider implements PlacesProvider {
       });
       if (!res.ok) throw new Error(`Google Places responded ${res.status}`);
       const body = (await res.json()) as { places?: GooglePlace[] };
-      const places = (body.places ?? [])
-        .filter((p) => p.location && p.displayName?.text)
-        .map((p): Place => ({
-          provider: 'google',
-          id: p.id,
-          name: p.displayName!.text!,
-          location: { lat: p.location!.latitude, lng: p.location!.longitude },
-          address: p.formattedAddress,
-          rating: p.rating,
-          openingHours: parseOpeningHours(p.regularOpeningHours),
-          mapsUrl: p.googleMapsUri,
-        }));
+      const places = (body.places ?? []).flatMap((p) => toPlace(p) ?? []);
       return { result: places, actualCostUsd: 0 };
+    });
+  }
+
+  async details(id: string): Promise<Place | null> {
+    if (!/^[\w-]+$/.test(id)) return null;
+    return this.guard.run('google_places', 0, async () => {
+      const res = await this.fetchFn(DETAILS_ENDPOINT + id, {
+        headers: {
+          'X-Goog-Api-Key': this.apiKey,
+          // Same fields as the search, without the "places." prefix.
+          'X-Goog-FieldMask': FIELD_MASK.replaceAll('places.', ''),
+        },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`Google Place Details responded ${res.status}`);
+      return { result: toPlace((await res.json()) as GooglePlace), actualCostUsd: 0 };
     });
   }
 }

@@ -325,6 +325,24 @@ describe('budget and long days', () => {
     }
   });
 
+  it('keeps time for a planned meal instead of filling the evening with one long activity', async () => {
+    const spa = activity({
+      id: 'spa',
+      durationMinutes: 240,
+      costMinEur: 30,
+      costMaxEur: 40,
+      placeType: 'thermal_bath',
+      placeQuery: 'Therme',
+    });
+    for (let seed = 1; seed <= 20; seed++) {
+      const plan = await buildPlan(
+        request({ food: 'meal', start: fromLocal('2026-10-10', '18:00') }),
+        context({ activities: [spa, cheapCinema, dinner], random: seededRandom(seed) }),
+      );
+      expect(plan.items.map((i) => i.activity.id)).toContain('dinner');
+    }
+  });
+
   it('fills a long day with free ideas instead of ending early', async () => {
     const req = request({
       food: 'none',
@@ -423,6 +441,63 @@ describe('budget and long days', () => {
     );
     expect(plan.items[0]).toMatchObject({ slot: 'meal', place: { id: 'kept-dinner' } });
     expect(plan.items[1]!.slot).toBe('main');
+  });
+});
+
+describe('food', () => {
+  const italian = activity({
+    id: 'italian',
+    category: 'food',
+    tags: ['food', 'meal', 'italian'],
+    costMinEur: 30,
+    costMaxEur: 50,
+    placeType: 'restaurant',
+    placeQuery: 'Italienisch',
+  });
+  const bavarian = activity({
+    id: 'bavarian',
+    category: 'food',
+    tags: ['food', 'meal', 'bavarian'],
+    costMinEur: 30,
+    costMaxEur: 50,
+    placeType: 'restaurant',
+    placeQuery: 'Wirtshaus',
+  });
+
+  it('offers up to two alternative venues that fit as well', async () => {
+    const venues = [1, 2, 3, 4].map((km) => placeAt(HOME, km, `restaurant-${km}`));
+    const plan = await buildPlan(
+      request({ food: 'meal', format: 'single', slots: ['meal'] }),
+      context({ activities: [italian], findPlaces: async () => venues }),
+    );
+    const item = plan.items[0]!;
+    expect(item.alternatives).toHaveLength(2);
+    expect(item.alternatives.map((p) => p.id)).not.toContain(item.place!.id);
+  });
+
+  it('leaves out closed venues as alternatives', async () => {
+    const closed = { alwaysOpen: false as const, periods: [] };
+    const plan = await buildPlan(
+      request({ slots: ['meal'] }),
+      context({
+        activities: [italian],
+        findPlaces: async () => [
+          placeAt(HOME, 1, 'open'),
+          { ...placeAt(HOME, 2, 'closed'), openingHours: closed },
+        ],
+      }),
+    );
+    expect(plan.items[0]!.alternatives).toEqual([]);
+  });
+
+  it('restricts meals to the chosen cuisine', async () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const plan = await buildPlan(
+        request({ slots: ['meal'], cuisine: 'bavarian' }),
+        context({ activities: [italian, bavarian], random: seededRandom(seed) }),
+      );
+      expect(plan.items[0]!.activity.id).toBe('bavarian');
+    }
   });
 });
 

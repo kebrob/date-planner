@@ -23,6 +23,8 @@ const MAX_ITEMS = 5;
 const MIN_FILL_MINUTES = 90;
 // Kept back for later slots so the first item cannot use up the whole budget.
 const SLOT_RESERVE_EUR: Record<Slot, number> = { main: 0, meal: 25, snack: 8 };
+// Likewise time, including a short way between stops.
+const SLOT_RESERVE_MIN: Record<Slot, number> = { main: 75, meal: 90, snack: 40 };
 const STRETCH_FACTOR = 1.5;
 // First venue when starting from home, by plan size.
 const HOME_RADIUS_KM: Record<PlanFormat, number> = { single: 25, evening: 40, day: 120 };
@@ -195,6 +197,8 @@ type Pass = {
   filler: boolean;
   /** Going home is only allowed for the last planned item, never in the middle of an outing. */
   homeAllowed: boolean;
+  /** Minutes kept free for the remaining planned slots. */
+  reserveMinutes: number;
 };
 
 function makePass(
@@ -210,6 +214,7 @@ function makePass(
     limitEur: budget - state.spentEur - reserve,
     filler,
     homeAllowed: state.atHomeLocation || (!filler && laterSlots.length === 0),
+    reserveMinutes: laterSlots.reduce((sum, s) => sum + SLOT_RESERVE_MIN[s], 0),
   };
 }
 
@@ -227,7 +232,7 @@ function schedule(
   const start = addMinutes(state.cursor, travel?.minutes ?? 0);
   const end = addMinutes(start, activity.durationMinutes);
   const back = travelHome(target, request, ctx);
-  if (addMinutes(end, back?.minutes ?? 0) > request.end) return null;
+  if (addMinutes(end, (back?.minutes ?? 0) + pass.reserveMinutes) > request.end) return null;
 
   const costEur = estimatedCost(activity) + (travel?.costEur ?? 0);
   if (costEur + (back?.costEur ?? 0) > pass.limitEur) return null;
@@ -243,8 +248,11 @@ function schedule(
     end,
     costEur,
     openingHoursUnknown: place !== null && place.openingHours === null,
+    alternatives: [],
   };
 }
+
+const MAX_ALTERNATIVES = 2;
 
 async function fillSlot(
   slot: Slot,
@@ -260,7 +268,7 @@ async function fillSlot(
       isCandidate(a, {
         slot,
         slotStart: state.cursor,
-        availableMinutes: minutesBetween(state.cursor, request.end),
+        availableMinutes: minutesBetween(state.cursor, request.end) - pass.reserveMinutes,
         remainingBudgetEur: pass.limitEur,
         used: state.used,
         request,
@@ -299,9 +307,14 @@ async function fillSlot(
         region.accepts(p.location) &&
         (!limitedRange || distanceKm(ctx.home, p.location) <= maxDistanceKm(request.transport)),
     );
-    for (const place of rankPlaces(reachable, region.anchors, region.radiusKm, ctx.random)) {
+    const ranked = rankPlaces(reachable, region.anchors, region.radiusKm, ctx.random);
+    for (const place of ranked) {
       const item = schedule(slot, activity, place, state, request, ctx, pass);
-      if (item) return item;
+      if (!item) continue;
+      item.alternatives = ranked
+        .filter((p) => p !== place && schedule(slot, activity, p, state, request, ctx, pass))
+        .slice(0, MAX_ALTERNATIVES);
+      return item;
     }
   }
   return null;
@@ -396,6 +409,7 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
         ctx,
         makePass(state, request, later, request.allowOverBudget ?? false),
       );
+    if (keptItem) keptItem.alternatives = kept.alternatives ?? [];
     const item = keptItem || (await fillWithStretch(slot, later, state, request, ctx, format));
     if (item) {
       items.push(item);
@@ -438,6 +452,7 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
       end: request.end,
       costEur: estimatedCost(FALLBACK_ACTIVITY),
       openingHoursUnknown: false,
+      alternatives: [],
     };
     items.push(fallback);
     apply(fallback, state, request, ctx);

@@ -4,6 +4,17 @@ export type Transport = 'deutschlandticket' | 'car' | 'walk' | 'bike';
 export type PlanFormat = 'single' | 'evening' | 'day';
 export type Slot = 'main' | 'meal' | 'snack';
 export type FoodPreference = 'auto' | 'none' | 'snack' | 'meal';
+export const CUISINES = [
+  'bavarian',
+  'italian',
+  'asian',
+  'burger',
+  'mexican',
+  'greek',
+  'indian',
+  'veggie',
+] as const;
+export type Cuisine = (typeof CUISINES)[number];
 
 export type Activity = {
   id: string;
@@ -58,6 +69,8 @@ export type PlanRequest = {
   format?: PlanFormat;
   /** Defaults to 'auto'. */
   food?: FoodPreference;
+  /** Restricts proper meals to activities tagged with this cuisine. */
+  cuisine?: Cuisine | null;
   /** Optional destination; the first venue is searched around it instead of home. */
   area?: { name: string; location: LatLng } | null;
   /** Allows going up to 50 % over budget if nothing else fits; flagged in the plan. */
@@ -67,7 +80,7 @@ export type PlanRequest = {
   /** Activities rejected during this planning session. */
   excludeActivityIds: string[];
   /** Items kept from a previous plan when re-rolling a single item, keyed by item index. */
-  keep?: Record<number, { activity: Activity; place: Place | null }>;
+  keep?: Record<number, { activity: Activity; place: Place | null; alternatives?: Place[] }>;
 };
 
 export type PlanContext = {
@@ -96,6 +109,8 @@ export type PlanItem = {
   end: Date;
   costEur: number;
   openingHoursUnknown: boolean;
+  /** Other venues for the same activity that would fit as well (max. 2). */
+  alternatives: Place[];
 };
 
 export type PlanWarning =

@@ -86,8 +86,14 @@ export const datePlan = pgTable('date_plan', {
   parameters: jsonb('parameters').notNull(),
   weather: jsonb('weather'),
   totalCostEur: integer('total_cost_eur').notNull().default(0),
+  overBudgetEur: integer('over_budget_eur').notNull().default(0),
   status: planStatus('status').notNull().default('suggested'),
+  isFavorite: boolean('is_favorite').notNull().default(false),
+  note: text('note'),
+  areaName: text('area_name'),
+  travelHome: jsonb('travel_home'),
   createdAt: createdAt(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const planItem = pgTable('plan_item', {
@@ -100,10 +106,17 @@ export const planItem = pgTable('plan_item', {
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
   title: text('title').notNull(),
-  // Only provider id and display name are stored permanently (provider terms).
+  slot: text('slot').notNull().default('main'),
+  preparation: text('preparation'),
+  atHome: boolean('at_home').notNull().default(false),
+  openingHoursUnknown: boolean('opening_hours_unknown').notNull().default(false),
+  // Provider id and display name are kept permanently; full place data only until the date has
+  // passed (provider terms restrict long-term storage), see archivedPlace().
   placeProvider: text('place_provider'),
   placeId: text('place_id'),
   placeName: text('place_name'),
+  place: jsonb('place'),
+  alternatives: jsonb('alternatives').notNull().default([]),
   costEur: integer('cost_eur').notNull().default(0),
   travel: jsonb('travel'),
 });

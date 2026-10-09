@@ -1,7 +1,7 @@
 import { getLimits } from '@/config/limits';
 import { getCostGuard } from '@/guard';
 import type { GeocodingProvider } from '@/ports/geocoding';
-import type { PlacesProvider } from '@/ports/places';
+import type { PlaceDetailsProvider, PlacesProvider } from '@/ports/places';
 import type { WeatherProvider } from '@/ports/weather';
 import { OpenMeteoGeocoder } from './geocoding/open-meteo';
 import {
@@ -42,4 +42,11 @@ export function getWeatherProvider(): WeatherProvider {
 export function getGeocoder(): GeocodingProvider {
   geocoder ??= new OpenMeteoGeocoder();
   return geocoder;
+}
+
+/** Null when Google is not configured; OSM places are stored in full and need no re-fetch. */
+export function getPlaceDetailsProvider(): PlaceDetailsProvider | null {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (getLimits().places.provider !== 'google' || !key) return null;
+  return new GooglePlacesProvider(key, getCostGuard());
 }

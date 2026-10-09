@@ -1,10 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { addMinutes, fromLocal, localParts, toLocalDate, toLocalTime } from '@/lib/time';
 import type { PlanInput } from '@/planner/service';
 import type { PlanView } from '@/planner/view';
-import { acceptPlanAction, generatePlanAction } from './actions';
+import { generatePlanAction, savePlanAction } from './actions';
 import { PlanResult } from './plan-result';
 
 type Transport = PlanInput['transport'];
@@ -28,6 +29,18 @@ const TRANSPORTS: { value: Transport; label: string }[] = [
   { value: 'walk', label: 'Walk' },
 ];
 type Food = NonNullable<PlanInput['food']>;
+type Cuisine = NonNullable<PlanInput['cuisine']>;
+const CUISINE_OPTIONS: { value: Cuisine | null; label: string }[] = [
+  { value: null, label: 'Any' },
+  { value: 'bavarian', label: 'Bavarian' },
+  { value: 'italian', label: 'Italian' },
+  { value: 'asian', label: 'Asian' },
+  { value: 'burger', label: 'Burger' },
+  { value: 'mexican', label: 'Mexican' },
+  { value: 'greek', label: 'Greek' },
+  { value: 'indian', label: 'Indian' },
+  { value: 'veggie', label: 'Veggie' },
+];
 const FOODS: { value: Food; label: string }[] = [
   { value: 'auto', label: 'Surprise me' },
   { value: 'none', label: 'No food' },
@@ -85,6 +98,8 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
   const [preferences, setPreferences] = useState<string[]>([]);
   const [format, setFormat] = useState<Format | 'auto'>('auto');
   const [food, setFood] = useState<Food>('auto');
+  const [cuisine, setCuisine] = useState<Cuisine | null>(null);
+  const router = useRouter();
   const [area, setArea] = useState('');
   const [allowOverBudget, setAllowOverBudget] = useState(false);
   const [plan, setPlan] = useState<PlanView | null>(null);
@@ -103,6 +118,7 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
     preferences,
     format: format === 'auto' ? undefined : format,
     food,
+    cuisine: food === 'none' || food === 'snack' ? null : cuisine,
     area: area.trim() || undefined,
     allowOverBudget,
     excludeActivityIds: [],
@@ -130,28 +146,46 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
     run({ ...lastInput, excludeActivityIds: next, keep: undefined, slots: undefined });
   };
 
+  const keepAll = (view: PlanView) =>
+    Object.fromEntries(
+      view.items.map((item, i) => [
+        String(i),
+        { activityId: item.activityId, place: item.place, alternatives: item.alternatives },
+      ]),
+    );
+
   const rerollItem = (index: number) => {
     if (!plan || !lastInput) return;
     const next = [...new Set([...excluded, plan.items[index]!.activityId])];
     setExcluded(next);
-    const keep = Object.fromEntries(
-      plan.items
-        .map((item, i) => [String(i), { activityId: item.activityId, place: item.place }] as const)
-        .filter(([i]) => Number(i) !== index),
-    );
-    run({
-      ...lastInput,
-      excludeActivityIds: next,
-      keep,
-      slots: plan.items.map((i) => i.slot),
-    });
+    const keep = keepAll(plan);
+    delete keep[String(index)];
+    run({ ...lastInput, excludeActivityIds: next, keep, slots: plan.items.map((i) => i.slot) });
+  };
+
+  const swap = (index: number, placeId: string) => {
+    if (!plan || !lastInput) return;
+    const item = plan.items[index]!;
+    const chosen = item.alternatives.find((p) => p.id === placeId);
+    if (!chosen) return;
+    const keep = keepAll(plan);
+    keep[String(index)] = {
+      activityId: item.activityId,
+      place: chosen,
+      alternatives: [
+        ...(item.place ? [item.place] : []),
+        ...item.alternatives.filter((p) => p.id !== placeId),
+      ],
+    };
+    run({ ...lastInput, excludeActivityIds: excluded, keep, slots: plan.items.map((i) => i.slot) });
   };
 
   const accept = () => {
     if (!plan || !lastInput) return;
     startTransition(async () => {
-      const result = await acceptPlanAction(lastInput, plan);
-      setMessage(result.ok ? 'Saved! Have fun 💕' : result.error);
+      const result = await savePlanAction(lastInput, plan);
+      if (!result.ok) return setMessage(result.error);
+      router.push(`/plans/${result.data}`);
     });
   };
 
@@ -289,6 +323,22 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
           ))}
         </fieldset>
 
+        {(food === 'auto' || food === 'meal') && (
+          <fieldset className="flex flex-wrap gap-2">
+            <legend className="mb-2 text-sm">Cuisine</legend>
+            {CUISINE_OPTIONS.map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                className={chip(cuisine === c.value)}
+                onClick={() => setCuisine(c.value)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </fieldset>
+        )}
+
         <fieldset className="flex flex-wrap gap-2">
           <legend className="mb-2 text-sm">Plan size</legend>
           {FORMATS.map((f) => (
@@ -318,13 +368,26 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
       )}
 
       {plan && (
-        <PlanResult
-          plan={plan}
-          pending={pending}
-          onRerollAll={rerollAll}
-          onRerollItem={rerollItem}
-          onAccept={accept}
-        />
+        <PlanResult plan={plan} pending={pending} onRerollItem={rerollItem} onSwap={swap}>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={rerollAll}
+              disabled={pending}
+              className="rounded-xl border border-stone-300 px-4 py-3 disabled:opacity-50 dark:border-stone-700"
+            >
+              Something else
+            </button>
+            <button
+              type="button"
+              onClick={accept}
+              disabled={pending}
+              className="rounded-xl bg-stone-900 px-4 py-3 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
+            >
+              Let&apos;s do it
+            </button>
+          </div>
+        </PlanResult>
       )}
     </div>
   );

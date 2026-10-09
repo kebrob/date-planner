@@ -70,11 +70,25 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 3. **Gewichteter Zufall** über die Scores (seedbar für Tests).
 4. **Planformat** aus Zeitfenster (< 3 h eine Aktivität, 3–6 h zwei Programmpunkte, > 6 h Tagesplan), manuell überschreibbar. **Essen** per Filter (Auto / kein Essen / Snack / Mahlzeit); bei „Auto“ zufällige Vorlage inkl. Reihenfolge, Mahlzeiten nur ab 40 € Budget. Passt gewünschtes Essen nicht, gibt es einen Hinweis.
 5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
-6. **Budget einteilen:** Für noch geplante Mahlzeiten (~25 €) und Snacks (~8 €) wird Budget zurückgehalten; günstigere Ideen werden relativ zum Restbudget bevorzugt.
+6. **Budget und Zeit einteilen:** Für noch geplante Punkte wird Budget (Mahlzeit ~25 €, Snack ~8 €) und Zeit (Programmpunkt ~75 min, Mahlzeit ~90 min, Snack ~40 min) zurückgehalten; günstigere Ideen werden relativ zum Restbudget bevorzugt.
 7. **Lange Tage auffüllen:** Bleiben vor der Heimfahrt ≥ 90 min frei, werden weitere Punkte ergänzt (max. 5 insgesamt), bevorzugt kostenlose (Bücherei, Park, Markt, Kirche …).
 8. **Kein Heimfahren zwischendurch:** Unterwegs sind Aktivitäten zu Hause nur als letzter geplanter Punkt erlaubt; danach darf zu Hause aufgefüllt werden.
 9. **Budget überziehen (optional, Standard aus):** Passt nichts mehr, darf bis 50 % über Budget geplant werden; Mehrbetrag wird angezeigt.
 10. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
+
+## Essen
+
+- Mahlzeiten und Snacks sind eigene Slot-Typen; optionaler Filter **Cuisine** (Bavarian, Italian, Asian, Burger, Mexican, Greek, Indian, Veggie) beschränkt Mahlzeiten auf passend getaggte Aktivitäten.
+- Jeder Punkt mit Ort zeigt bis zu **2 Alternativen** aus derselben Ortssuche (ohne Zusatzabfrage), die ebenfalls ins Zeitfenster passen und geöffnet sind; Antippen tauscht den Ort und berechnet Zeiten/Wege neu.
+
+## Gespeicherte Pläne
+
+- **Upcoming:** gespeicherte Pläne mit Datum in der Zukunft, mehrere parallel; auf der Startseite als Karten, Detailseite `/plans/[id]`.
+- **Bearbeiten** (nur kommende Pläne): Punkt neu würfeln, entfernen, Alternative wählen, Datum ändern, Notiz. Änderungen planen mit festgehaltenen Punkten neu; passt ein Ort nicht mehr (z. B. geschlossen), wird er ersetzt und ein Hinweis angezeigt.
+- **Ansehen kostet nichts:** Plan, Orte, Wege kommen aus der DB; nur das Wetter (kostenlos) wird bei kommenden Plänen aktualisiert.
+- **Past:** Status ergibt sich aus dem Datum (kein Löschen; Verlauf dient Abwechslung und späteren Bewertungen). Löschen ist manuell möglich.
+- **Favoriten:** Stern pro Plan; **Plan again** übernimmt Punkte und Orte für ein neues Datum.
+- **Archivierung (Google-Nutzungsbedingungen):** Nach dem Datum werden bei Google-Orten nur Place-ID und Name behalten, Koordinaten/Adresse/Öffnungszeiten/Alternativen sowie alle Routen-Links (enthalten Koordinaten) entfernt. „Plan again“ lädt archivierte Google-Orte per Place Details neu (1 Abfrage pro Ort über den Budget-Wächter). OpenStreetMap-Daten bleiben vollständig erhalten.
 
 ## Tests
 

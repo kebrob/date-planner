@@ -153,6 +153,9 @@ export type CandidateFilter = {
 export function isCandidate(activity: Activity, f: CandidateFilter): boolean {
   const kind = foodKind(activity);
   if (f.slot === 'main' ? kind !== null : kind !== f.slot) return false;
+  if (f.slot === 'meal' && f.request.cuisine && !activity.tags.includes(f.request.cuisine)) {
+    return false;
+  }
   // An explicit destination means going out; home activities only serve as last-resort fallback.
   if (activity.atHome && f.request.area) return false;
   if (f.used.has(activity.id) || f.request.excludeActivityIds.includes(activity.id)) return false;

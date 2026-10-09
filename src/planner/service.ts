@@ -1,20 +1,19 @@
-import { desc, eq, inArray, max, sql } from 'drizzle-orm';
+import { eq, max, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGeocoder, getPlacesProvider, getWeatherProvider } from '@/adapters';
 import { getLimits } from '@/config/limits';
 import { buildPlan } from '@/core/planner/build-plan';
-import type { Activity, History, Plan, PlanRequest, Transport } from '@/core/planner/types';
+import {
+  CUISINES,
+  type Activity,
+  type History,
+  type Plan,
+  type PlanRequest,
+  type Transport,
+} from '@/core/planner/types';
 import { summarizeWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import {
-  activity,
-  datePlan,
-  planItem,
-  settings,
-  suggestionLog,
-  tagWeight,
-  travelRoutine,
-} from '@/db/schema';
+import { activity, settings, suggestionLog, tagWeight, travelRoutine } from '@/db/schema';
 import { fromLocal } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
 import type { Place } from '@/ports/places';
@@ -29,7 +28,7 @@ const transport = z.enum(['deutschlandticket', 'car', 'walk', 'bike']);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^\d{2}:\d{2}$/);
 
-const placeSchema = z.object({
+export const placeSchema = z.object({
   provider: z.enum(['google', 'osm']),
   id: z.string().max(300),
   name: z.string().max(300),
@@ -59,6 +58,7 @@ export const planInputSchema = z
     preferences: z.array(z.string().max(30)).max(10),
     format: z.enum(['single', 'evening', 'day']).optional(),
     food: z.enum(['auto', 'none', 'snack', 'meal']).default('auto'),
+    cuisine: z.enum(CUISINES).nullable().optional(),
     area: z.string().trim().max(100).optional(),
     allowOverBudget: z.boolean().default(false),
     slots: z
@@ -67,7 +67,14 @@ export const planInputSchema = z
       .optional(),
     excludeActivityIds: z.array(z.string().max(100)).max(100).default([]),
     keep: z
-      .record(z.string(), z.object({ activityId: z.string(), place: placeSchema.nullable() }))
+      .record(
+        z.string(),
+        z.object({
+          activityId: z.string(),
+          place: placeSchema.nullable(),
+          alternatives: z.array(placeSchema).max(2).optional(),
+        }),
+      )
       .optional(),
   })
   .refine((v) => fromLocal(v.date, v.startTime) < fromLocal(v.endDate, v.endTime), {
@@ -165,7 +172,13 @@ export async function generatePlan(
   const keep: PlanRequest['keep'] = {};
   for (const [index, k] of Object.entries(input.keep ?? {})) {
     const kept = activities.find((a) => a.id === k.activityId);
-    if (kept) keep[Number(index)] = { activity: kept, place: k.place as Place | null };
+    if (kept) {
+      keep[Number(index)] = {
+        activity: kept,
+        place: k.place as Place | null,
+        alternatives: (k.alternatives ?? []) as Place[],
+      };
+    }
   }
 
   const places = getPlacesProvider();
@@ -178,6 +191,7 @@ export async function generatePlan(
       preferences: input.preferences,
       format: input.format,
       food: input.food,
+      cuisine: input.cuisine ?? null,
       area,
       allowOverBudget: input.allowOverBudget,
       slots: input.slots,
@@ -217,93 +231,4 @@ export async function generatePlan(
     await db.insert(suggestionLog).values(suggested.map((activityId) => ({ activityId })));
   }
   return { plan, input, area };
-}
-
-export const acceptSchema = z.object({
-  start: z.string().datetime(),
-  end: z.string().datetime(),
-  parameters: z.record(z.string(), z.unknown()),
-  weather: z.unknown(),
-  totalCostEur: z.number().int().min(0),
-  items: z
-    .array(
-      z.object({
-        activityId: z.string(),
-        title: z.string().max(200),
-        start: z.string().datetime(),
-        end: z.string().datetime(),
-        costEur: z.number().int().min(0),
-        place: placeSchema.nullable(),
-        travel: z.unknown(),
-      }),
-    )
-    .min(1)
-    .max(4),
-});
-
-export async function acceptPlan(raw: z.input<typeof acceptSchema>): Promise<string> {
-  const input = acceptSchema.parse(raw);
-  const db = getDb();
-  const known = new Set((await db.select({ id: activity.id }).from(activity)).map((r) => r.id));
-  return db.transaction(async (tx) => {
-    const [plan] = await tx
-      .insert(datePlan)
-      .values({
-        startsAt: new Date(input.start),
-        endsAt: new Date(input.end),
-        parameters: input.parameters,
-        weather: input.weather ?? null,
-        totalCostEur: input.totalCostEur,
-        status: 'accepted',
-      })
-      .returning({ id: datePlan.id });
-    if (!plan) throw new Error('Plan insert failed');
-    await tx.insert(planItem).values(
-      input.items.map((item, position) => ({
-        planId: plan.id,
-        position,
-        activityId: known.has(item.activityId) ? item.activityId : null,
-        startsAt: new Date(item.start),
-        endsAt: new Date(item.end),
-        title: item.title,
-        placeProvider: item.place?.provider ?? null,
-        placeId: item.place?.id ?? null,
-        placeName: item.place?.name ?? null,
-        costEur: item.costEur,
-        travel: item.travel ?? null,
-      })),
-    );
-    const accepted = input.items.filter((i) => known.has(i.activityId));
-    if (accepted.length > 0) {
-      await tx
-        .insert(suggestionLog)
-        .values(
-          accepted.map((i) => ({ activityId: i.activityId, planId: plan.id, accepted: true })),
-        );
-    }
-    return plan.id;
-  });
-}
-
-export async function listPlans(limit = 20) {
-  const db = getDb();
-  const plans = await db
-    .select()
-    .from(datePlan)
-    .where(eq(datePlan.status, 'accepted'))
-    .orderBy(desc(datePlan.startsAt))
-    .limit(limit);
-  const items = plans.length
-    ? await db
-        .select()
-        .from(planItem)
-        .where(
-          inArray(
-            planItem.planId,
-            plans.map((p) => p.id),
-          ),
-        )
-        .orderBy(planItem.position)
-    : [];
-  return plans.map((p) => ({ ...p, items: items.filter((i) => i.planId === p.id) }));
 }

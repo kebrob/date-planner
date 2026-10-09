@@ -59,12 +59,17 @@ function weatherLine(w: PlanView['weather']) {
 type Props = {
   plan: PlanView;
   pending: boolean;
-  onRerollAll: () => void;
-  onRerollItem: (index: number) => void;
-  onAccept: () => void;
+  onRerollItem?: (index: number) => void;
+  onRemoveItem?: (index: number) => void;
+  onSwap?: (index: number, placeId: string) => void;
+  /** Action buttons below the plan. */
+  children?: React.ReactNode;
 };
 
-export function PlanResult({ plan, pending, onRerollAll, onRerollItem, onAccept }: Props) {
+const smallButton =
+  'rounded-full border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700';
+
+export function PlanResult({ plan, pending, onRerollItem, onRemoveItem, onSwap, children }: Props) {
   const first = plan.items[0];
   const weather = weatherLine(plan.weather);
 
@@ -100,11 +105,36 @@ export function PlanResult({ plan, pending, onRerollAll, onRerollItem, onAccept 
                   {TIME.format(new Date(item.start))} – {TIME.format(new Date(item.end))}
                 </p>
                 <h3 className="font-medium">{item.title}</h3>
-                {item.place && (
+                {item.place ? (
                   <p className="text-sm text-stone-600 dark:text-stone-400">
                     {item.place.name}
                     {item.place.rating ? ` · ★ ${item.place.rating}` : ''}
                     {item.openingHoursUnknown ? ' · hours unknown' : ''}
+                  </p>
+                ) : (
+                  item.placeName && (
+                    <p className="text-sm text-stone-600 dark:text-stone-400">{item.placeName}</p>
+                  )
+                )}
+                {item.alternatives.length > 0 && (
+                  <p className="flex flex-wrap items-center gap-1 text-xs text-stone-500">
+                    or:
+                    {item.alternatives.map((alt) =>
+                      onSwap ? (
+                        <button
+                          key={alt.id}
+                          type="button"
+                          disabled={pending}
+                          onClick={() => onSwap(index, alt.id)}
+                          className={smallButton}
+                        >
+                          {alt.name}
+                          {alt.rating ? ` ★ ${alt.rating}` : ''}
+                        </button>
+                      ) : (
+                        <span key={alt.id}>{alt.name}</span>
+                      ),
+                    )}
                   </p>
                 )}
                 {item.atHome && (
@@ -128,15 +158,30 @@ export function PlanResult({ plan, pending, onRerollAll, onRerollItem, onAccept 
               </div>
               <div className="flex flex-col items-end gap-2">
                 <span className="text-sm">~{item.costEur} €</span>
-                <button
-                  type="button"
-                  onClick={() => onRerollItem(index)}
-                  disabled={pending}
-                  className="rounded-full border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700"
-                  aria-label={`Re-roll ${item.title}`}
-                >
-                  🎲
-                </button>
+                <div className="flex gap-1">
+                  {onRerollItem && (
+                    <button
+                      type="button"
+                      onClick={() => onRerollItem(index)}
+                      disabled={pending}
+                      className={smallButton}
+                      aria-label={`Re-roll ${item.title}`}
+                    >
+                      🎲
+                    </button>
+                  )}
+                  {onRemoveItem && plan.items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveItem(index)}
+                      disabled={pending}
+                      className={smallButton}
+                      aria-label={`Remove ${item.title}`}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </li>
@@ -153,24 +198,7 @@ export function PlanResult({ plan, pending, onRerollAll, onRerollItem, onAccept 
         </ul>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onRerollAll}
-          disabled={pending}
-          className="rounded-xl border border-stone-300 px-4 py-3 disabled:opacity-50 dark:border-stone-700"
-        >
-          Something else
-        </button>
-        <button
-          type="button"
-          onClick={onAccept}
-          disabled={pending}
-          className="rounded-xl bg-stone-900 px-4 py-3 text-white disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900"
-        >
-          Let&apos;s do it
-        </button>
-      </div>
+      {children}
     </section>
   );
 }
