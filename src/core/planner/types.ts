@@ -88,6 +88,10 @@ export type PlanRequest = {
   allowOverBudget?: boolean;
   /** Slot layout of a previous plan; used when re-rolling a single item so `keep` indices match. */
   slots?: Slot[];
+  /** Max straight-line distance from home for the first stop; null/undefined = derived from time. */
+  maxDistanceKm?: number | null;
+  /** Ad-hoc ideas that must be part of the plan (e.g. "shopping" requested in the chat). */
+  required?: Activity[];
   /** Activities rejected during this planning session. */
   excludeActivityIds: string[];
   /** Items kept from a previous plan when re-rolling a single item, keyed by item index. */
@@ -131,7 +135,9 @@ export type PlanWarning =
   | 'place_lookup_limit_reached'
   | 'fallback_used'
   | 'food_skipped'
-  | 'over_budget';
+  | 'over_budget'
+  | 'required_skipped'
+  | 'places_daily_limit';
 
 export type Plan = {
   format: PlanFormat;

@@ -24,6 +24,8 @@ export type PlanView = {
     place: Place | null;
     /** Kept when full place data was removed after the date (archived plans). */
     placeName: string | null;
+    /** Where an idea without a venue happens, e.g. "Near home" for a walk. */
+    locationHint: string | null;
     alternatives: Place[];
     travelBefore: Leg | null;
     start: string;
@@ -96,6 +98,12 @@ export function toPlanView(
       atHome: item.activity.atHome,
       place: item.place,
       placeName: item.place?.name ?? null,
+      locationHint:
+        item.activity.atHome || item.place
+          ? null
+          : here === homePoint
+            ? 'Near home'
+            : `Near ${here.name.split(',')[0]}`,
       alternatives: item.alternatives,
       travelBefore: leg(item.travelBefore, previous, here),
       start: item.start.toISOString(),

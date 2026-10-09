@@ -6,6 +6,7 @@ import type { PlaceSearch, PlacesProvider } from '@/ports/places';
 import { OpenMeteoGeocoder } from './geocoding/open-meteo';
 import {
   CachedPlacesProvider,
+  CircuitBreakerPlacesProvider,
   FallbackPlacesProvider,
   RoutingPlacesProvider,
 } from './places/composite';
@@ -96,7 +97,24 @@ describe('GooglePlacesProvider', () => {
     const headers = init.headers as Record<string, string>;
     expect(headers['X-Goog-Api-Key']).toBe('test-key');
     expect(headers['X-Goog-FieldMask']).toContain('places.regularOpeningHours');
-    expect(JSON.parse(init.body as string).locationBias.circle.radius).toBe(25_000);
+    const box = JSON.parse(init.body as string).locationRestriction.rectangle;
+    expect(box.low.latitude).toBeCloseTo(47.86 - 25 / 111, 5);
+    expect(box.high.latitude).toBeCloseTo(47.86 + 25 / 111, 5);
+    expect(box.high.longitude - box.low.longitude).toBeGreaterThan(
+      box.high.latitude - box.low.latitude,
+    );
+  });
+
+  it('adds a strict Google type where one exists and leaves others to the text query', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => json({ places: [] }));
+    const guard = new CostGuard({ store: new MemoryUsageStore(), limits });
+    const provider = new GooglePlacesProvider('k', guard, fetchFn);
+    await provider.search({ ...search, placeType: 'park', query: 'Park' });
+    await provider.search({ ...search, placeType: 'escape_room', query: 'Escape Room' });
+    const body = (i: number) =>
+      JSON.parse((fetchFn.mock.calls[i]![1] as RequestInit).body as string);
+    expect(body(0)).toMatchObject({ includedType: 'park', strictTypeFiltering: true });
+    expect(body(1).includedType).toBeUndefined();
   });
 
   // Mandatory cost-protection test (docs/arc42/08)
@@ -175,10 +193,29 @@ describe('OsmPlacesProvider', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('builds an around query with the radius in metres', () => {
+  it('builds an around query with the radius in metres, capped at 15 km', () => {
     expect(buildQuery(search)).toContain(
-      'nwr["leisure"="miniature_golf"]["name"](around:25000,47.86,12.13);',
+      'nwr["leisure"="miniature_golf"]["name"](around:15000,47.86,12.13);',
     );
+  });
+});
+
+describe('CircuitBreakerPlacesProvider', () => {
+  it('skips a failing provider for the cooldown, then tries again', async () => {
+    let now = 0;
+    const inner: PlacesProvider = {
+      search: vi
+        .fn<PlacesProvider['search']>()
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockResolvedValue([]),
+    };
+    const breaker = new CircuitBreakerPlacesProvider(inner, 600_000, () => now);
+    await expect(breaker.search(search)).rejects.toThrow('timeout');
+    await expect(breaker.search(search)).rejects.toThrow('skipped');
+    expect(inner.search).toHaveBeenCalledTimes(1);
+    now = 600_000;
+    await expect(breaker.search(search)).resolves.toEqual([]);
+    expect(inner.search).toHaveBeenCalledTimes(2);
   });
 });
 

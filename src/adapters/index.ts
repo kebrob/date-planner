@@ -6,6 +6,7 @@ import type { WeatherProvider } from '@/ports/weather';
 import { OpenMeteoGeocoder } from './geocoding/open-meteo';
 import {
   CachedPlacesProvider,
+  CircuitBreakerPlacesProvider,
   FallbackPlacesProvider,
   RoutingPlacesProvider,
 } from './places/composite';
@@ -19,15 +20,19 @@ let geocoder: GeocodingProvider | undefined;
 
 export function getPlacesProvider(): PlacesProvider {
   if (!places) {
-    const osm = new OsmPlacesProvider();
+    const osm = new CircuitBreakerPlacesProvider(new OsmPlacesProvider());
     const key = process.env.GOOGLE_PLACES_API_KEY;
     const useGoogle = getLimits().places.provider === 'google' && Boolean(key);
     places = new CachedPlacesProvider(
       useGoogle
-        ? new RoutingPlacesProvider(
-            new FallbackPlacesProvider(new GooglePlacesProvider(key!, getCostGuard()), osm),
-            osm,
-          )
+        ? (() => {
+            const google = new GooglePlacesProvider(key!, getCostGuard());
+            return new RoutingPlacesProvider(
+              new FallbackPlacesProvider(google, osm),
+              // Free ideas try OSM first; Google answers when Overpass is slow or rate-limited.
+              new FallbackPlacesProvider(osm, google),
+            );
+          })()
         : osm,
     );
   }

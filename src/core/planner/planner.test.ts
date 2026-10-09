@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fromLocal } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
-import { buildPlan, FALLBACK_ACTIVITY } from './build-plan';
+import { buildPlan, FALLBACK_ACTIVITY, firstStopRadiusKm } from './build-plan';
 import { estimateTravel } from './geo';
 import { isOpenDuring } from './opening-hours';
 import { seededRandom } from './random';
@@ -343,6 +343,40 @@ describe('budget and long days', () => {
     }
   });
 
+  it('plans a single long item rather than nothing when the reserve for later slots does not fit', async () => {
+    const spa = activity({
+      id: 'spa',
+      durationMinutes: 240,
+      placeType: 'thermal_bath',
+      placeQuery: 'Therme',
+    });
+    const plan = await buildPlan(
+      request({
+        slots: ['main', 'meal'],
+        start: fromLocal('2026-10-10', '18:00'),
+        end: fromLocal('2026-10-10', '22:30'),
+      }),
+      context({ activities: [spa, dinner] }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toContain('spa');
+    expect(plan.warnings).not.toContain('fallback_used');
+  });
+
+  it('reuses places found earlier in the same plan instead of spending new lookups', async () => {
+    const findPlaces = vi.fn(async (_a: Activity, center: LatLng) => [placeAt(center, 1, 'p')]);
+    const longDinner = activity({ ...dinner, id: 'long-dinner', durationMinutes: 150 });
+    await buildPlan(
+      request({
+        slots: ['meal', 'main'],
+        start: fromLocal('2026-10-10', '18:00'),
+        end: fromLocal('2026-10-10', '21:00'),
+      }),
+      context({ activities: [longDinner, cinema], findPlaces, maxPlaceLookups: 2 }),
+    );
+    // The meal is retried without reserves; that retry must not search again.
+    expect(findPlaces.mock.calls.filter(([a]) => a.id === 'long-dinner')).toHaveLength(1);
+  });
+
   it('fills a long day with free ideas instead of ending early', async () => {
     const req = request({
       food: 'none',
@@ -498,6 +532,104 @@ describe('food', () => {
       );
       expect(plan.items[0]!.activity.id).toBe('bavarian');
     }
+  });
+});
+
+describe('distance and required stops', () => {
+  it('derives the first-stop radius from the time window unless a distance is chosen', () => {
+    const ctx = context({ maxRadiusKm: 200 });
+    const short = request({
+      start: fromLocal('2026-10-10', '18:00'),
+      end: fromLocal('2026-10-10', '20:00'),
+    });
+    const long = request({
+      start: fromLocal('2026-10-10', '08:00'),
+      end: fromLocal('2026-10-10', '22:00'),
+    });
+    expect(firstStopRadiusKm(short, ctx)).toBe(20); // 30 min by car
+    expect(firstStopRadiusKm(long, ctx)).toBe(80); // capped at 120 min
+    expect(firstStopRadiusKm({ ...short, maxDistanceKm: 5 }, ctx)).toBe(5);
+    expect(firstStopRadiusKm({ ...short, transport: 'walk', maxDistanceKm: 50 }, ctx)).toBe(4);
+  });
+
+  it('respects a chosen maximum distance', async () => {
+    const plan = await buildPlan(
+      request({ format: 'single', food: 'none', maxDistanceKm: 5 }),
+      context({
+        activities: [cinema, boardGames],
+        findPlaces: async () => [place('cinema-8km', 8)],
+      }),
+    );
+    expect(plan.items[0]!.activity.id).toBe('board-games');
+  });
+
+  it('always plans requested stops first and adds slots for them', async () => {
+    const shopping = activity({
+      id: 'adhoc-shopping',
+      placeType: 'mall',
+      placeQuery: 'Shopping',
+      durationMinutes: 120,
+    });
+    for (let seed = 1; seed <= 10; seed++) {
+      const plan = await buildPlan(
+        request({ format: 'single', food: 'meal', required: [shopping] }),
+        context({ activities: [cinema, dinner, shopping], random: seededRandom(seed) }),
+      );
+      expect(plan.items.map((i) => i.activity.id)).toContain('adhoc-shopping');
+    }
+  });
+
+  it('warns when a requested stop cannot be planned', async () => {
+    const shopping = activity({ id: 'adhoc-shopping', placeType: 'mall', placeQuery: 'Shopping' });
+    const plan = await buildPlan(
+      request({ format: 'single', food: 'none', required: [shopping] }),
+      context({ activities: [boardGames, shopping], findPlaces: async () => [] }),
+    );
+    expect(plan.warnings).toContain('required_skipped');
+  });
+});
+
+describe('sun-dependent ideas', () => {
+  const sunset = activity({ id: 'sunset', tags: ['sunset'], durationMinutes: 90 });
+  const stars = activity({ id: 'stars', tags: ['after_dark'], durationMinutes: 60 });
+
+  it('schedules sunset ideas so that they include the actual sunset (~18:40 in October)', async () => {
+    const plan = await buildPlan(
+      request({
+        slots: ['main'],
+        start: fromLocal('2026-10-09', '17:30'),
+        end: fromLocal('2026-10-09', '22:00'),
+      }),
+      context({ activities: [sunset] }),
+    );
+    const item = plan.items[0]!;
+    expect(item.activity.id).toBe('sunset');
+    expect(item.start <= fromLocal('2026-10-09', '18:30')).toBe(true);
+    expect(item.end >= fromLocal('2026-10-09', '18:40')).toBe(true);
+  });
+
+  it('does not plan a sunset idea after the sun has set', async () => {
+    const plan = await buildPlan(
+      request({
+        slots: ['main'],
+        start: fromLocal('2026-10-09', '19:30'),
+        end: fromLocal('2026-10-09', '23:00'),
+      }),
+      context({ activities: [sunset, boardGames] }),
+    );
+    expect(plan.items[0]!.activity.id).toBe('board-games');
+  });
+
+  it('starts after-dark ideas well after sunset', async () => {
+    const plan = await buildPlan(
+      request({
+        slots: ['main'],
+        start: fromLocal('2026-10-09', '18:30'),
+        end: fromLocal('2026-10-09', '23:00'),
+      }),
+      context({ activities: [stars] }),
+    );
+    expect(plan.items[0]!.start >= fromLocal('2026-10-09', '19:20')).toBe(true);
   });
 });
 

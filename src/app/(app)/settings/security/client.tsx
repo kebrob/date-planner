@@ -41,7 +41,9 @@ export function AddPasskey() {
         required
         className="flex-1 rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700"
       />
-      <button className="rounded-lg bg-rose-600 px-3 py-2 text-sm text-white">Add passkey</button>
+      <button className="rounded-lg bg-rose-600 px-3 py-2 text-sm text-white hover:bg-rose-700">
+        Add passkey
+      </button>
       {message && <p className="text-sm text-stone-500">{message}</p>}
     </form>
   );

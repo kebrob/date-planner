@@ -66,3 +66,19 @@ export function estimateTravel(
     costEur: Math.round(km * m.eurPerKm),
   };
 }
+
+// Effective straight-line speed including waiting, parking and detours, for rough reach estimates.
+const REACH_KMH: Record<Transport, number> = {
+  walk: 3.5,
+  bike: 11,
+  car: 40,
+  deutschlandticket: 45,
+};
+
+/** How far away (straight line) a first stop may be when travelling there takes up to `minutes`. */
+export function reachKm(transport: Transport, minutes: number): number {
+  return Math.min(
+    MAX_KM[transport],
+    Math.max(2, Math.round((minutes / 60) * REACH_KMH[transport])),
+  );
+}

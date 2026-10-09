@@ -1,4 +1,4 @@
-import { eq, max, sql } from 'drizzle-orm';
+import { and, eq, max, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGeocoder, getPlacesProvider, getWeatherProvider } from '@/adapters';
 import { getLimits } from '@/config/limits';
@@ -13,7 +13,8 @@ import {
 } from '@/core/planner/types';
 import { summarizeWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import { activity, settings, suggestionLog, tagWeight, travelRoutine } from '@/db/schema';
+import { activity, apiUsage, settings, suggestionLog, tagWeight, travelRoutine } from '@/db/schema';
+import { dayKey } from '@/guard/periods';
 import { fromLocal } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
 import type { Place } from '@/ports/places';
@@ -60,6 +61,27 @@ export const planInputSchema = z
     food: z.enum(['auto', 'none', 'snack', 'meal']).default('auto'),
     cuisine: z.enum(CUISINES).nullable().optional(),
     area: z.string().trim().max(100).optional(),
+    /** Centre picked on the map; takes precedence over `area`. */
+    areaPoint: z
+      .object({
+        name: z.string().trim().min(1).max(100),
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+      })
+      .optional(),
+    maxDistanceKm: z.number().int().min(1).max(300).nullable().optional(),
+    requiredStops: z
+      .array(
+        z.object({
+          title: z.string().trim().min(2).max(80),
+          searchQuery: z.string().trim().max(80).nullable(),
+          kind: z.enum(['activity', 'meal', 'snack']),
+          durationMinutes: z.number().int().min(15).max(480),
+          costEur: z.number().int().min(0).max(1000),
+        }),
+      )
+      .max(3)
+      .optional(),
     slots: z
       .array(z.enum(['main', 'meal', 'snack']))
       .max(5)
@@ -139,7 +161,20 @@ export async function loadPlannerDefaults() {
     transport: row.defaultTransport as Transport,
     budgetEur: row.defaultBudgetEur,
     homeName: row.homeName,
+    // Rounded to ~1 km in settings; shown as map centre.
+    home: { lat: row.homeLat, lng: row.homeLng },
+    maxRadiusKm: row.maxRadiusKm,
   };
+}
+
+async function placesLimitReached(now: Date): Promise<boolean> {
+  const limits = getLimits();
+  if (limits.places.provider !== 'google' || !process.env.GOOGLE_PLACES_API_KEY) return false;
+  const [row] = await getDb()
+    .select({ n: sql<number>`count(*)` })
+    .from(apiUsage)
+    .where(and(eq(apiUsage.provider, 'google_places'), eq(apiUsage.day, dayKey(now))));
+  return Number(row?.n ?? 0) >= limits.places.dailyLimit;
 }
 
 export async function generatePlan(
@@ -160,9 +195,35 @@ export async function generatePlan(
   ]);
   if (!home) throw new Error('Settings missing – run npm run db:seed');
 
-  const activities = activityRows.map(toActivity);
+  const required = (input.requiredStops ?? []).map((stop, i): Activity => ({
+    id: `adhoc-${i}`,
+    title: stop.title,
+    description: '',
+    category: stop.kind === 'activity' ? 'activity' : 'food',
+    tags: stop.kind === 'activity' ? [] : ['food', stop.kind],
+    costMinEur: stop.costEur,
+    costMaxEur: stop.costEur,
+    durationMinutes: stop.durationMinutes,
+    weather: {},
+    transports: [],
+    atHome: false,
+    // Ad-hoc stops are searched by text (Google); there is no matching OSM category.
+    placeType: stop.searchQuery ? 'custom' : null,
+    placeQuery: stop.searchQuery,
+    timesOfDay: [],
+    seasons: [],
+    preparation: null,
+  }));
+  const activities = [...activityRows.map(toActivity), ...required];
   const homeLocation = { lat: home.homeLat, lng: home.homeLng };
-  const area = input.area ? await getGeocoder().find(input.area) : null;
+  const area = input.areaPoint
+    ? {
+        name: input.areaPoint.name,
+        location: { lat: input.areaPoint.lat, lng: input.areaPoint.lng },
+      }
+    : input.area
+      ? await getGeocoder().find(input.area)
+      : null;
   if (input.area && !area) throw new AreaNotFoundError(input.area);
   const weatherHours = await getWeatherProvider()
     .hourly(area?.location ?? homeLocation, start, end)
@@ -194,6 +255,8 @@ export async function generatePlan(
       area,
       // Always allowed; the planner still tries to stay within budget first.
       allowOverBudget: true,
+      maxDistanceKm: input.maxDistanceKm ?? null,
+      required,
       slots: input.slots,
       excludeActivityIds: input.excludeActivityIds,
       keep,
@@ -218,7 +281,7 @@ export async function generatePlan(
           center,
           radiusKm,
           maxResults: 10,
-          free: a.costMaxEur === 0,
+          free: a.costMaxEur === 0 && !a.id.startsWith('adhoc-'),
         }),
       random: Math.random,
     },
@@ -226,9 +289,11 @@ export async function generatePlan(
 
   const suggested = plan.items
     .map((i) => i.activity.id)
-    .filter((id) => activities.some((a) => a.id === id));
+    // Ad-hoc stops from the chat are not stored activities.
+    .filter((id) => activityRows.some((a) => a.id === id));
   if (suggested.length > 0) {
     await db.insert(suggestionLog).values(suggested.map((activityId) => ({ activityId })));
   }
+  if (await placesLimitReached(now)) plan.warnings.push('places_daily_limit');
   return { plan, input, area };
 }

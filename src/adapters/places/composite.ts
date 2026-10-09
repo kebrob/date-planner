@@ -16,6 +16,30 @@ export class FallbackPlacesProvider implements PlacesProvider {
   }
 }
 
+/**
+ * Skips an unreliable provider for a while after it failed once, so a slow or rate-limited
+ * service delays at most one search instead of every search of a plan.
+ */
+export class CircuitBreakerPlacesProvider implements PlacesProvider {
+  private openUntil = 0;
+
+  constructor(
+    private readonly inner: PlacesProvider,
+    private readonly cooldownMs = 10 * 60_000,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  async search(request: PlaceSearch): Promise<Place[]> {
+    if (this.now() < this.openUntil) throw new Error('Provider temporarily skipped');
+    try {
+      return await this.inner.search(request);
+    } catch (error) {
+      this.openUntil = this.now() + this.cooldownMs;
+      throw error;
+    }
+  }
+}
+
 /** Sends searches for free ideas to a free provider to save paid quota. */
 export class RoutingPlacesProvider implements PlacesProvider {
   constructor(

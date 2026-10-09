@@ -21,6 +21,9 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
   place_lookup_limit_reached: 'Place search limit reached; some ideas were skipped.',
   fallback_used: 'Nothing else fit — here is a cozy fallback.',
   over_budget: 'Slightly over budget so the day does not end early.',
+  required_skipped: 'Some requested stops did not fit in time, budget or nearby places.',
+  places_daily_limit:
+    'Daily Google place search limit reached – fewer venues available until tomorrow.',
   food_skipped: 'Food did not fit the budget or time — raise the budget or re-roll.',
 };
 
@@ -67,7 +70,7 @@ type Props = {
 };
 
 const smallButton =
-  'rounded-full border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700';
+  'rounded-full border border-stone-300 px-2 py-1 text-xs disabled:opacity-50 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800';
 
 export function PlanResult({ plan, pending, onRerollItem, onRemoveItem, onSwap, children }: Props) {
   const first = plan.items[0];
@@ -135,6 +138,11 @@ export function PlanResult({ plan, pending, onRerollItem, onRemoveItem, onSwap, 
                         <span key={alt.id}>{alt.name}</span>
                       ),
                     )}
+                  </p>
+                )}
+                {item.locationHint && (
+                  <p className="text-sm text-stone-600 dark:text-stone-400">
+                    {item.locationHint} · no fixed place
                   </p>
                 )}
                 {item.atHome && (

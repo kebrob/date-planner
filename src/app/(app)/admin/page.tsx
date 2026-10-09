@@ -53,7 +53,7 @@ export default async function AdminPage() {
           </Link>
           <Link
             href="/admin/activities"
-            className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white"
+            className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white hover:bg-rose-700"
           >
             Manage activities
           </Link>

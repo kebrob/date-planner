@@ -17,7 +17,7 @@ export function PlanCard({ plan }: { plan: PlanSummary }) {
   return (
     <Link
       href={`/plans/${plan.id}`}
-      className="flex flex-col gap-1 rounded-2xl bg-white p-4 shadow-sm dark:bg-stone-900"
+      className="flex flex-col gap-1 rounded-2xl bg-white p-4 shadow-sm ring-rose-300 hover:shadow-md hover:ring-1 dark:bg-stone-900 dark:ring-rose-800"
     >
       <span className="flex justify-between">
         <span className="font-medium">

@@ -47,7 +47,7 @@ export function ActivityRow({ activity: a }: { activity: Row }) {
   return (
     <li className="flex flex-col gap-2 p-3 text-sm">
       <div className="flex items-start justify-between gap-2">
-        <Link href={`/admin/activities/${a.id}`} className="flex flex-col">
+        <Link href={`/admin/activities/${a.id}`} className="flex flex-col hover:text-rose-600">
           <span className="font-medium">{a.title}</span>
           <span className="text-xs text-stone-500">
             {a.category} · {a.costMinEur}–{a.costMaxEur} € · {a.durationMinutes} min

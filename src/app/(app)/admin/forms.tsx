@@ -6,17 +6,18 @@ import { deleteRoutineAction, saveRoutineAction, saveSettingsAction } from './ac
 
 export const field =
   'rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700';
-export const primary = 'rounded-xl bg-rose-600 px-4 py-2 text-sm text-white disabled:opacity-50';
+export const primary =
+  'rounded-xl bg-rose-600 px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-rose-700';
 export const secondary =
-  'rounded-xl border border-stone-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-stone-700';
+  'rounded-xl border border-stone-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800';
 
 export const TRANSPORTS = [
   { value: 'deutschlandticket', label: 'Deutschlandticket' },
   { value: 'car', label: 'Car' },
-  { value: 'bike', label: 'Bike' },
   { value: 'walk', label: 'Walk' },
 ] as const;
-type Transport = (typeof TRANSPORTS)[number]['value'];
+// Stored values may still contain 'bike'; it is just no longer offered.
+type Transport = 'deutschlandticket' | 'car' | 'walk' | 'bike';
 
 export function useAction() {
   const router = useRouter();

@@ -2,7 +2,10 @@ import type { PlaceType } from '@/ports/place-types';
 import type { Place, PlaceSearch, PlacesProvider } from '@/ports/places';
 
 const ENDPOINT = 'https://overpass-api.de/api/interpreter';
-const TIMEOUT_MS = 20_000;
+// The public Overpass instance is often slow or rate-limited; fail fast and let a fallback answer.
+const TIMEOUT_MS = 4_000;
+// Large "around" areas make Overpass queries slow; free ideas are only searched nearby anyway.
+const MAX_RADIUS_KM = 15;
 
 // Provider-neutral place type → OSM tag filters (any filter may match).
 export const OSM_FILTERS: Record<PlaceType, string[]> = {
@@ -29,6 +32,7 @@ export const OSM_FILTERS: Record<PlaceType, string[]> = {
   trampoline: ['["leisure"="trampoline_park"]'],
   viewpoint: ['["tourism"="viewpoint"]'],
   park: ['["leisure"="park"]'],
+  riverside: ['["waterway"="river"]'],
   library: ['["amenity"="library"]'],
   bookshop: ['["shop"="books"]'],
   church: ['["amenity"="place_of_worship"]["religion"="christian"]["building"~"cathedral|church"]'],
@@ -49,10 +53,10 @@ type OsmElement = {
 export function buildQuery(request: PlaceSearch): string | null {
   const filters = OSM_FILTERS[request.placeType as PlaceType] as string[] | undefined;
   if (!filters) return null;
-  const radiusM = Math.round(request.radiusKm * 1000);
+  const radiusM = Math.round(Math.min(request.radiusKm, MAX_RADIUS_KM) * 1000);
   const around = `(around:${radiusM},${request.center.lat},${request.center.lng})`;
   const parts = filters.map((f) => `nwr${f}["name"]${around};`).join('');
-  return `[out:json][timeout:15];(${parts});out center tags ${request.maxResults};`;
+  return `[out:json][timeout:4];(${parts});out center tags ${request.maxResults};`;
 }
 
 export class OsmPlacesProvider implements PlacesProvider {

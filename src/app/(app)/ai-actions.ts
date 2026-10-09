@@ -5,7 +5,13 @@ import { ZodError } from 'zod';
 import { IdeasGenerationError } from '@/ai/ideas';
 import { TripPlanningError } from '@/ai/trip';
 import { requireSession } from '@/auth/session';
-import { ChatDisabledError, clearHistory, sendChatMessage, type ChatReply } from '@/chat/service';
+import {
+  ChatDisabledError,
+  clearHistory,
+  sendChatMessage,
+  undoLastTurn,
+  type ChatReply,
+} from '@/chat/service';
 import { GuardDeniedError } from '@/guard';
 import { AreaNotFoundError } from '@/planner/service';
 import { createTrip, deleteTrip, setTripFavorite, TripsDisabledError } from '@/trips/service';
@@ -45,6 +51,11 @@ export async function chatAction(message: string): Promise<Result<ChatReply>> {
   } catch (error) {
     return failure(error, 'Claude could not answer right now.');
   }
+}
+
+export async function undoLastChatTurnAction(): Promise<string | null> {
+  await requireSession();
+  return undoLastTurn();
 }
 
 export async function clearChatAction(): Promise<void> {

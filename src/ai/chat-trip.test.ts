@@ -72,6 +72,20 @@ describe('chat tools', () => {
   });
 });
 
+describe('tool errors', () => {
+  it('never forwards internal error details to the model', async () => {
+    const failing = chatTools({
+      ...handlers,
+      listPlans: async () => {
+        throw new Error('relation "date_plan" does not exist at db.internal:5432');
+      },
+    }).find((t) => t.definition.name === 'list_plans')!;
+    const error = await failing.execute({}).catch((e: Error) => e);
+    expect(String(error)).not.toContain('date_plan');
+    expect(String(error)).toContain('internal error');
+  });
+});
+
 describe('runChat', () => {
   const deps = (createMessage: CreateMessage) => ({
     createMessage,

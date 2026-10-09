@@ -280,6 +280,7 @@ export function rowsToView(plan: PlanRow, items: ItemRow[], now: Date): SavedPla
       atHome: i.atHome,
       place: isFullPlace(i.place) ? i.place : null,
       placeName: i.placeName,
+      locationHint: null,
       alternatives: (i.alternatives as Place[]) ?? [],
       travelBefore: (i.travel as Leg | null) ?? null,
       start: i.startsAt.toISOString(),

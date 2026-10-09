@@ -1,12 +1,21 @@
 import { requireSession } from '@/auth/session';
+import { loadHistory } from '@/chat/service';
+import { getLimits } from '@/config/limits';
 import { listUpcoming } from '@/planner/saved';
 import { loadPlannerDefaults } from '@/planner/service';
 import { PlanCard } from './plan-card';
-import { Planner } from './planner';
+import { PlanWorkspace } from './workspace';
+
+// Claude tool loops can take a while; applies to the server actions used on this page.
+export const maxDuration = 120;
 
 export default async function HomePage() {
   await requireSession();
-  const [defaults, upcoming] = await Promise.all([loadPlannerDefaults(), listUpcoming()]);
+  const [defaults, upcoming, chatHistory] = await Promise.all([
+    loadPlannerDefaults(),
+    listUpcoming(),
+    loadHistory(),
+  ]);
   return (
     <div className="flex flex-col gap-6">
       {upcoming.length > 0 && (
@@ -17,7 +26,17 @@ export default async function HomePage() {
           ))}
         </section>
       )}
-      <Planner defaults={{ transport: defaults.transport, budgetEur: defaults.budgetEur }} />
+      <PlanWorkspace
+        defaults={{
+          transport: defaults.transport,
+          budgetEur: defaults.budgetEur,
+          homeName: defaults.homeName,
+          home: defaults.home,
+          maxRadiusKm: defaults.maxRadiusKm,
+        }}
+        chatHistory={chatHistory}
+        aiEnabled={getLimits().ai.enabled}
+      />
     </div>
   );
 }

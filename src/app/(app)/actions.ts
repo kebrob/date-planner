@@ -2,6 +2,7 @@
 
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { getGeocoder } from '@/adapters';
 import { requireSession } from '@/auth/session';
 import { getDb } from '@/db/client';
 import { passkey, settings } from '@/db/schema';
@@ -111,6 +112,18 @@ export async function deletePlanAction(id: string): Promise<Result<null>> {
   } catch (error) {
     return failure(error, 'Could not delete the plan.');
   }
+}
+
+export async function findTownAction(
+  name: string,
+): Promise<{ name: string; lat: number; lng: number } | null> {
+  await requireSession();
+  const query = name.trim().slice(0, 100);
+  if (query.length < 2) return null;
+  const area = await getGeocoder()
+    .find(query)
+    .catch(() => null);
+  return area ? { name: area.name, lat: area.location.lat, lng: area.location.lng } : null;
 }
 
 export async function deletePasskeyAction(id: string): Promise<void> {

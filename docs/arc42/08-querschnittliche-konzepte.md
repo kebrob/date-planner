@@ -60,7 +60,10 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - Jeder externe Dienst hat ein Interface in `ports/` mit eigenen, anbieterneutralen Typen.
 - Adapter übersetzen Anbieter-Datenformate in diese Typen; nichts außerhalb eines Adapters kennt Anbieter-Formate.
 - Auswahl per Environment-Variable (z. B. `PLACES_PROVIDER=google|osm`) in einer zentralen Factory.
-- Kostenlose Ideen (Park, Bücherei, Kirche …) werden immer über OpenStreetMap gesucht, um Google-Kontingent zu sparen.
+- OpenStreetMap-Kacheln werden mit `Referrer-Policy: strict-origin-when-cross-origin` geladen (OSM verlangt einen Referer); app-weit gilt `same-origin`.
+- Für Ortstypen mit Google-Entsprechung (Park, Kino, Minigolf, Bowling, Restaurant …) sucht Google zusätzlich per `includedType` + `strictTypeFiltering` – sonst liefert z. B. „Park“ auch Skateparks. Ohne Entsprechung (Escape Room, Bouldern, Therme) entscheidet die Textsuche.
+- Google-Textsuche ist per `locationRestriction` (Rechteck um den Suchkreis) auf das Suchgebiet beschränkt, sonst liefert Google bekannte Orte weit außerhalb.
+- Kostenlose Ideen (Park, Bücherei, Kirche …) werden zuerst über OpenStreetMap gesucht, um Google-Kontingent zu sparen. Die öffentliche Overpass-API ist oft langsam (gemessen bis 18 s) oder antwortet mit 429: Zeitlimit 4 s, Suchradius max. 15 km, nach einem Fehler wird OSM 10 min übersprungen (Schutzschalter) und Google antwortet direkt.
 - Für jeden Port gibt es eine gemeinsame Contract-Test-Suite, die alle Adapter erfüllen müssen.
 
 ## Planner-Logik
@@ -69,12 +72,14 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 2. **Score:** Basis + Übereinstimmung mit Vorlieben − Abwechslungs-Abzug (abklingend mit Tagen seit letzter Durchführung/Vorschlag); Phase 2 zusätzlich Bewertungs-Bonus und gelernte Tag-Gewichte.
 3. **Gewichteter Zufall** über die Scores (seedbar für Tests).
 4. **Planformat** aus Zeitfenster (< 3 h eine Aktivität, 3–6 h zwei Programmpunkte, > 6 h Tagesplan), manuell überschreibbar. **Essen** per Filter (Auto / kein Essen / Snack / Mahlzeit); bei „Auto“ zufällige Vorlage inkl. Reihenfolge, Mahlzeiten nur ab 40 € Budget. Passt gewünschtes Essen nicht, gibt es einen Hinweis.
-5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
+5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Mittelpunkt und Radius über eine Karte (Leaflet + OpenStreetMap-Kacheln, kostenlos) wählbar: Zuhause, gesuchte Stadt oder Klick auf die Karte; Radius frei per Regler (1–150 km); bei „Auto“ darf die Anreise etwa ein Viertel des Zeitfensters dauern (15–120 min), umgerechnet über ein grobes Durchschnittstempo je Verkehrsmittel. Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
 6. **Budget und Zeit einteilen:** Für noch geplante Punkte wird Budget (Mahlzeit ~25 €, Snack ~8 €) und Zeit (Programmpunkt ~75 min, Mahlzeit ~90 min, Snack ~40 min) zurückgehalten; günstigere Ideen werden relativ zum Restbudget bevorzugt.
 7. **Lange Tage auffüllen:** Bleiben vor der Heimfahrt ≥ 90 min frei, werden weitere Punkte ergänzt (max. 5 insgesamt), bevorzugt kostenlose (Bücherei, Park, Markt, Kirche …).
 8. **Kein Heimfahren zwischendurch:** Unterwegs sind Aktivitäten zu Hause nur als letzter geplanter Punkt erlaubt; danach darf zu Hause aufgefüllt werden.
 9. **Budget überziehen (immer aktiv):** Jeder Punkt wird zuerst im Budget gesucht; nur wenn sonst nichts passt, darf bis 50 % über Budget geplant werden. Der Mehrbetrag wird angezeigt.
-10. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
+10. **Rückfall ohne Rücklage:** Passt ein Punkt nur nicht, weil Zeit/Geld für spätere Punkte reserviert ist, wird er ohne Rücklage geplant (lieber ein Punkt als keiner). Gefundene Orte werden pro Planung zwischengespeichert, Wiederholungen kosten keine neuen Abfragen.
+11. **Sonnenstand:** Ideen mit Tag `sunset` müssen den Sonnenuntergang einschließen, `after_dark` beginnen ≥ 45 min danach; dafür darf bis 90 min gewartet werden. Sonnenuntergang wird lokal astronomisch berechnet (keine API, jedes Datum).
+12. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
 
 ## Essen
 
@@ -90,10 +95,16 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 
 ## Claude-Chat
 
+- Teil des Reiters „Plan“: oben Freitext an Claude, darunter aufklappbar „Plan with filters“ (ohne KI). Beide Wege liefern den Plan in denselben Ergebnisbereich (Neu würfeln, Alternativen, Speichern).
+
 - Tool-Loop (max. `AI_MAX_TOOL_ITERATIONS` Runden, max. `AI_MAX_WEB_SEARCHES_CHAT` Websuchen, 4.000 Output-Tokens, `effort: low`) mit eigenen Werkzeugen: `plan_date` (nutzt den Planner, Ergebnis als Karte mit „Speichern“), `get_weather`, `find_ideas`, `save_idea` (nur als Entwurf), `list_plans`.
 - Werkzeug-Eingaben sind strikt (JSON-Schema, alle Felder Pflicht) und werden vor Ausführung zusätzlich mit Zod geprüft.
 - Pro Nachricht werden nur die letzten 12 Nachrichten mitgeschickt (begrenzt Input-Tokens). Gespeichert wird nur Text; Plankarten enthalten Ortsdaten und werden nicht dauerhaft abgelegt.
-- Antworten als Klartext; Links werden nur als `https`-Links klickbar gemacht, kein HTML vom Modell.
+- Antworten als Klartext in der Sprache der letzten Nachricht; Links werden nur als `https`-Links klickbar gemacht, kein HTML vom Modell.
+- Claude übersetzt Wünsche in Stimmungen (cozy → chill, auch ein kurzer Spaziergang bis ~1 h; sporty → active …).
+- Fehlen Budget oder Verkehrsmittel, fragt Claude einmal kurz nach (mit Standardwerten als Vorschlag). Ausdrücklich gewünschte Stopps (z. B. Shopping) gehen als `must_include` an den Planner; sie werden zuerst eingeplant (eigene Slots, Warnung falls nicht möglich).
+- Interne Fehler (SQL, Hosts, Stacktraces) werden nie an Claude weitergegeben, sondern nur geloggt; Claude erhält eine allgemeine Meldung.
+- „Edit“ an der letzten eigenen Nachricht: entfernt Frage und Antwort aus dem Verlauf und legt den Text zum Nachbessern wieder ins Eingabefeld.
 
 ## Mehrtägige Ausflüge
 

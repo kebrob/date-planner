@@ -23,6 +23,7 @@ export const PLACE_TYPES = [
   'trampoline',
   'viewpoint',
   'park',
+  'riverside',
   'library',
   'bookshop',
   'church',

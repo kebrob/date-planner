@@ -21,7 +21,7 @@ export default async function ActivitiesPage() {
         <h1 className="text-xl font-semibold">Activities</h1>
         <Link
           href="/admin/activities/new"
-          className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white"
+          className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white hover:bg-rose-700"
         >
           New activity
         </Link>

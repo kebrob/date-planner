@@ -36,15 +36,6 @@ const ITEMS = [
     ),
   },
   {
-    href: '/chat',
-    label: 'Chat',
-    icon: (
-      <svg {...ICON_PROPS}>
-        <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
-      </svg>
-    ),
-  },
-  {
     href: '/trips',
     label: 'Trips',
     icon: (
@@ -79,7 +70,11 @@ export function TopNav() {
         <Link
           key={item.href}
           href={item.href}
-          className={isActive(item.href) ? 'text-rose-600' : 'text-stone-500'}
+          className={
+            isActive(item.href)
+              ? 'text-rose-600'
+              : 'text-stone-500 hover:text-stone-900 dark:hover:text-stone-100'
+          }
         >
           {item.label}
         </Link>

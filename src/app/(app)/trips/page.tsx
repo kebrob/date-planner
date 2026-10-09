@@ -28,7 +28,7 @@ export default async function TripsPage() {
             <Link
               key={t.id}
               href={`/trips/${t.id}`}
-              className="rounded-2xl bg-white p-4 text-sm shadow-sm dark:bg-stone-900"
+              className="rounded-2xl bg-white p-4 text-sm shadow-sm ring-rose-300 hover:shadow-md hover:ring-1 dark:bg-stone-900 dark:ring-rose-800"
             >
               <span className="font-medium">
                 {t.isFavorite ? '★ ' : ''}

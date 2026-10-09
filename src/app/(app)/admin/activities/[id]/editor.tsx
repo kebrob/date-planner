@@ -55,7 +55,7 @@ function Chips<T extends string>({
           className={`rounded-full border px-2 py-1 text-xs ${
             value.includes(o)
               ? 'border-rose-600 bg-rose-600 text-white'
-              : 'border-stone-300 dark:border-stone-700'
+              : 'border-stone-300 hover:border-rose-400 dark:border-stone-700'
           }`}
         >
           {o}

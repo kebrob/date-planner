@@ -34,7 +34,7 @@ export function TripForm({ enabled }: { enabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const chip = (active: boolean) =>
-    `rounded-full border px-3 py-1.5 text-sm ${active ? 'border-rose-600 bg-rose-600 text-white' : 'border-stone-300 dark:border-stone-700'}`;
+    `rounded-full border px-3 py-1.5 text-sm ${active ? 'border-rose-600 bg-rose-600 text-white' : 'border-stone-300 hover:border-rose-400 dark:border-stone-700'}`;
 
   return (
     <form
@@ -135,7 +135,7 @@ export function TripForm({ enabled }: { enabled: boolean }) {
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
-        className="rounded-xl bg-rose-600 px-4 py-3 font-medium text-white disabled:opacity-50"
+        className="rounded-xl bg-rose-600 px-4 py-3 font-medium text-white disabled:opacity-50 hover:bg-rose-700"
         disabled={pending || !enabled}
       >
         {pending

@@ -6,6 +6,7 @@ import type {
   PlaceSearch,
   PlacesProvider,
 } from '@/ports/places';
+import type { PlaceType } from '@/ports/place-types';
 
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchText';
 const DETAILS_ENDPOINT = 'https://places.googleapis.com/v1/places/';
@@ -19,7 +20,6 @@ const FIELD_MASK = [
   'places.rating',
   'places.regularOpeningHours',
 ].join(',');
-const MAX_BIAS_RADIUS_M = 50_000;
 const TIMEOUT_MS = 10_000;
 const WEEK = 7 * 24 * 60;
 
@@ -49,6 +49,46 @@ export function parseOpeningHours(raw: GooglePlace['regularOpeningHours']): Open
       return { start, end: end <= start ? end + WEEK : end };
     });
   return parsed.length > 0 ? { alwaysOpen: false, periods: parsed } : null;
+}
+
+// Neutral place type → Google "Table A" type. Without a match the text query alone decides
+// (e.g. escape rooms, climbing gyms, thermal baths have no fitting Google type).
+const GOOGLE_TYPES: Partial<Record<PlaceType, string>> = {
+  miniature_golf: 'miniature_golf_course',
+  cinema: 'movie_theater',
+  bowling: 'bowling_alley',
+  museum: 'museum',
+  gallery: 'art_gallery',
+  theatre: 'performing_arts_theater',
+  restaurant: 'restaurant',
+  cafe: 'cafe',
+  ice_cream: 'ice_cream_shop',
+  bar: 'bar',
+  beer_garden: 'beer_garden',
+  swimming: 'swimming_pool',
+  zoo: 'zoo',
+  theme_park: 'amusement_park',
+  ice_rink: 'ice_skating_rink',
+  karting: 'go_karting_venue',
+  park: 'park',
+  library: 'library',
+  bookshop: 'book_store',
+  church: 'church',
+  marketplace: 'market',
+  mall: 'shopping_mall',
+};
+
+export function googleTypeFor(placeType: string): string | undefined {
+  return GOOGLE_TYPES[placeType as PlaceType];
+}
+
+export function boundingBox(center: { lat: number; lng: number }, radiusKm: number) {
+  const dLat = radiusKm / 111;
+  const dLng = radiusKm / (111 * Math.cos((center.lat * Math.PI) / 180));
+  return {
+    low: { latitude: center.lat - dLat, longitude: center.lng - dLng },
+    high: { latitude: center.lat + dLat, longitude: center.lng + dLng },
+  };
 }
 
 function toPlace(p: GooglePlace): Place | null {
@@ -86,12 +126,12 @@ export class GooglePlacesProvider implements PlacesProvider, PlaceDetailsProvide
           pageSize: Math.min(request.maxResults, 20),
           languageCode: 'de',
           regionCode: 'DE',
-          locationBias: {
-            circle: {
-              center: { latitude: request.center.lat, longitude: request.center.lng },
-              radius: Math.min(request.radiusKm * 1000, MAX_BIAS_RADIUS_M),
-            },
-          },
+          // Strict type filtering stops e.g. a skate park from answering a "Park" search.
+          ...(googleTypeFor(request.placeType)
+            ? { includedType: googleTypeFor(request.placeType), strictTypeFiltering: true }
+            : {}),
+          // A bias still returns famous places far outside the area; restrict to its bounding box.
+          locationRestriction: { rectangle: boundingBox(request.center, request.radiusKm) },
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });

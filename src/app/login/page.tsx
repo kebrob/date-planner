@@ -55,7 +55,7 @@ export default function LoginPage() {
       <button
         onClick={loginWithPasskey}
         disabled={busy}
-        className="rounded-xl bg-rose-600 px-4 py-3 font-medium text-white disabled:opacity-50"
+        className="rounded-xl bg-rose-600 px-4 py-3 font-medium text-white disabled:opacity-50 hover:bg-rose-700"
       >
         Sign in with passkey
       </button>
@@ -74,7 +74,7 @@ export default function LoginPage() {
           />
           <button
             disabled={busy}
-            className="rounded-lg border border-stone-300 px-3 py-2 dark:border-stone-700"
+            className="rounded-lg border border-stone-300 px-3 py-2 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800"
           >
             Sign in
           </button>

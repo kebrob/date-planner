@@ -1,9 +1,18 @@
+import { sunsetAt } from '@/lib/sun';
 import { addMinutes, minutesBetween } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
-import { distanceKm, estimateTravel, maxDistanceKm } from './geo';
+import { distanceKm, estimateTravel, maxDistanceKm, reachKm } from './geo';
 import { isOpenDuring } from './opening-hours';
 import { weightedShuffle } from './random';
-import { chooseSlots, estimatedCost, formatFor, isCandidate, needsPlace, score } from './rules';
+import {
+  chooseSlots,
+  estimatedCost,
+  foodKind,
+  formatFor,
+  isCandidate,
+  needsPlace,
+  score,
+} from './rules';
 import type {
   Activity,
   Plan,
@@ -26,8 +35,31 @@ const SLOT_RESERVE_EUR: Record<Slot, number> = { main: 0, meal: 25, snack: 8 };
 // Likewise time, including a short way between stops.
 const SLOT_RESERVE_MIN: Record<Slot, number> = { main: 75, meal: 90, snack: 40 };
 const STRETCH_FACTOR = 1.5;
-// First venue when starting from home, by plan size.
-const HOME_RADIUS_KM: Record<PlanFormat, number> = { single: 25, evening: 40, day: 120 };
+// Without an explicit distance, the trip to the first stop may take about a quarter of the window.
+const TRAVEL_SHARE_OF_WINDOW = 0.25;
+const MIN_TRAVEL_MINUTES = 15;
+const MAX_TRAVEL_MINUTES = 120;
+
+/** Default radius around home when no distance is chosen; derived from the time window. */
+export function autoRadiusKm(transport: Transport, windowMinutes: number, maxRadiusKm: number) {
+  const minutes = Math.min(
+    MAX_TRAVEL_MINUTES,
+    Math.max(MIN_TRAVEL_MINUTES, windowMinutes * TRAVEL_SHARE_OF_WINDOW),
+  );
+  return Math.min(maxRadiusKm, reachKm(transport, minutes));
+}
+
+export function firstStopRadiusKm(request: PlanRequest, ctx: PlanContext): number {
+  if (request.maxDistanceKm) {
+    return Math.min(request.maxDistanceKm, maxDistanceKm(request.transport));
+  }
+  return autoRadiusKm(
+    request.transport,
+    minutesBetween(request.start, request.end),
+    ctx.maxRadiusKm,
+  );
+}
+
 // Around an explicit destination.
 const AREA_RADIUS_KM: Record<Transport, number> = {
   walk: 2,
@@ -35,6 +67,11 @@ const AREA_RADIUS_KM: Record<Transport, number> = {
   deutschlandticket: 8,
   car: 15,
 };
+
+/** Default radius around a chosen destination. */
+export function autoAreaRadiusKm(transport: Transport): number {
+  return AREA_RADIUS_KM[transport];
+}
 // Max distance to the next stop when moving away from home/destination.
 const LEG_RADIUS_KM: Record<Transport, number> = {
   walk: 2,
@@ -72,6 +109,8 @@ type State = {
   spentEur: number;
   used: Set<string>;
   lookups: number;
+  /** Places found during this plan, so retries (e.g. without reserves) cost no new lookups. */
+  placeCache: Map<string, Place[]>;
   warnings: Set<PlanWarning>;
 };
 
@@ -117,21 +156,12 @@ const midpoint = (a: LatLng, b: LatLng): LatLng => ({
  * along the way towards the goal (the destination until reached, then home). Keeps plans on a
  * route instead of zigzagging.
  */
-function searchRegion(
-  state: State,
-  request: PlanRequest,
-  ctx: PlanContext,
-  format: PlanFormat,
-): Region {
+function searchRegion(state: State, request: PlanRequest, ctx: PlanContext): Region {
   const current = state.location;
   const area = request.area && !state.reachedArea ? request.area.location : null;
 
   if (state.atHomeLocation && !area) {
-    const radiusKm = Math.min(
-      ctx.maxRadiusKm,
-      HOME_RADIUS_KM[format],
-      maxDistanceKm(request.transport),
-    );
+    const radiusKm = firstStopRadiusKm(request, ctx);
     return {
       center: ctx.home,
       radiusKm,
@@ -142,7 +172,8 @@ function searchRegion(
 
   const goal = area ?? ctx.home;
   const near = LEG_RADIUS_KM[request.transport];
-  const areaRadius = AREA_RADIUS_KM[request.transport];
+  // A chosen distance is the radius around the destination; otherwise a default per transport.
+  const areaRadius = request.maxDistanceKm ?? AREA_RADIUS_KM[request.transport];
   const span = distanceKm(current, goal);
   const accepts = (p: LatLng) =>
     distanceKm(current, p) <= near ||
@@ -218,6 +249,32 @@ function makePass(
   };
 }
 
+// Longest acceptable gap before a sun-dependent idea (e.g. waiting for the sunset).
+const MAX_SUN_WAIT_MINUTES = 90;
+
+/**
+ * Start time for an item arriving at `arrival`. Ideas tagged "sunset" must include the sunset,
+ * "after_dark" ones start at least 45 min after it; both may wait a little for the right moment.
+ */
+function startFor(activity: Activity, arrival: Date, location: LatLng): Date | null {
+  const sunset = activity.tags.includes('sunset')
+    ? 'sunset'
+    : activity.tags.includes('after_dark')
+      ? 'after_dark'
+      : null;
+  if (!sunset) return arrival;
+  const sunsetTime = sunsetAt(arrival, location);
+  if (!sunsetTime) return null;
+  const earliest =
+    sunset === 'sunset'
+      ? addMinutes(sunsetTime, -(activity.durationMinutes - 15))
+      : addMinutes(sunsetTime, 45);
+  const start = earliest > arrival ? earliest : arrival;
+  if (minutesBetween(arrival, start) > MAX_SUN_WAIT_MINUTES) return null;
+  if (sunset === 'sunset' && start > addMinutes(sunsetTime, -15)) return null;
+  return start;
+}
+
 function schedule(
   slot: Slot,
   activity: Activity,
@@ -229,7 +286,8 @@ function schedule(
 ): PlanItem | null {
   const target = targetOf(activity, place, state, request, ctx);
   const travel = travelTo(target, state, request, ctx);
-  const start = addMinutes(state.cursor, travel?.minutes ?? 0);
+  const start = startFor(activity, addMinutes(state.cursor, travel?.minutes ?? 0), target);
+  if (!start) return null;
   const end = addMinutes(start, activity.durationMinutes);
   const back = travelHome(target, request, ctx);
   if (addMinutes(end, (back?.minutes ?? 0) + pass.reserveMinutes) > request.end) return null;
@@ -273,21 +331,28 @@ async function fillSlot(
         used: state.used,
         request,
         weather: ctx.weather,
-        placeLookupsLeft: state.lookups < ctx.maxPlaceLookups,
+        placeLookupsLeft:
+          state.lookups < ctx.maxPlaceLookups ||
+          [...state.placeCache.keys()].some((k) => k.startsWith(`${a.id}|`)),
       }),
   );
   // Cheaper ideas get a boost relative to what is left, fillers strongly prefer free ones.
   const affordability = (a: Activity) => 1 / (1 + estimatedCost(a) / Math.max(10, pass.limitEur));
-  const ordered = weightedShuffle(
-    candidates,
-    (a) =>
-      score(a, request.preferences, ctx.history, ctx.tagWeights) *
-      affordability(a) *
-      (pass.filler && a.costMaxEur === 0 ? 3 : 1),
-    ctx.random,
-  ).slice(0, MAX_CANDIDATES_PER_SLOT);
+  const required = new Set((request.required ?? []).map((a) => a.id));
+  const ordered = [
+    // Requested ideas always come first; the rest is weighted by score.
+    ...candidates.filter((a) => required.has(a.id)),
+    ...weightedShuffle(
+      candidates.filter((a) => !required.has(a.id)),
+      (a) =>
+        score(a, request.preferences, ctx.history, ctx.tagWeights) *
+        affordability(a) *
+        (pass.filler && a.costMaxEur === 0 ? 3 : 1),
+      ctx.random,
+    ),
+  ].slice(0, MAX_CANDIDATES_PER_SLOT);
 
-  const region = searchRegion(state, request, ctx, format);
+  const region = searchRegion(state, request, ctx);
   const limitedRange = maxDistanceKm(request.transport) !== Infinity;
 
   for (const activity of ordered) {
@@ -296,12 +361,17 @@ async function fillSlot(
       if (item) return item;
       continue;
     }
-    if (state.lookups >= ctx.maxPlaceLookups) {
-      state.warnings.add('place_lookup_limit_reached');
-      continue;
+    const cacheKey = `${activity.id}|${region.center.lat},${region.center.lng}|${region.radiusKm}`;
+    let places = state.placeCache.get(cacheKey);
+    if (!places) {
+      if (state.lookups >= ctx.maxPlaceLookups) {
+        state.warnings.add('place_lookup_limit_reached');
+        continue;
+      }
+      state.lookups++;
+      places = await ctx.findPlaces(activity, region.center, region.radiusKm).catch(() => []);
+      state.placeCache.set(cacheKey, places);
     }
-    state.lookups++;
-    const places = await ctx.findPlaces(activity, region.center, region.radiusKm).catch(() => []);
     const reachable = places.filter(
       (p) =>
         region.accepts(p.location) &&
@@ -318,6 +388,20 @@ async function fillSlot(
     }
   }
   return null;
+}
+
+/** Makes sure every requested idea has a slot of its kind (requested ones are placed first). */
+function withRequiredSlots(slots: Slot[], required: Activity[]): Slot[] {
+  const result = [...slots];
+  for (const kind of ['main', 'meal', 'snack'] as const) {
+    const needed = required.filter((a) => (foodKind(a) ?? 'main') === kind).length;
+    const have = result.filter((s) => s === kind).length;
+    for (let i = have; i < needed; i++) {
+      if (kind === 'main') result.unshift(kind);
+      else result.push(kind);
+    }
+  }
+  return result;
 }
 
 /** Tries within budget first, then – if allowed – up to the stretched budget. */
@@ -338,15 +422,21 @@ async function fillWithStretch(
     format,
     makePass(state, request, laterSlots, false, filler),
   );
-  if (normal || !request.allowOverBudget) return normal;
-  return fillSlot(
-    slot,
-    state,
-    request,
-    ctx,
-    format,
-    makePass(state, request, laterSlots, true, filler),
-  );
+  if (normal) return normal;
+  const stretch = request.allowOverBudget ?? false;
+  const stretched =
+    stretch &&
+    (await fillSlot(
+      slot,
+      state,
+      request,
+      ctx,
+      format,
+      makePass(state, request, laterSlots, true, filler),
+    ));
+  if (stretched || laterSlots.length === 0) return stretched || null;
+  // Nothing fits while keeping time and money for later slots: rather plan this one alone.
+  return fillSlot(slot, state, request, ctx, format, makePass(state, request, [], stretch, filler));
 }
 
 function freeMinutes(state: State, request: PlanRequest, ctx: PlanContext): number {
@@ -363,7 +453,8 @@ function apply(item: PlanItem, state: State, request: PlanRequest, ctx: PlanCont
   state.location = target;
   if (
     request.area &&
-    distanceKm(target, request.area.location) <= AREA_RADIUS_KM[request.transport]
+    distanceKm(target, request.area.location) <=
+      (request.maxDistanceKm ?? AREA_RADIUS_KM[request.transport])
   ) {
     state.reachedArea = true;
   }
@@ -385,14 +476,16 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
     spentEur: 0,
     used: new Set(),
     lookups: 0,
+    placeCache: new Map(),
     warnings: new Set(),
   };
   if (ctx.weather.reliability === 'none') state.warnings.add('forecast_unavailable');
   if (ctx.weather.reliability === 'low') state.warnings.add('forecast_unreliable');
 
-  const slots = (
+  const slots = withRequiredSlots(
     request.slots ??
-    chooseSlots(format, duration, request.food ?? 'auto', request.budgetEur, ctx.random)
+      chooseSlots(format, duration, request.food ?? 'auto', request.budgetEur, ctx.random),
+    request.required ?? [],
   ).slice(0, MAX_ITEMS);
   const items: PlanItem[] = [];
   for (const [index, slot] of slots.entries()) {
@@ -428,6 +521,9 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
     items.push(item);
     apply(item, state, request, ctx);
   }
+
+  const missing = (request.required ?? []).filter((a) => !state.used.has(a.id));
+  if (missing.length > 0) state.warnings.add('required_skipped');
 
   const food = request.food ?? 'auto';
   if ((food === 'meal' || food === 'snack') && !items.some((i) => i.slot === food)) {

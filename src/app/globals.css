@@ -7,3 +7,28 @@
 body {
   @apply bg-stone-50 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
 }
+
+@layer base {
+  /* Tailwind v4 resets buttons to the default cursor. */
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  summary,
+  select,
+  input[type='checkbox'],
+  input[type='range'] {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  a,
+  button {
+    transition:
+      background-color 150ms,
+      color 150ms,
+      border-color 150ms,
+      box-shadow 150ms;
+  }
+}

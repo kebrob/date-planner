@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGeocoder, getWeatherProvider } from '@/adapters';
 import { getSettings } from '@/admin/service';
@@ -9,6 +9,7 @@ import {
   type ChatToolHandlers,
   type ChatTurn,
   MAX_HISTORY_TURNS,
+  ToolUserError,
 } from '@/ai/chat';
 import { getAnthropic, MODEL } from '@/ai/client';
 import { toActivityInsert, withoutDuplicates } from '@/ai/ideas';
@@ -19,7 +20,7 @@ import { activity, chatMessage } from '@/db/schema';
 import { getCostGuard } from '@/guard';
 import { fromLocal, localParts, toLocalDate, toLocalTime } from '@/lib/time';
 import { listUpcoming } from '@/planner/saved';
-import { generatePlan, type PlanInput } from '@/planner/service';
+import { AreaNotFoundError, generatePlan, type PlanInput } from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
 
 export type ChatPlan = { input: PlanInput; view: PlanView };
@@ -61,9 +62,24 @@ function handlers(collected: ChatPlan[]): ChatToolHandlers {
         food: i.food ?? 'auto',
         cuisine: i.cuisine,
         area: i.area ?? undefined,
+        maxDistanceKm: i.max_distance_km,
+        requiredStops: i.must_include.map((m) => ({
+          title: m.title,
+          searchQuery: m.search_query,
+          kind: m.kind,
+          durationMinutes: m.duration_minutes,
+          costEur: m.cost_eur,
+        })),
         excludeActivityIds: [],
       };
-      const { plan, area } = await generatePlan(input);
+      const { plan, area } = await generatePlan(input).catch((error: unknown) => {
+        if (error instanceof AreaNotFoundError) {
+          throw new ToolUserError(
+            `Town "${error.query}" not found; ask the user for another name.`,
+          );
+        }
+        throw error;
+      });
       const view = toPlanView(plan, { lat: home.homeLat, lng: home.homeLng }, area);
       collected.push({ input, view });
       return planSummary(view, collected.length);
@@ -155,6 +171,20 @@ export async function loadHistory(): Promise<ChatTurn[]> {
     .map((r) => ({ role: r.role as ChatTurn['role'], text: (r.content as { text: string }).text }));
 }
 
+/** Removes the latest user message and everything after it, so it can be edited and resent. */
+export async function undoLastTurn(): Promise<string | null> {
+  const db = getDb();
+  const [lastUser] = await db
+    .select()
+    .from(chatMessage)
+    .where(eq(chatMessage.role, 'user'))
+    .orderBy(desc(chatMessage.createdAt))
+    .limit(1);
+  if (!lastUser) return null;
+  await db.delete(chatMessage).where(gte(chatMessage.createdAt, lastUser.createdAt));
+  return (lastUser.content as { text: string }).text;
+}
+
 export async function clearHistory(): Promise<void> {
   await getDb().delete(chatMessage);
 }
@@ -176,6 +206,8 @@ export async function sendChatMessage(raw: string): Promise<ChatReply> {
     tools: chatTools(handlers(plans)),
     system: systemPrompt({
       homeName: home.homeName,
+      defaultBudgetEur: home.defaultBudgetEur,
+      defaultTransport: home.defaultTransport,
       today: toLocalDate(now),
       weekday: WEEKDAYS[localParts(now).weekday]!,
     }),

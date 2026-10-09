@@ -13,7 +13,7 @@ import { PlanResult } from '../../plan-result';
 
 const field = 'rounded-lg border border-stone-300 bg-transparent px-3 py-2 dark:border-stone-700';
 const button =
-  'rounded-xl border border-stone-300 px-4 py-2 text-sm disabled:opacity-50 dark:border-stone-700';
+  'rounded-xl border border-stone-300 px-4 py-2 text-sm disabled:opacity-50 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800';
 
 function WindowFields({ value, onChange }: { value: Window; onChange: (w: Window) => void }) {
   return (
@@ -146,7 +146,7 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
           <button
             type="button"
             disabled={pending}
-            className="rounded-xl bg-rose-600 px-4 py-3 text-white disabled:opacity-50"
+            className="rounded-xl bg-rose-600 px-4 py-3 text-white disabled:opacity-50 hover:bg-rose-700"
             onClick={() =>
               panel === 'reschedule'
                 ? edit({ type: 'reschedule', window })
