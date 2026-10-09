@@ -6,8 +6,7 @@ import { MOOD_TAGS } from '@/core/planner/types';
 import type { TripInput } from '@/ai/trip';
 import { createTripAction } from '../ai-actions';
 
-const field =
-  'rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700';
+const field = 'rounded-lg border border-line bg-transparent px-3 py-2 text-sm';
 const TRANSPORTS: { value: TripInput['transport']; label: string }[] = [
   { value: 'deutschlandticket', label: 'Deutschlandticket' },
   { value: 'train', label: 'Any train' },
@@ -34,11 +33,11 @@ export function TripForm({ enabled }: { enabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const chip = (active: boolean) =>
-    `rounded-full border px-3 py-1.5 text-sm ${active ? 'border-rose-600 bg-rose-600 text-white' : 'border-stone-300 hover:border-rose-400 dark:border-stone-700'}`;
+    `rounded-full border px-3 py-1.5 text-sm ${active ? 'border-butter bg-butter text-ink' : 'border-line hover:border-butter-deep'}`;
 
   return (
     <form
-      className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-stone-900"
+      className="flex flex-col gap-4 rounded-3xl bg-white p-5 ring-1 ring-line"
       onSubmit={(e) => {
         e.preventDefault();
         setError(null);
@@ -135,7 +134,7 @@ export function TripForm({ enabled }: { enabled: boolean }) {
       />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
-        className="rounded-xl bg-rose-600 px-4 py-3 font-medium text-white disabled:opacity-50 hover:bg-rose-700"
+        className="rounded-full bg-ink px-5 py-3.5 font-medium text-white disabled:opacity-50 hover:bg-ink/85"
         disabled={pending || !enabled}
       >
         {pending
@@ -144,7 +143,7 @@ export function TripForm({ enabled }: { enabled: boolean }) {
             ? 'Plan our trip'
             : 'Claude is disabled'}
       </button>
-      <p className="text-xs text-stone-500">
+      <p className="text-xs text-mist">
         Uses Claude with web search: typically 10–40 cents per trip.
       </p>
     </form>

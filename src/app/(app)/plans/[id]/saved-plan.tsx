@@ -11,9 +11,8 @@ import {
 } from '../../actions';
 import { PlanResult } from '../../plan-result';
 
-const field = 'rounded-lg border border-stone-300 bg-transparent px-3 py-2 dark:border-stone-700';
-const button =
-  'rounded-xl border border-stone-300 px-4 py-2 text-sm disabled:opacity-50 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800';
+const field = 'rounded-lg border border-line bg-transparent px-3 py-2';
+const button = 'rounded-xl border border-line px-4 py-2 text-sm disabled:opacity-50 hover:bg-cream';
 
 function WindowFields({ value, onChange }: { value: Window; onChange: (w: Window) => void }) {
   return (
@@ -77,7 +76,7 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-stone-500">
+        <span className="text-sm text-mist">
           {plan.isPast ? 'Past date' : 'Upcoming'}
           {plan.area ? ` · ${plan.area}` : ''}
         </span>
@@ -133,12 +132,10 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
         )}
       </label>
 
-      {message && (
-        <p className="text-center text-sm text-stone-600 dark:text-stone-400">{message}</p>
-      )}
+      {message && <p className="text-center text-sm text-mist">{message}</p>}
 
       {panel !== 'none' && (
-        <div className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-stone-900">
+        <div className="flex flex-col gap-3 rounded-3xl bg-white p-5 ring-1 ring-line">
           <p className="text-sm font-medium">
             {panel === 'reschedule' ? 'Move this date to' : 'Plan this date again on'}
           </p>
@@ -146,7 +143,7 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
           <button
             type="button"
             disabled={pending}
-            className="rounded-xl bg-rose-600 px-4 py-3 text-white disabled:opacity-50 hover:bg-rose-700"
+            className="rounded-full bg-ink px-5 py-3.5 text-white disabled:opacity-50 hover:bg-ink/85"
             onClick={() =>
               panel === 'reschedule'
                 ? edit({ type: 'reschedule', window })

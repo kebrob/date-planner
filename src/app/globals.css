@@ -1,11 +1,31 @@
 @import 'tailwindcss';
 
+/* Light-only design: `dark:` utilities apply only under an explicit .dark class (never set). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI',
+    sans-serif;
+
+  --color-paper: #fbfbf8;
+  --color-ink: #1d1d1f;
+  --color-mist: #8e8e93;
+  --color-line: #ebe9e2;
+  --color-butter: #f6d77a;
+  --color-butter-deep: #e9bf45;
+  --color-cream: #fbf1d6;
+  --color-lilac: #c9c3f2;
+  --color-mint: #bfe8cf;
+  --color-blush: #f7c4b5;
+}
+
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 body {
-  @apply bg-stone-50 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
+  @apply bg-paper text-ink antialiased;
 }
 
 @layer base {
@@ -29,6 +49,21 @@ body {
       background-color 150ms,
       color 150ms,
       border-color 150ms,
-      box-shadow 150ms;
+      box-shadow 150ms,
+      transform 150ms;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition: none !important;
+      animation: none !important;
+    }
   }
 }

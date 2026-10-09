@@ -47,14 +47,14 @@ export function ActivityRow({ activity: a }: { activity: Row }) {
   return (
     <li className="flex flex-col gap-2 p-3 text-sm">
       <div className="flex items-start justify-between gap-2">
-        <Link href={`/admin/activities/${a.id}`} className="flex flex-col hover:text-rose-600">
+        <Link href={`/admin/activities/${a.id}`} className="flex flex-col hover:text-ink">
           <span className="font-medium">{a.title}</span>
-          <span className="text-xs text-stone-500">
+          <span className="text-xs text-mist">
             {a.category} · {a.costMinEur}–{a.costMaxEur} € · {a.durationMinutes} min
             {a.atHome ? ' · at home' : a.placeQuery ? ` · “${a.placeQuery}”` : ''}
             {SOURCE[a.source]}
           </span>
-          <span className="text-xs text-stone-400">{a.tags.join(', ')}</span>
+          <span className="text-xs text-mist">{a.tags.join(', ')}</span>
         </Link>
         <div className="flex shrink-0 flex-wrap justify-end gap-1">
           {a.status !== 'active' && status('active', a.status === 'draft' ? 'Approve' : 'Unblock')}
@@ -90,7 +90,7 @@ export function IdeasPanel({ aiEnabled }: { aiEnabled: boolean }) {
   const importer = useAction();
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-stone-900">
+    <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 ring-1 ring-line">
       <h2 className="font-medium">New ideas</h2>
       <div className="flex flex-col gap-2 text-sm">
         <input
@@ -126,7 +126,7 @@ export function IdeasPanel({ aiEnabled }: { aiEnabled: boolean }) {
           >
             {generate.pending ? 'Claude is thinking…' : 'Let Claude generate'}
           </button>
-          <span className="text-xs text-stone-500">
+          <span className="text-xs text-mist">
             {aiEnabled ? 'One API call, typically 2–5 cents.' : 'Claude API disabled.'}
           </span>
         </div>
@@ -134,7 +134,7 @@ export function IdeasPanel({ aiEnabled }: { aiEnabled: boolean }) {
       </div>
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-stone-600 dark:text-stone-400">
+        <summary className="cursor-pointer text-mist">
           Without API: copy prompt to the Claude app, paste the answer here
         </summary>
         <div className="mt-3 flex flex-col gap-2">

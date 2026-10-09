@@ -4,12 +4,11 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { deleteRoutineAction, saveRoutineAction, saveSettingsAction } from './actions';
 
-export const field =
-  'rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700';
+export const field = 'rounded-lg border border-line bg-transparent px-3 py-2 text-sm';
 export const primary =
-  'rounded-xl bg-rose-600 px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-rose-700';
+  'rounded-xl bg-ink px-4 py-2 text-sm text-white disabled:opacity-50 hover:bg-ink/85';
 export const secondary =
-  'rounded-xl border border-stone-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-stone-700 hover:bg-stone-100 dark:hover:bg-stone-800';
+  'rounded-xl border border-line px-3 py-2 text-sm disabled:opacity-50 hover:bg-cream';
 
 export const TRANSPORTS = [
   { value: 'deutschlandticket', label: 'Deutschlandticket' },
@@ -39,9 +38,7 @@ export function useAction() {
 
 export function Message({ message }: { message: { ok: boolean; text: string } | null }) {
   if (!message) return null;
-  return (
-    <p className={`text-sm ${message.ok ? 'text-stone-500' : 'text-red-600'}`}>{message.text}</p>
-  );
+  return <p className={`text-sm ${message.ok ? 'text-mist' : 'text-red-600'}`}>{message.text}</p>;
 }
 
 type Settings = {
@@ -119,7 +116,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         />
       </label>
       <div className="col-span-2 flex items-center justify-between gap-3">
-        <span className="text-xs text-stone-500">
+        <span className="text-xs text-mist">
           Only the town is stored (rounded to ~1 km), never an address.
         </span>
         <button className={primary} disabled={pending}>
@@ -157,7 +154,7 @@ function RoutineForm({ routine, onDone }: { routine: Routine | null; onDone: () 
   const { pending, message, run } = useAction();
   return (
     <form
-      className="grid grid-cols-2 gap-3 rounded-xl border border-stone-200 p-3 text-sm dark:border-stone-800"
+      className="grid grid-cols-2 gap-3 rounded-xl border border-line p-3 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
         run(

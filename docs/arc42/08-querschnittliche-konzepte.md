@@ -72,7 +72,7 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 2. **Score:** Basis + Übereinstimmung mit Vorlieben − Abwechslungs-Abzug (abklingend mit Tagen seit letzter Durchführung/Vorschlag); Phase 2 zusätzlich Bewertungs-Bonus und gelernte Tag-Gewichte.
 3. **Gewichteter Zufall** über die Scores (seedbar für Tests).
 4. **Planformat** aus Zeitfenster (< 3 h eine Aktivität, 3–6 h zwei Programmpunkte, > 6 h Tagesplan), manuell überschreibbar. **Essen** per Filter (Auto / kein Essen / Snack / Mahlzeit); bei „Auto“ zufällige Vorlage inkl. Reihenfolge, Mahlzeiten nur ab 40 € Budget. Passt gewünschtes Essen nicht, gibt es einen Hinweis.
-5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Mittelpunkt und Radius über eine Karte (Leaflet + OpenStreetMap-Kacheln, kostenlos) wählbar: Zuhause, gesuchte Stadt oder Klick auf die Karte; Radius frei per Regler (1–150 km); bei „Auto“ darf die Anreise etwa ein Viertel des Zeitfensters dauern (15–120 min), umgerechnet über ein grobes Durchschnittstempo je Verkehrsmittel. Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
+5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Mittelpunkt und Radius über eine Karte (Leaflet + OpenStreetMap-Kacheln, kostenlos) wählbar: Zuhause, gesuchte Stadt oder Klick auf die Karte; Radius frei per Regler (1–150 km); bei „Fit to time“ darf die Anreise etwa ein Viertel des Zeitfensters dauern (15–120 min), umgerechnet über ein grobes Durchschnittstempo je Verkehrsmittel. Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
 6. **Budget und Zeit einteilen:** Für noch geplante Punkte wird Budget (Mahlzeit ~25 €, Snack ~8 €) und Zeit (Programmpunkt ~75 min, Mahlzeit ~90 min, Snack ~40 min) zurückgehalten; günstigere Ideen werden relativ zum Restbudget bevorzugt.
 7. **Lange Tage auffüllen:** Bleiben vor der Heimfahrt ≥ 90 min frei, werden weitere Punkte ergänzt (max. 5 insgesamt), bevorzugt kostenlose (Bücherei, Park, Markt, Kirche …).
 8. **Kein Heimfahren zwischendurch:** Unterwegs sind Aktivitäten zu Hause nur als letzter geplanter Punkt erlaubt; danach darf zu Hause aufgefüllt werden.
@@ -120,6 +120,14 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - **Past:** Status ergibt sich aus dem Datum (kein Löschen; Verlauf dient Abwechslung und späteren Bewertungen). Löschen ist manuell möglich.
 - **Favoriten:** Stern pro Plan; **Plan again** übernimmt Punkte und Orte für ein neues Datum.
 - **Archivierung (Google-Nutzungsbedingungen):** Nach dem Datum werden bei Google-Orten nur Place-ID und Name behalten, Koordinaten/Adresse/Öffnungszeiten/Alternativen sowie alle Routen-Links (enthalten Koordinaten) entfernt. „Plan again“ lädt archivierte Google-Orte per Place Details neu (1 Abfrage pro Ort über den Budget-Wächter). OpenStreetMap-Daten bleiben vollständig erhalten.
+
+## Oberfläche
+
+- Heller, schlichter Stil (Apple-ähnlich): Farb-Tokens in `src/app/globals.css` (paper, ink, butter, cream …), kein Dark Mode.
+- Mobil: Tab-Leiste unten (Home, Our dates, Trips); Desktop: Navigation oben.
+- Startseite: Suchfeld = Frage an Claude (öffnet den Chat), Kacheln „Plan a date“ (Wizard) und „Surprise us tonight“ (Sofortplan), dazu anstehende Dates und Ideen für heute Abend.
+- Wizard `/new` in fünf Schritten (Wann, Wo, Wie, Stimmung, Essen); jeder Schritt überspringbar, danach der Plan.
+- Radius „Fit to time“ statt „Auto“, damit es nicht mit dem Verkehrsmittel Auto verwechselt wird.
 
 ## Tests
 

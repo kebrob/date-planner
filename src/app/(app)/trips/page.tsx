@@ -15,8 +15,8 @@ export default async function TripsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Trips</h1>
-        <p className="text-sm text-stone-500">
+        <h1 className="text-[28px] font-semibold tracking-tight">Trips</h1>
+        <p className="text-sm text-mist">
           Multi-day suggestions with stays, travel and links. Nothing is booked.
         </p>
       </div>
@@ -28,13 +28,13 @@ export default async function TripsPage() {
             <Link
               key={t.id}
               href={`/trips/${t.id}`}
-              className="rounded-2xl bg-white p-4 text-sm shadow-sm ring-rose-300 hover:shadow-md hover:ring-1 dark:bg-stone-900 dark:ring-rose-800"
+              className="rounded-3xl bg-white p-5 text-sm ring-1 ring-line hover:ring-butter-deep"
             >
               <span className="font-medium">
                 {t.isFavorite ? '★ ' : ''}
                 {t.title}
               </span>
-              <span className="block text-stone-500">
+              <span className="block text-mist">
                 {DAY.format(new Date(t.startDate))} – {DAY.format(new Date(t.endDate))}
               </span>
             </Link>

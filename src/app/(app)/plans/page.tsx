@@ -6,7 +6,7 @@ function Section({ title, plans, empty }: { title: string; plans: PlanSummary[];
   return (
     <section className="flex flex-col gap-3">
       <h2 className="font-medium">{title}</h2>
-      {plans.length === 0 && <p className="text-sm text-stone-500">{empty}</p>}
+      {plans.length === 0 && <p className="text-sm text-mist">{empty}</p>}
       {plans.map((p) => (
         <PlanCard key={p.id} plan={p} />
       ))}
@@ -19,7 +19,7 @@ export default async function PlansPage() {
   const { upcoming, favourites, past } = await listPlans();
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-xl font-semibold">Our dates</h1>
+      <h1 className="text-[28px] font-semibold tracking-tight">Our dates</h1>
       <Section title="Upcoming" plans={upcoming} empty="Nothing planned yet." />
       <Section title="Favourites" plans={favourites} empty="Star a plan to keep it here." />
       <Section title="Past dates" plans={past} empty="No past dates yet." />

@@ -18,8 +18,6 @@ type Props = {
   autoRadiusKm: number;
 };
 
-const field =
-  'rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700';
 const MAX_KM = 150;
 
 export function LocationPicker({
@@ -59,14 +57,15 @@ export function LocationPicker({
       }).addTo(m);
       const circle = L.circle([current.lat, current.lng], {
         radius: effectiveKm * 1000,
-        color: '#e11d48',
-        weight: 2,
-        fillOpacity: 0.08,
+        color: '#1d1d1f',
+        weight: 1.5,
+        fillColor: '#f6d77a',
+        fillOpacity: 0.35,
       }).addTo(m);
       const dot = L.circleMarker([current.lat, current.lng], {
         radius: 6,
-        color: '#e11d48',
-        fillColor: '#e11d48',
+        color: '#1d1d1f',
+        fillColor: '#1d1d1f',
         fillOpacity: 1,
       }).addTo(m);
       map.current = { map: m, circle, dot };
@@ -126,11 +125,25 @@ export function LocationPicker({
 
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <div className="flex gap-2">
+      <div className="flex items-center gap-3 rounded-full bg-white py-1.5 pr-1.5 pl-5 ring-1 ring-line focus-within:ring-2 focus-within:ring-ink">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="shrink-0 text-mist"
+          aria-hidden
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+        </svg>
         <input
-          className={`${field} flex-1`}
+          className="h-9 w-full bg-transparent text-[15px] outline-none placeholder:text-mist"
           value={query}
           maxLength={100}
+          enterKeyHint="search"
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -139,26 +152,39 @@ export function LocationPicker({
             }
           }}
           placeholder="Town, e.g. Augsburg – or tap the map"
+          aria-label="Search a town"
         />
-        <button
-          type="button"
-          onClick={() => void search()}
-          disabled={searching}
-          className="rounded-lg border border-stone-300 px-3 py-2 hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:hover:bg-stone-800"
-        >
-          {searching ? '…' : 'Find'}
-        </button>
+        {query.trim() && (
+          <button
+            type="button"
+            onClick={() => void search()}
+            disabled={searching}
+            aria-label="Find town"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-white hover:bg-ink/85 disabled:opacity-50"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </button>
+        )}
       </div>
       {notFound && <p className="text-xs text-red-600">Not found – try another spelling.</p>}
 
-      <div ref={container} className="z-0 h-56 overflow-hidden rounded-xl" />
+      <div ref={container} className="z-0 h-64 overflow-hidden rounded-3xl ring-1 ring-line" />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-mist">
         <span>
-          Around{' '}
-          <span className="font-medium text-stone-700 dark:text-stone-300">
-            {current.name.split(',')[0]}
-          </span>
+          Around <span className="font-medium text-ink">{current.name.split(',')[0]}</span>
           {center && (
             <button
               type="button"
@@ -166,13 +192,13 @@ export function LocationPicker({
                 onCenterChange(null);
                 setQuery('');
               }}
-              className="ml-2 underline hover:text-rose-600"
+              className="ml-2 underline hover:text-ink"
             >
               back to home
             </button>
           )}
         </span>
-        <span>{radiusKm === null ? `Auto · ~${autoRadiusKm} km` : `${radiusKm} km`}</span>
+        <span>{radiusKm === null ? `Fit to time · ~${autoRadiusKm} km` : `${radiusKm} km`}</span>
       </div>
 
       <div className="flex items-center gap-3">
@@ -181,11 +207,11 @@ export function LocationPicker({
           onClick={() => onRadiusChange(radiusKm === null ? autoRadiusKm : null)}
           className={`rounded-full border px-3 py-1.5 ${
             radiusKm === null
-              ? 'border-rose-600 bg-rose-600 text-white'
-              : 'border-stone-300 hover:border-rose-400 dark:border-stone-700'
+              ? 'border-butter bg-butter text-ink'
+              : 'border-line hover:border-butter-deep'
           }`}
         >
-          Auto
+          Fit to time
         </button>
         <input
           type="range"
@@ -193,7 +219,7 @@ export function LocationPicker({
           max={MAX_KM}
           value={Math.min(effectiveKm, MAX_KM)}
           onChange={(e) => onRadiusChange(Number(e.target.value))}
-          className="flex-1 accent-rose-600"
+          className="flex-1 accent-ink"
           aria-label="Search radius in km"
         />
       </div>

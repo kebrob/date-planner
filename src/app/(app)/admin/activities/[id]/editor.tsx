@@ -54,8 +54,8 @@ function Chips<T extends string>({
           onClick={() => onChange(toggle(value, o))}
           className={`rounded-full border px-2 py-1 text-xs ${
             value.includes(o)
-              ? 'border-rose-600 bg-rose-600 text-white'
-              : 'border-stone-300 hover:border-rose-400 dark:border-stone-700'
+              ? 'border-butter bg-butter text-ink'
+              : 'border-line hover:border-butter-deep'
           }`}
         >
           {o}
@@ -93,7 +93,9 @@ export function ActivityEditor({
         });
       }}
     >
-      <h1 className="text-xl font-semibold">{id ? 'Edit activity' : 'New activity'}</h1>
+      <h1 className="text-[28px] font-semibold tracking-tight">
+        {id ? 'Edit activity' : 'New activity'}
+      </h1>
 
       <label className={label}>
         Title
@@ -201,7 +203,7 @@ export function ActivityEditor({
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
-          className="accent-rose-600"
+          className="accent-ink"
           checked={form.atHome}
           onChange={(e) => set('atHome', e.target.checked)}
         />
@@ -253,7 +255,7 @@ export function ActivityEditor({
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            className="accent-rose-600"
+            className="accent-ink"
             checked={form.dryOnly}
             onChange={(e) => set('dryOnly', e.target.checked)}
           />

@@ -18,10 +18,10 @@ export default async function ActivitiesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Activities</h1>
+        <h1 className="text-[28px] font-semibold tracking-tight">Activities</h1>
         <Link
           href="/admin/activities/new"
-          className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white hover:bg-rose-700"
+          className="rounded-xl bg-ink px-4 py-2 text-sm text-white hover:bg-ink/85"
         >
           New activity
         </Link>
@@ -35,9 +35,9 @@ export default async function ActivitiesPage() {
         return (
           <section key={g.status} className="flex flex-col gap-2">
             <h2 className="font-medium">
-              {g.title} <span className="text-stone-500">({rows.length})</span>
+              {g.title} <span className="text-mist">({rows.length})</span>
             </h2>
-            <ul className="flex flex-col divide-y divide-stone-200 rounded-2xl bg-white shadow-sm dark:divide-stone-800 dark:bg-stone-900">
+            <ul className="flex flex-col divide-y divide-line rounded-3xl bg-white ring-1 ring-line">
               {rows.map((a) => (
                 <ActivityRow
                   key={a.id}

@@ -39,12 +39,12 @@ export function AddPasskey() {
         placeholder="Device name, e.g. Robert's iPhone"
         maxLength={60}
         required
-        className="flex-1 rounded-lg border border-stone-300 bg-transparent px-3 py-2 text-sm dark:border-stone-700"
+        className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm"
       />
-      <button className="rounded-lg bg-rose-600 px-3 py-2 text-sm text-white hover:bg-rose-700">
+      <button className="rounded-lg bg-ink px-3 py-2 text-sm text-white hover:bg-ink/85">
         Add passkey
       </button>
-      {message && <p className="text-sm text-stone-500">{message}</p>}
+      {message && <p className="text-sm text-mist">{message}</p>}
     </form>
   );
 }
@@ -57,7 +57,7 @@ export function LogoutButton() {
         await fetch('/api/auth/logout', { method: 'POST' });
         router.replace('/login');
       }}
-      className="self-start text-sm text-stone-500 underline"
+      className="self-start text-sm text-mist underline"
     >
       Sign out
     </button>

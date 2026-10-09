@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const ICON_PROPS = {
-  width: 22,
-  height: 22,
+const ICON = {
+  width: 24,
+  height: 24,
   viewBox: '0 0 24 24',
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 1.8,
+  strokeWidth: 1.7,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
   'aria-hidden': true,
@@ -18,10 +18,10 @@ const ICON_PROPS = {
 const ITEMS = [
   {
     href: '/',
-    label: 'Plan',
+    label: 'Home',
     icon: (
-      <svg {...ICON_PROPS}>
-        <path d="M12 3l1.9 4.6L19 8.3l-3.8 3.4 1.1 5L12 14.2 7.7 16.7l1.1-5L5 8.3l5.1-.7z" />
+      <svg {...ICON}>
+        <path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-5.5H9v5.5H5.5A1.5 1.5 0 0 1 4 19z" />
       </svg>
     ),
   },
@@ -29,9 +29,8 @@ const ITEMS = [
     href: '/plans',
     label: 'Our dates',
     icon: (
-      <svg {...ICON_PROPS}>
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M16 3v4M8 3v4M3 10h18" />
+      <svg {...ICON}>
+        <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
       </svg>
     ),
   },
@@ -39,56 +38,53 @@ const ITEMS = [
     href: '/trips',
     label: 'Trips',
     icon: (
-      <svg {...ICON_PROPS}>
-        <path d="M3 11l18-8-8 18-2-8z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/admin',
-    label: 'Admin',
-    icon: (
-      <svg {...ICON_PROPS}>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+      <svg {...ICON}>
+        <rect x="3.5" y="7.5" width="17" height="12" rx="2.5" />
+        <path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5M3.5 12.5h17" />
       </svg>
     ),
   },
 ];
+
+// Full-screen flows hide the tab bar.
+const HIDDEN_ON = ['/new'];
 
 function useIsActive() {
   const pathname = usePathname();
   return (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 }
 
-/** Desktop: inline links in the header. */
+/** Desktop: slim header with the same destinations. */
 export function TopNav() {
   const isActive = useIsActive();
   return (
-    <nav className="hidden gap-5 text-sm sm:flex">
-      {ITEMS.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={
-            isActive(item.href)
-              ? 'text-rose-600'
-              : 'text-stone-500 hover:text-stone-900 dark:hover:text-stone-100'
-          }
-        >
-          {item.label}
-        </Link>
-      ))}
-    </nav>
+    <header className="mx-auto hidden w-full max-w-2xl items-center justify-between px-5 pt-6 sm:flex">
+      <Link href="/" className="font-semibold tracking-tight">
+        Date Planner
+      </Link>
+      <nav className="flex gap-6 text-sm">
+        {ITEMS.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={isActive(item.href) ? 'font-medium text-ink' : 'text-mist hover:text-ink'}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+    </header>
   );
 }
 
 /** Mobile: tab bar at the bottom, within thumb reach. */
 export function BottomNav() {
   const isActive = useIsActive();
+  const pathname = usePathname();
+  if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null;
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-stone-50/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden dark:border-stone-800 dark:bg-stone-950/95">
-      <ul className="mx-auto flex max-w-2xl justify-around">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
+      <ul className="mx-auto flex max-w-md justify-around">
         {ITEMS.map((item) => {
           const active = isActive(item.href);
           return (
@@ -96,12 +92,13 @@ export function BottomNav() {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2 text-[11px] ${
-                  active ? 'text-rose-600' : 'text-stone-500'
+                aria-label={item.label}
+                className={`flex flex-col items-center gap-0.5 px-6 pt-3 pb-2 text-[11px] ${
+                  active ? 'text-ink' : 'text-mist'
                 }`}
               >
                 {item.icon}
-                {item.label}
+                <span className={active ? 'font-medium' : ''}>{item.label}</span>
               </Link>
             </li>
           );

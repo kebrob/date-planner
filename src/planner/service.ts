@@ -15,7 +15,8 @@ import { summarizeWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
 import { activity, apiUsage, settings, suggestionLog, tagWeight, travelRoutine } from '@/db/schema';
 import { dayKey } from '@/guard/periods';
-import { fromLocal } from '@/lib/time';
+import { fitsWeather, seasonOf, timeOfDay } from '@/core/planner/rules';
+import { fromLocal, toLocalDate } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
 import type { Place } from '@/ports/places';
 
@@ -70,6 +71,7 @@ export const planInputSchema = z
       })
       .optional(),
     maxDistanceKm: z.number().int().min(1).max(300).nullable().optional(),
+    requiredActivityIds: z.array(z.string().uuid()).max(3).optional(),
     requiredStops: z
       .array(
         z.object({
@@ -214,7 +216,9 @@ export async function generatePlan(
     seasons: [],
     preparation: null,
   }));
-  const activities = [...activityRows.map(toActivity), ...required];
+  const catalog = activityRows.map(toActivity);
+  required.push(...catalog.filter((a) => input.requiredActivityIds?.includes(a.id)));
+  const activities = [...catalog, ...required.filter((a) => a.id.startsWith('adhoc-'))];
   const homeLocation = { lat: home.homeLat, lng: home.homeLng };
   const area = input.areaPoint
     ? {
@@ -296,4 +300,55 @@ export async function generatePlan(
   }
   if (await placesLimitReached(now)) plan.warnings.push('places_daily_limit');
   return { plan, input, area };
+}
+
+export type IdeaTeaser = {
+  id: string;
+  title: string;
+  durationMinutes: number;
+  costMinEur: number;
+  costMaxEur: number;
+  tags: string[];
+};
+
+/**
+ * A few catalog ideas that fit tonight (season, time of day, weather) – no place lookups,
+ * so showing them on the home screen costs nothing.
+ */
+export async function ideasForTonight(now = new Date(), count = 3): Promise<IdeaTeaser[]> {
+  const db = getDb();
+  const [[home], rows] = await Promise.all([
+    db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+    db.select().from(activity).where(eq(activity.status, 'active')),
+  ]);
+  if (!home) return [];
+  const evening = fromLocal(toLocalDate(now), '18:00');
+  const start = now > evening ? now : evening;
+  const end = new Date(start.getTime() + 4 * 3_600_000);
+  const hours = await getWeatherProvider()
+    .hourly({ lat: home.homeLat, lng: home.homeLng }, start, end)
+    .catch(() => []);
+  const weather = summarizeWeather(hours, start, end, now);
+  const fits = rows
+    .map(toActivity)
+    .filter(
+      (a) =>
+        a.category !== 'food' &&
+        !a.transports.includes('bike') &&
+        (a.seasons.length === 0 || a.seasons.includes(seasonOf(start))) &&
+        (a.timesOfDay.length === 0 || a.timesOfDay.includes(timeOfDay(start))) &&
+        fitsWeather(a, weather),
+    );
+  return fits
+    .map((a) => ({ a, key: Math.random() }))
+    .sort((x, y) => x.key - y.key)
+    .slice(0, count)
+    .map(({ a }) => ({
+      id: a.id,
+      title: a.title,
+      durationMinutes: a.durationMinutes,
+      costMinEur: a.costMinEur,
+      costMaxEur: a.costMaxEur,
+      tags: a.tags,
+    }));
 }

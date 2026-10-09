@@ -14,13 +14,13 @@ const MODE = { train: '🚆', car: '🚗', flight: '✈️', bus: '🚌', other:
 function ExternalLink({ href, children }: { href: string | null; children: React.ReactNode }) {
   if (!href) return <>{children}</>;
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="text-rose-600 underline">
+    <a href={href} target="_blank" rel="noreferrer" className="text-ink underline">
       {children}
     </a>
   );
 }
 
-const card = 'flex flex-col gap-2 rounded-2xl bg-white p-4 shadow-sm dark:bg-stone-900';
+const card = 'flex flex-col gap-2 rounded-3xl bg-white p-5 ring-1 ring-line';
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
   await requireSession();
@@ -33,8 +33,8 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col gap-5">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{plan.title}</h1>
-          <p className="text-sm text-stone-500">
+          <h1 className="text-[28px] font-semibold tracking-tight">{plan.title}</h1>
+          <p className="text-sm text-mist">
             {plan.destination}
             {plan.estimatedTotalEur !== null ? ` · ~${plan.estimatedTotalEur} € total` : ''}
           </p>
@@ -43,7 +43,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
       </header>
 
       <p className="text-sm">{plan.summary}</p>
-      <p className="text-xs text-amber-700 dark:text-amber-400">
+      <p className="text-xs text-amber-700">
         Suggestion only – nothing is booked. Check prices and availability via the links.
       </p>
 
@@ -56,7 +56,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
               <ExternalLink href={t.link}>
                 {t.from} → {t.to}
               </ExternalLink>
-              <span className="block text-xs text-stone-500">{t.notes}</span>
+              <span className="block text-xs text-mist">{t.notes}</span>
             </p>
           ))}
         </section>
@@ -68,7 +68,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
           {plan.stays.map((s, i) => (
             <p key={i} className="text-sm">
               <ExternalLink href={s.link}>{s.name}</ExternalLink>
-              <span className="text-stone-500">
+              <span className="text-mist">
                 {' '}
                 · {s.area}
                 {s.pricePerNightEur !== null ? ` · ~${s.pricePerNightEur} €/night` : ''}
@@ -86,9 +86,9 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
           <ol className="flex flex-col gap-2">
             {day.items.map((item, i) => (
               <li key={i} className="text-sm">
-                {item.time && <span className="text-rose-600">{item.time} </span>}
+                {item.time && <span className="text-ink">{item.time} </span>}
                 <ExternalLink href={item.link}>{item.title}</ExternalLink>
-                <span className="block text-xs text-stone-500">{item.description}</span>
+                <span className="block text-xs text-mist">{item.description}</span>
               </li>
             ))}
           </ol>

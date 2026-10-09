@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import type { ChatTurn } from '@/ai/chat';
 import type { ChatPlan } from '@/chat/service';
 import { chatAction, clearChatAction, undoLastChatTurnAction } from './ai-actions';
@@ -17,10 +17,13 @@ export function AskClaude({
   initial,
   enabled,
   onPlans,
+  initialQuery,
 }: {
   initial: ChatTurn[];
   enabled: boolean;
   onPlans: (plans: ChatPlan[]) => void;
+  /** Sent once on load, e.g. from the home screen's ask bar. */
+  initialQuery?: string;
 }) {
   const [entries, setEntries] = useState<ChatTurn[]>(initial);
   const [draft, setDraft] = useState('');
@@ -45,6 +48,16 @@ export function AskClaude({
     });
   };
 
+  const sentInitial = useRef(false);
+  useEffect(() => {
+    if (initialQuery && enabled && !sentInitial.current) {
+      sentInitial.current = true;
+      send(initialQuery);
+    }
+    // Send once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Puts the last question back into the input and drops it (and its answer) from the history. */
   const editLast = () => {
     const last = entries[lastUserIndex];
@@ -66,7 +79,7 @@ export function AskClaude({
           <div className="flex justify-end">
             <button
               type="button"
-              className="text-xs text-stone-500 underline hover:text-rose-600"
+              className="text-xs text-mist underline hover:text-ink"
               onClick={() =>
                 confirm('Clear the conversation?') &&
                 startTransition(async () => {
@@ -83,9 +96,7 @@ export function AskClaude({
               <li key={i} className={entry.role === 'user' ? 'self-end' : 'self-stretch'}>
                 <div
                   className={`rounded-2xl px-3 py-2 text-sm ${
-                    entry.role === 'user'
-                      ? 'bg-rose-600 text-white'
-                      : 'bg-stone-100 dark:bg-stone-800'
+                    entry.role === 'user' ? 'bg-ink text-white' : 'bg-cream'
                   }`}
                 >
                   <Linkify text={entry.text} />
@@ -94,7 +105,7 @@ export function AskClaude({
                   <button
                     type="button"
                     onClick={editLast}
-                    className="mt-1 block w-full text-right text-xs text-stone-500 underline hover:text-rose-600"
+                    className="mt-1 block w-full text-right text-xs text-mist underline hover:text-ink"
                   >
                     Edit
                   </button>
@@ -102,9 +113,7 @@ export function AskClaude({
               </li>
             ))}
             {pending && (
-              <li className="text-sm text-stone-500">
-                Claude is thinking… (can take up to a minute)
-              </li>
+              <li className="text-sm text-mist">Claude is thinking… (can take up to a minute)</li>
             )}
           </ol>
         </div>
@@ -117,7 +126,7 @@ export function AskClaude({
               key={e}
               type="button"
               onClick={() => send(e)}
-              className="rounded-full border border-stone-300 px-3 py-1.5 text-left text-xs hover:border-rose-400 hover:text-rose-600 dark:border-stone-700"
+              className="rounded-full border border-line px-3 py-1.5 text-left text-xs hover:border-butter-deep"
             >
               {e}
             </button>
@@ -135,7 +144,7 @@ export function AskClaude({
         }}
       >
         <textarea
-          className="flex-1 resize-none rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm dark:border-stone-700 dark:bg-stone-950"
+          className="flex-1 resize-none rounded-xl border border-line bg-white px-3 py-2 text-sm"
           rows={2}
           value={draft}
           maxLength={1000}
@@ -154,7 +163,7 @@ export function AskClaude({
           }
         />
         <button
-          className="rounded-xl bg-rose-600 px-4 text-sm text-white hover:bg-rose-700 disabled:opacity-50"
+          className="rounded-xl bg-ink px-4 text-sm text-white hover:bg-ink/85 disabled:opacity-50"
           disabled={pending || !enabled || draft.trim() === ''}
         >
           Ask

@@ -13,19 +13,19 @@ export default async function SecurityPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Security</h1>
+      <h1 className="text-[28px] font-semibold tracking-tight">Security</h1>
       <section className="flex flex-col gap-3">
         <h2 className="font-medium">Passkeys</h2>
         <ul className="flex flex-col gap-2 text-sm">
-          {passkeys.length === 0 && <li className="text-stone-500">No passkeys yet.</li>}
+          {passkeys.length === 0 && <li className="text-mist">No passkeys yet.</li>}
           {passkeys.map((p) => (
             <li
               key={p.id}
-              className="flex items-center justify-between rounded-lg border border-stone-200 p-3 dark:border-stone-800"
+              className="flex items-center justify-between rounded-lg border border-line p-3"
             >
               <span>
                 {p.deviceName}
-                <span className="block text-stone-500">
+                <span className="block text-mist">
                   {p.lastUsedAt
                     ? `Last used ${p.lastUsedAt.toLocaleDateString('en-GB')}`
                     : 'Never used'}
