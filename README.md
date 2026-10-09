@@ -21,6 +21,8 @@ npm run dev
 
 Sign in with the emergency password, then add a passkey under _Security_.
 
+`npm run db:seed` only adds missing seed activities. `npm run db:seed -- --update` overwrites seed activities with the seed values – including changes made in the admin area.
+
 ## Checks
 
 ```bash

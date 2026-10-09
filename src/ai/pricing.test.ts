@@ -21,7 +21,12 @@ describe('pricing', () => {
     expect(estimate).toBeCloseTo(0.132, 5);
   });
 
-  it('refuses unknown models instead of assuming zero cost', () => {
+  it('bills unknown (fallback) models at the highest rate', () => {
+    const usage = { input_tokens: 1_000_000, output_tokens: 0 } as unknown as Anthropic.Usage;
+    expect(actualCostUsd('claude-unknown', usage)).toBe(10);
+  });
+
+  it('refuses to estimate unknown models instead of assuming zero cost', () => {
     expect(() => estimateMaxCostUsd({ model: 'unknown', max_tokens: 1 }, 1, 0)).toThrow();
   });
 });

@@ -9,6 +9,10 @@ const RATES: Record<string, Rates> = {
   'claude-haiku-5-5': { inputPerMTok: 0.1, outputPerMTok: 0.5, cacheReadPerMTok: 0.01 },
 };
 
+// A refused request may be served by a fallback model; unknown models are billed at the highest
+// list price so the budget is never underestimated.
+const MOST_EXPENSIVE: Rates = { inputPerMTok: 10, outputPerMTok: 50, cacheReadPerMTok: 1 };
+
 const CACHE_WRITE_MULTIPLIER = 1.25;
 export const WEB_SEARCH_USD = 0.01;
 // Upper bound for tokens one search result set adds to the context.
@@ -21,8 +25,13 @@ function ratesFor(model: string): Rates {
   return rates;
 }
 
-export function actualCostUsd(model: string, usage: Anthropic.Usage): number {
-  const r = ratesFor(model);
+type UsageLike = Pick<
+  Anthropic.Usage,
+  'input_tokens' | 'output_tokens' | 'cache_creation_input_tokens' | 'cache_read_input_tokens'
+> & { server_tool_use?: { web_search_requests?: number } | null };
+
+export function actualCostUsd(model: string, usage: UsageLike): number {
+  const r = RATES[model] ?? MOST_EXPENSIVE;
   const tokens =
     usage.input_tokens * r.inputPerMTok +
     (usage.cache_creation_input_tokens ?? 0) * r.inputPerMTok * CACHE_WRITE_MULTIPLIER +
@@ -37,8 +46,10 @@ export function estimateMaxCostUsd(
   params: { model: string; max_tokens: number },
   serializedRequestLength: number,
   maxWebSearches: number,
+  /** Set when a refusal fallback may serve the request on a pricier model. */
+  withFallback = false,
 ): number {
-  const r = ratesFor(params.model);
+  const r = withFallback ? MOST_EXPENSIVE : ratesFor(params.model);
   const inputTokens =
     Math.ceil(serializedRequestLength / CHARS_PER_TOKEN) + maxWebSearches * TOKENS_PER_WEB_SEARCH;
   return (

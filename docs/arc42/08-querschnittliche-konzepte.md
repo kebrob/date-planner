@@ -81,6 +81,13 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - Mahlzeiten und Snacks sind eigene Slot-Typen; optionaler Filter **Cuisine** (Bavarian, Italian, Asian, Burger, Mexican, Greek, Indian, Veggie) beschränkt Mahlzeiten auf passend getaggte Aktivitäten.
 - Jeder Punkt mit Ort zeigt bis zu **2 Alternativen** aus derselben Ortssuche (ohne Zusatzabfrage), die ebenfalls ins Zeitfenster passen und geöffnet sind; Antippen tauscht den Ort und berechnet Zeiten/Wege neu.
 
+## Ideen generieren (Admin)
+
+- **Claude API:** ein einzelner Aufruf (Sonnet 5.5, `effort: medium`, max. 8.000 Output-Tokens, keine Websuche) mit strukturierter Ausgabe (Zod-Schema); nur gültige Ortstypen/Küchen/Tags möglich. Ergebnis landet als **Entwurf** und wird erst nach Freigabe vorgeschlagen.
+- **Ablehnungen:** `fallbacks: "default"` lässt eine abgelehnte Anfrage serverseitig auf einem passenden Modell wiederholen. Weil das ein teureres Modell sein kann, reserviert der Budget-Wächter vorab den höchsten Listenpreis; abgerechnet wird der tatsächliche Verbrauch.
+- **Ohne API:** Prompt-Export für die Claude-App (Abo) und JSON-Import; gleiche Validierung, Duplikate (Titel) werden übersprungen.
+- An Claude geht nur der Ortsname des Wohnorts und die Liste vorhandener Ideen-Titel.
+
 ## Gespeicherte Pläne
 
 - **Upcoming:** gespeicherte Pläne mit Datum in der Zukunft, mehrere parallel; auf der Startseite als Karten, Detailseite `/plans/[id]`.

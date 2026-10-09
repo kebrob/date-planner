@@ -51,6 +51,7 @@
 - **Status:** angenommen (2026-10-09)
 - **Entscheidung:** Claude API (Sonnet 5.5) für Chat, Ideen und Ausflüge im MVP; zusätzlich Prompt-Export/JSON-Import über das Claude-Abo, aktiv wenn `AI_ENABLED=false` oder Budget erschöpft.
 - **Begründung:** Hochrechnung ~4 $/Monat normal, ~19 $ Worst Case; hartes Limit 20 $.
+- **Ergänzung (2026-10-09):** Ideen-Generierung ohne Websuche (allgemeine Ideen, echte Orte kommen aus der Ortssuche); gemessen ~1–2 Cent pro Aufruf mit 3 Ideen. Ablehnungen über `fallbacks: "default"`.
 
 ## ADR-009: Zugverbindungen über inoffizielle DB-Schnittstelle (Phase 2)
 

@@ -68,7 +68,7 @@ Gesetzt in Vercel (Production) bzw. lokal in `.env.local`. Vorlage: `.env.exampl
 | `AI_DAILY_BUDGET_USD`          | `2`      | App-Budget Claude pro Tag                                                                        |
 | `AI_MAX_TOOL_ITERATIONS`       | `8`      | Max. Runden im Tool-Loop pro Anfrage                                                             |
 | `AI_MAX_WEB_SEARCHES_CHAT`     | `3`      | Max. Websuchen pro Chat-Nachricht                                                                |
-| `AI_MAX_WEB_SEARCHES_GENERATE` | `5`      | Max. Websuchen pro „10 Ideen generieren“                                                         |
+| `AI_MAX_WEB_SEARCHES_GENERATE` | `5`      | Max. Websuchen pro „Ideen generieren“ (derzeit ungenutzt: Ideen werden ohne Websuche erzeugt)    |
 | `AI_MAX_WEB_SEARCHES_TRIP`     | `15`     | Max. Websuchen pro Ausflugsplanung                                                               |
 | `AI_MAX_API_CALLS_PER_DAY`     | `200`    | Max. Claude-API-Aufrufe pro Tag; jede Runde im Tool-Loop zählt einzeln                           |
 | `AI_REQUEST_TIMEOUT_MS`        | `90000`  | Timeout pro API-Request                                                                          |
@@ -79,7 +79,7 @@ Gesetzt in Vercel (Production) bzw. lokal in `.env.local`. Vorlage: `.env.exampl
 
 Ist ein Limit erreicht, zeigt die App einen Hinweis („Tageslimit erreicht – morgen wieder verfügbar“) und fällt, wo möglich, auf kostenlose Alternativen zurück (OSM statt Google, Plan ohne Claude-Text).
 
-Im Admin-Bereich zeigt eine Übersicht den aktuellen Verbrauch (heute / Monat) je Anbieter gegen die Limits.
+Der Admin-Bereich (`/admin`) zeigt den aktuellen Verbrauch (heute / Monat) je Anbieter gegen die Limits.
 
 ---
 

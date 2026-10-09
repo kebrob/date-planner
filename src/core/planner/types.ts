@@ -15,6 +15,17 @@ export const CUISINES = [
   'veggie',
 ] as const;
 export type Cuisine = (typeof CUISINES)[number];
+export const MOOD_TAGS = [
+  'indoor',
+  'outdoor',
+  'active',
+  'chill',
+  'social',
+  'romantic',
+  'culture',
+  'creative',
+  'home',
+] as const;
 
 export type Activity = {
   id: string;

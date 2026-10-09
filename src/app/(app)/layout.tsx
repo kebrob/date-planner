@@ -11,6 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <nav className="flex gap-4 text-sm text-stone-500">
           <Link href="/plans">Our dates</Link>
+          <Link href="/admin">Admin</Link>
           <Link href="/settings/security">Security</Link>
         </nav>
       </header>

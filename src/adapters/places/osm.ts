@@ -1,10 +1,11 @@
+import type { PlaceType } from '@/ports/place-types';
 import type { Place, PlaceSearch, PlacesProvider } from '@/ports/places';
 
 const ENDPOINT = 'https://overpass-api.de/api/interpreter';
 const TIMEOUT_MS = 20_000;
 
 // Provider-neutral place type → OSM tag filters (any filter may match).
-export const OSM_FILTERS: Record<string, string[]> = {
+export const OSM_FILTERS: Record<PlaceType, string[]> = {
   miniature_golf: ['["leisure"="miniature_golf"]'],
   cinema: ['["amenity"="cinema"]'],
   bowling: ['["leisure"="bowling_alley"]'],
@@ -46,7 +47,7 @@ type OsmElement = {
 };
 
 export function buildQuery(request: PlaceSearch): string | null {
-  const filters = OSM_FILTERS[request.placeType];
+  const filters = OSM_FILTERS[request.placeType as PlaceType] as string[] | undefined;
   if (!filters) return null;
   const radiusM = Math.round(request.radiusKm * 1000);
   const around = `(around:${radiusM},${request.center.lat},${request.center.lng})`;
