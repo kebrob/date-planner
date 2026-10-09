@@ -29,6 +29,9 @@ export const settings = pgTable('settings', {
   // Rounded to the postal code area; never a street address.
   homeLat: doublePrecision('home_lat').notNull(),
   homeLng: doublePrecision('home_lng').notNull(),
+  // Optional exact pin, only for travel times and route links; never sent to search or weather APIs.
+  homeExactLat: doublePrecision('home_exact_lat'),
+  homeExactLng: doublePrecision('home_exact_lng'),
   defaultTransport: transportMode('default_transport').notNull().default('deutschlandticket'),
   defaultBudgetEur: integer('default_budget_eur').notNull().default(50),
   maxRadiusKm: integer('max_radius_km').notNull().default(80),

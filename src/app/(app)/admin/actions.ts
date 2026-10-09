@@ -10,6 +10,7 @@ import {
   generateIdeasWithClaude,
   importIdeas,
   saveActivity,
+  saveHomePin,
   saveRoutine,
   saveSettings,
   setActivityStatus,
@@ -67,6 +68,9 @@ async function guarded<T>(
 
 export const saveSettingsAction = async (input: unknown) =>
   guarded('Could not save settings.', () => saveSettings(input), ['/admin', '/']);
+
+export const saveHomePinAction = async (pin: { lat: number; lng: number } | null) =>
+  guarded('Could not save the home pin.', () => saveHomePin(pin), ['/admin']);
 
 export const saveRoutineAction = async (id: string | null, input: unknown) =>
   guarded('Could not save routine.', () => saveRoutine(id, input), ['/admin']);

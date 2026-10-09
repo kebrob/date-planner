@@ -631,7 +631,7 @@ export const seedActivities: NewActivity[] = [
   },
   {
     ...base,
-    title: 'Bavarian inn',
+    title: 'Bavarian dinner',
     category: 'food',
     tags: ['food', 'meal', 'bavarian'],
     costMinEur: 30,

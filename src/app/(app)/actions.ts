@@ -17,7 +17,7 @@ import {
   type PlanEdit,
   type Window,
 } from '@/planner/saved';
-import { AreaNotFoundError, generatePlan, type PlanInput } from '@/planner/service';
+import { AreaNotFoundError, generatePlan, homePoint, type PlanInput } from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -45,7 +45,7 @@ export async function generatePlanAction(input: PlanInput): Promise<Result<PlanV
   try {
     const { plan, area } = await generatePlan(input);
     const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-    return { ok: true, data: toPlanView(plan, { lat: home!.homeLat, lng: home!.homeLng }, area) };
+    return { ok: true, data: toPlanView(plan, homePoint(home!), area) };
   } catch (error) {
     return failure(error, 'Could not create a plan. Check your inputs and try again.');
   }

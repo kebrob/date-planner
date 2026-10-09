@@ -23,4 +23,4 @@ flowchart LR
 | OpenStreetMap-Kacheln  | Kartenanzeige zur Wahl von Ort und Radius     | Kachelabrufe des Browsers (Kartenausschnitt um den gerundeten Wohnort) | kostenlos, Quellenangabe, Fair Use |
 | Google Maps / bahn.de  | Route/Verbindung öffnen                       | nur per Klick im Browser                                               | kostenlos                          |
 
-**Datenschutz:** An externe Dienste gehen nur Stadt bzw. auf PLZ-Gebiet gerundete Koordinaten, nie eine Hausadresse.
+**Datenschutz:** An Such- und Wetterdienste gehen nur Stadt bzw. auf ~1 km gerundete Koordinaten, nie eine Hausadresse. Route-Links (Google Maps) können den optionalen Wohnort-Pin enthalten; sie werden nur per Klick im Browser geöffnet (ADR-012).

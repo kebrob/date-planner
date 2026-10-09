@@ -117,7 +117,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       </label>
       <div className="col-span-2 flex items-center justify-between gap-3">
         <span className="text-xs text-mist">
-          Only the town is stored (rounded to ~1 km), never an address.
+          The town is stored rounded to ~1 km. Changing it removes the home pin.
         </span>
         <button className={primary} disabled={pending}>
           Save

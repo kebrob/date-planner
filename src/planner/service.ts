@@ -18,7 +18,7 @@ import { dayKey } from '@/guard/periods';
 import { fitsWeather, seasonOf, timeOfDay } from '@/core/planner/rules';
 import { fromLocal, toLocalDate } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
-import type { Place } from '@/ports/places';
+import type { LatLng, Place } from '@/ports/places';
 
 export class AreaNotFoundError extends Error {
   constructor(readonly query: string) {
@@ -156,6 +156,21 @@ async function loadHistory(now: Date): Promise<History> {
   return history;
 }
 
+type SettingsRow = typeof settings.$inferSelect;
+
+/** Exact home pin when set, else the rounded town; used for travel times and route links only. */
+export function homePoint(row: SettingsRow): LatLng {
+  return row.homeExactLat !== null && row.homeExactLng !== null
+    ? { lat: row.homeExactLat, lng: row.homeExactLng }
+    : { lat: row.homeLat, lng: row.homeLng };
+}
+
+// External place searches only ever see a ~1 km grid, never the exact home pin.
+const toGrid = (p: LatLng): LatLng => ({
+  lat: Math.round(p.lat * 100) / 100,
+  lng: Math.round(p.lng * 100) / 100,
+});
+
 export async function loadPlannerDefaults() {
   const [row] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
   if (!row) throw new Error('Settings missing – run npm run db:seed');
@@ -219,7 +234,7 @@ export async function generatePlan(
   const catalog = activityRows.map(toActivity);
   required.push(...catalog.filter((a) => input.requiredActivityIds?.includes(a.id)));
   const activities = [...catalog, ...required.filter((a) => a.id.startsWith('adhoc-'))];
-  const homeLocation = { lat: home.homeLat, lng: home.homeLng };
+  const townLocation = { lat: home.homeLat, lng: home.homeLng };
   const area = input.areaPoint
     ? {
         name: input.areaPoint.name,
@@ -230,7 +245,7 @@ export async function generatePlan(
       : null;
   if (input.area && !area) throw new AreaNotFoundError(input.area);
   const weatherHours = await getWeatherProvider()
-    .hourly(area?.location ?? homeLocation, start, end)
+    .hourly(area?.location ?? townLocation, start, end)
     .catch(() => []);
 
   const keep: PlanRequest['keep'] = {};
@@ -266,7 +281,7 @@ export async function generatePlan(
       keep,
     },
     {
-      home: homeLocation,
+      home: homePoint(home),
       maxRadiusKm: home.maxRadiusKm,
       routines: routines.map((r) => ({
         transport: r.transport as Transport,
@@ -282,7 +297,7 @@ export async function generatePlan(
         places.search({
           placeType: a.placeType ?? '',
           query: a.placeQuery ?? a.title,
-          center,
+          center: toGrid(center),
           radiusKm,
           maxResults: 10,
           free: a.costMaxEur === 0 && !a.id.startsWith('adhoc-'),

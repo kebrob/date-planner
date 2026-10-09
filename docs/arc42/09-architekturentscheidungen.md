@@ -72,3 +72,10 @@
 - **Kontext:** Für Sonnet 5.5 empfiehlt Anthropic `fallbacks: "default"` (abgelehnte Anfragen laufen auf einem anderen Modell weiter). In Tool-Loops entstehen dabei zusätzliche Antwortblöcke, die beim nächsten Request korrekt zurückgegeben werden müssen.
 - **Entscheidung:** „Ideen generieren“ (einzelner Aufruf) nutzt den Fallback; Chat und Ausflüge (Tool-Loops) nicht. Eine Ablehnung beendet die Anfrage mit verständlicher Meldung.
 - **Begründung:** Ablehnungen sind bei Date-Planung praktisch ausgeschlossen; der einfachere Loop ist robuster und leichter zu testen.
+
+## ADR-012: Optionaler exakter Wohnort-Pin
+
+- **Status:** angenommen (2026-10-09)
+- **Kontext:** Mit auf ~1 km gerundetem Wohnort sind Fußwege und Route-Links ungenau (z. B. 14 min zum Lokal um die Ecke).
+- **Entscheidung:** Im Admin lässt sich der Wohnort per Klick auf die Karte pinnen (ohne Adresseingabe, ohne Geocoding-Dienst). Der Pin wird nur in der eigenen DB gespeichert und für Wegzeiten (lokal berechnet) und Route-Links genutzt. Orts- und Wettersuchen bekommen weiterhin ein ~1-km-Raster. Ein Wechsel der Stadt löscht den Pin.
+- **Begründung:** Genaue Wege bei minimalem Datenabfluss; die Hausadresse verlässt die App nur, wenn der Nutzer selbst einen Route-Link öffnet.

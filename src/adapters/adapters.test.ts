@@ -10,7 +10,7 @@ import {
   FallbackPlacesProvider,
   RoutingPlacesProvider,
 } from './places/composite';
-import { GooglePlacesProvider, parseOpeningHours } from './places/google';
+import { GooglePlacesProvider, parseOpeningHours, parsePriceRange } from './places/google';
 import { buildQuery, OsmPlacesProvider } from './places/osm';
 import { OpenMeteoProvider } from './weather/open-meteo';
 
@@ -159,6 +159,26 @@ describe('parseOpeningHours', () => {
 
   it('returns null without data', () => {
     expect(parseOpeningHours(undefined)).toBeNull();
+  });
+});
+
+describe('parsePriceRange', () => {
+  const eur = (units: string) => ({ currencyCode: 'EUR', units });
+
+  it('reads a euro range per person', () => {
+    expect(parsePriceRange({ startPrice: eur('20'), endPrice: eur('30') })).toEqual({
+      min: 20,
+      max: 30,
+    });
+  });
+
+  it('keeps an open-ended range without upper bound', () => {
+    expect(parsePriceRange({ startPrice: eur('50') })).toEqual({ min: 50, max: null });
+  });
+
+  it('ignores missing or non-euro prices', () => {
+    expect(parsePriceRange(undefined)).toBeUndefined();
+    expect(parsePriceRange({ startPrice: { currencyCode: 'USD', units: '20' } })).toBeUndefined();
   });
 });
 

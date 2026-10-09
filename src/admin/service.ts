@@ -11,6 +11,7 @@ import {
   type Idea,
 } from '@/ai/ideas';
 import { getLimits } from '@/config/limits';
+import { distanceKm } from '@/core/planner/geo';
 import { CUISINES } from '@/core/planner/types';
 import { getDb } from '@/db/client';
 import { activity, apiUsage, settings, travelRoutine } from '@/db/schema';
@@ -53,13 +54,46 @@ export async function saveSettings(raw: unknown): Promise<void> {
         .catch(() => null);
   const location = (area ?? fallback)?.location;
   if (!location) throw new AdminInputError(`Couldn't find "${input.homeName}".`);
+  const current = await getSettings();
+  const moved =
+    current.homeName !== input.homeName || current.homePostalCode !== input.homePostalCode;
   await getDb()
     .update(settings)
     .set({
       ...input,
+      // A pin from the previous town would silently skew every travel time.
+      ...(moved ? { homeExactLat: null, homeExactLng: null } : {}),
       // Rounded to ~1 km on purpose: no street-level home location is stored or sent anywhere.
       homeLat: Math.round(location.lat * 100) / 100,
       homeLng: Math.round(location.lng * 100) / 100,
+      updatedAt: new Date(),
+    })
+    .where(eq(settings.id, 1));
+}
+
+// Close enough to the town that a mis-tap far away is rejected.
+const MAX_PIN_DISTANCE_KM = 30;
+
+const homePinSchema = z
+  .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
+  .nullable();
+
+/** Exact home pin for travel times and route links; null removes it. */
+export async function saveHomePin(raw: unknown): Promise<void> {
+  const pin = homePinSchema.parse(raw);
+  const current = await getSettings();
+  if (
+    pin &&
+    distanceKm(pin, { lat: current.homeLat, lng: current.homeLng }) > MAX_PIN_DISTANCE_KM
+  ) {
+    throw new AdminInputError(`The pin is too far from ${current.homeName}.`);
+  }
+  await getDb()
+    .update(settings)
+    .set({
+      // ~10 m is plenty for travel times.
+      homeExactLat: pin ? Math.round(pin.lat * 10_000) / 10_000 : null,
+      homeExactLng: pin ? Math.round(pin.lng * 10_000) / 10_000 : null,
       updatedAt: new Date(),
     })
     .where(eq(settings.id, 1));

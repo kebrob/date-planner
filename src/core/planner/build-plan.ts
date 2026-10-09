@@ -10,6 +10,7 @@ import {
   foodKind,
   formatFor,
   isCandidate,
+  itemCost,
   needsPlace,
   score,
 } from './rules';
@@ -181,16 +182,28 @@ function searchRegion(state: State, request: PlanRequest, ctx: PlanContext): Reg
     distanceKm(current, p) + distanceKm(p, goal) <= span * CORRIDOR_DETOUR + near / 2;
   const anchors = area ? [current, area] : [current];
 
+  // A chosen destination is where the date starts; detours only happen on the way back.
+  if (area) return { center: area, radiusKm: areaRadius, accepts, anchors };
   const alongTheWay = span > near && ctx.random() < ALONG_THE_WAY_SHARE;
-  if (area) {
-    // Usually start at the destination; sometimes stop near the current place first.
-    return alongTheWay
-      ? { center: current, radiusKm: near, accepts, anchors }
-      : { center: area, radiusKm: areaRadius, accepts, anchors };
-  }
   return alongTheWay
     ? { center: midpoint(current, goal), radiusKm: (span / 2) * CORRIDOR_DETOUR, accepts, anchors }
     : { center: current, radiusKm: near, accepts, anchors };
+}
+
+/** Optimistic stand-in venue: the point of the region closest to where we are. */
+function probeFor(region: Region, state: State): Place {
+  const d = distanceKm(region.center, state.location);
+  const t = d > 0 ? Math.min(1, region.radiusKm / d) : 0;
+  return {
+    provider: 'osm',
+    id: 'probe',
+    name: '',
+    location: {
+      lat: region.center.lat + (state.location.lat - region.center.lat) * t,
+      lng: region.center.lng + (state.location.lng - region.center.lng) * t,
+    },
+    openingHours: null,
+  };
 }
 
 function rankPlaces(places: Place[], anchors: LatLng[], radiusKm: number, random: () => number) {
@@ -292,7 +305,7 @@ function schedule(
   const back = travelHome(target, request, ctx);
   if (addMinutes(end, (back?.minutes ?? 0) + pass.reserveMinutes) > request.end) return null;
 
-  const costEur = estimatedCost(activity) + (travel?.costEur ?? 0);
+  const costEur = itemCost(activity, place) + (travel?.costEur ?? 0);
   if (costEur + (back?.costEur ?? 0) > pass.limitEur) return null;
 
   if (place?.openingHours && !isOpenDuring(place.openingHours, start, end)) return null;
@@ -364,6 +377,8 @@ async function fillSlot(
     const cacheKey = `${activity.id}|${region.center.lat},${region.center.lng}|${region.radiusKm}`;
     let places = state.placeCache.get(cacheKey);
     if (!places) {
+      // Don't spend a lookup on an idea that can't fit even at the closest point of the region.
+      if (!schedule(slot, activity, probeFor(region, state), state, request, ctx, pass)) continue;
       if (state.lookups >= ctx.maxPlaceLookups) {
         state.warnings.add('place_lookup_limit_reached');
         continue;

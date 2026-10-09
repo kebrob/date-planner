@@ -1,4 +1,5 @@
 import { localParts } from '@/lib/time';
+import type { Place } from '@/ports/places';
 import { weightedShuffle } from './random';
 import type {
   Activity,
@@ -181,7 +182,7 @@ export function needsPlace(activity: Activity): boolean {
   return !activity.atHome && activity.placeType !== null;
 }
 
-const PREFERENCE_BONUS = 0.6;
+const PREFERENCE_BONUS = 2;
 const SUGGESTED_PENALTY = 0.8;
 const SUGGESTED_DECAY_DAYS = 7;
 const ACCEPTED_PENALTY = 1.5;
@@ -208,4 +209,15 @@ export function score(
 
 export function estimatedCost(activity: Activity): number {
   return Math.round((activity.costMinEur + activity.costMaxEur) / 2);
+}
+
+// Plans are for two people; venue prices are per person.
+const PEOPLE = 2;
+
+/** Cost of an item: the venue's own price range for food when known, else the activity estimate. */
+export function itemCost(activity: Activity, place: Place | null): number {
+  const price = activity.category === 'food' ? place?.pricePerPerson : undefined;
+  if (!price) return estimatedCost(activity);
+  const perPerson = price.max === null ? price.min : (price.min + price.max) / 2;
+  return Math.round(perPerson * PEOPLE);
 }

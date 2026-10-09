@@ -10,7 +10,8 @@ import type { PlaceType } from '@/ports/place-types';
 
 const ENDPOINT = 'https://places.googleapis.com/v1/places:searchText';
 const DETAILS_ENDPOINT = 'https://places.googleapis.com/v1/places/';
-// Rating and opening hours put this request into the Text Search Enterprise SKU (1,000 free/month).
+// Rating, opening hours, price range and website put this request into the Text Search Enterprise
+// SKU (1,000 free/month).
 const FIELD_MASK = [
   'places.id',
   'places.displayName',
@@ -19,6 +20,8 @@ const FIELD_MASK = [
   'places.googleMapsUri',
   'places.rating',
   'places.regularOpeningHours',
+  'places.priceRange',
+  'places.websiteUri',
 ].join(',');
 const TIMEOUT_MS = 10_000;
 const WEEK = 7 * 24 * 60;
@@ -32,7 +35,21 @@ type GooglePlace = {
   googleMapsUri?: string;
   rating?: number;
   regularOpeningHours?: { periods?: { open?: GooglePoint; close?: GooglePoint }[] };
+  priceRange?: { startPrice?: GoogleMoney; endPrice?: GoogleMoney };
+  websiteUri?: string;
 };
+type GoogleMoney = { currencyCode?: string; units?: string; nanos?: number };
+
+const euros = (m: GoogleMoney | undefined) =>
+  m?.currencyCode === 'EUR' && m.units !== undefined ? Number(m.units) : undefined;
+
+/** Price per person in euros; an open-ended range ("more than 50 €") keeps only its start. */
+export function parsePriceRange(raw: GooglePlace['priceRange']): Place['pricePerPerson'] {
+  const min = euros(raw?.startPrice);
+  if (min === undefined || !Number.isFinite(min)) return undefined;
+  const max = euros(raw?.endPrice);
+  return { min, max: max !== undefined && Number.isFinite(max) && max >= min ? max : null };
+}
 
 const toMinute = (p: GooglePoint) => (p.day ?? 0) * 1440 + (p.hour ?? 0) * 60 + (p.minute ?? 0);
 
@@ -102,6 +119,8 @@ function toPlace(p: GooglePlace): Place | null {
     rating: p.rating,
     openingHours: parseOpeningHours(p.regularOpeningHours),
     mapsUrl: p.googleMapsUri,
+    website: p.websiteUri,
+    pricePerPerson: parsePriceRange(p.priceRange),
   };
 }
 

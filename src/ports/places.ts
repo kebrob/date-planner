@@ -14,6 +14,9 @@ export type Place = {
   /** null when the provider has no (parseable) opening hours. */
   openingHours: OpeningHours | null;
   mapsUrl?: string;
+  website?: string;
+  /** Typical spend per person in euros (restaurants, cafés); max null = open-ended. */
+  pricePerPerson?: { min: number; max: number | null };
 };
 
 export type PlaceSearch = {

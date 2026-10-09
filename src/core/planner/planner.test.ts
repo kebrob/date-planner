@@ -5,7 +5,7 @@ import { buildPlan, FALLBACK_ACTIVITY, firstStopRadiusKm } from './build-plan';
 import { estimateTravel } from './geo';
 import { isOpenDuring } from './opening-hours';
 import { seededRandom } from './random';
-import { formatFor, score } from './rules';
+import { formatFor, itemCost, score } from './rules';
 import type { Activity, PlanContext, PlanRequest } from './types';
 import { summarizeWeather } from './weather';
 
@@ -649,7 +649,7 @@ describe('route planning', () => {
     expect(plan.items[0]!.activity.id).toBe('cinema');
   });
 
-  it('sometimes stops near home on the way to the destination', async () => {
+  it('always starts at a chosen destination, never near home first', async () => {
     const munich = { lat: 48.14, lng: 11.58 };
     const centers = new Set<string>();
     for (let seed = 1; seed <= 30; seed++) {
@@ -662,7 +662,24 @@ describe('route planning', () => {
       );
       centers.add(JSON.stringify(findPlaces.mock.calls[0]![1]));
     }
-    expect(centers).toEqual(new Set([JSON.stringify(munich), JSON.stringify(HOME)]));
+    expect(centers).toEqual(new Set([JSON.stringify(munich)]));
+  });
+
+  it('spends no place lookup on ideas that cannot fit the time window there', async () => {
+    const findPlaces = vi.fn<PlanContext['findPlaces']>(async (a, center) => [
+      placeAt(center, 1, a.id),
+    ]);
+    // Hours of driving each way leave no room for the cinema in a 4 h window.
+    await buildPlan(
+      request({
+        end: fromLocal('2026-10-10', '21:00'),
+        format: 'single',
+        food: 'none',
+        area: { name: 'Far away', location: north(200) },
+      }),
+      context({ activities: [cinema], findPlaces }),
+    );
+    expect(findPlaces).not.toHaveBeenCalled();
   });
 
   it('does not suggest home activities when a destination is set', async () => {
@@ -802,5 +819,24 @@ describe('summarizeWeather', () => {
     const now = new Date(start.getTime() - 9 * 86_400_000);
     expect(summarizeWeather([hour(0, 0, 0)], start, end, now).reliability).toBe('low');
     expect(summarizeWeather([], start, end, now)).toMatchObject({ reliability: 'none', dry: null });
+  });
+});
+
+describe('itemCost', () => {
+  const dinner = activity({ id: 'dinner', category: 'food', costMinEur: 30, costMaxEur: 55 });
+
+  it('uses the venue price per person for two people', () => {
+    expect(itemCost(dinner, place('inn', 1, { pricePerPerson: { min: 20, max: 30 } }))).toBe(50);
+    expect(itemCost(dinner, place('inn', 1, { pricePerPerson: { min: 40, max: null } }))).toBe(80);
+  });
+
+  it('falls back to the activity estimate without a venue price', () => {
+    expect(itemCost(dinner, place('inn'))).toBe(43);
+    expect(itemCost(dinner, null)).toBe(43);
+  });
+
+  it('ignores venue prices for non-food activities', () => {
+    const bowling = activity({ id: 'bowling', costMinEur: 20, costMaxEur: 30 });
+    expect(itemCost(bowling, place('alley', 1, { pricePerPerson: { min: 5, max: 10 } }))).toBe(25);
   });
 });

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSettings, listRoutines, usageOverview } from '@/admin/service';
 import { requireSession } from '@/auth/session';
 import { RoutinesEditor, SettingsForm } from './forms';
+import { HomePin } from './home-pin';
 
 function Meter({
   label,
@@ -98,6 +99,18 @@ export default async function AdminPage() {
             defaultBudgetEur: settings.defaultBudgetEur,
             maxRadiusKm: settings.maxRadiusKm,
           }}
+        />
+      </section>
+
+      <section className={card}>
+        <h2 className="font-medium">Home pin</h2>
+        <HomePin
+          town={{ lat: settings.homeLat, lng: settings.homeLng }}
+          pin={
+            settings.homeExactLat !== null && settings.homeExactLng !== null
+              ? { lat: settings.homeExactLat, lng: settings.homeExactLng }
+              : null
+          }
         />
       </section>
 

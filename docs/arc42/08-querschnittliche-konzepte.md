@@ -51,7 +51,7 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 
 ## Datenschutz
 
-- An externe Dienste gehen nur Stadt bzw. auf das PLZ-Gebiet gerundete Koordinaten.
+- An Such- und Wetterdienste gehen nur Stadt bzw. auf ~1 km gerundete Koordinaten. Ein optionaler **Wohnort-Pin** (Admin, per Klick auf die Karte, keine Adresseingabe) bleibt in der eigenen DB und wird nur für Wegzeiten und Route-Links genutzt, die der Nutzer selbst öffnet (ADR-012).
 - Keine personenbezogenen Daten, Tokens oder vollständigen Request-Bodies in Logs.
 - Google-Places-Daten: dauerhaft gespeichert wird nur die Place-ID und der Anzeigename im gespeicherten Plan; weitere Ortsdaten werden bei Bedarf neu abgefragt bzw. nur kurzfristig zwischengespeichert (Google-Nutzungsbedingungen).
 
@@ -69,21 +69,22 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 ## Planner-Logik
 
 1. **Harte Filter:** Budget, Verkehrsmittel, Wetter-Eignung, Dauer passt ins Zeitfenster, Tageszeit/Saison, gesperrte Aktivitäten.
-2. **Score:** Basis + Übereinstimmung mit Vorlieben − Abwechslungs-Abzug (abklingend mit Tagen seit letzter Durchführung/Vorschlag); Phase 2 zusätzlich Bewertungs-Bonus und gelernte Tag-Gewichte.
+2. **Score:** Basis + Übereinstimmung mit Vorlieben (je passender Stimmung +2, eine passende Idee wiegt also dreifach) − Abwechslungs-Abzug (abklingend mit Tagen seit letzter Durchführung/Vorschlag); Phase 2 zusätzlich Bewertungs-Bonus und gelernte Tag-Gewichte.
 3. **Gewichteter Zufall** über die Scores (seedbar für Tests).
 4. **Planformat** aus Zeitfenster (< 3 h eine Aktivität, 3–6 h zwei Programmpunkte, > 6 h Tagesplan), manuell überschreibbar. **Essen** per Filter (Auto / kein Essen / Snack / Mahlzeit); bei „Auto“ zufällige Vorlage inkl. Reihenfolge, Mahlzeiten nur ab 40 € Budget. Passt gewünschtes Essen nicht, gibt es einen Hinweis.
-5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Mittelpunkt und Radius über eine Karte (Leaflet + OpenStreetMap-Kacheln, kostenlos) wählbar: Zuhause, gesuchte Stadt oder Klick auf die Karte; Radius frei per Regler (1–150 km); bei „Fit to time“ darf die Anreise etwa ein Viertel des Zeitfensters dauern (15–120 min), umgerechnet über ein grobes Durchschnittstempo je Verkehrsmittel. Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
+5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Mittelpunkt und Radius über eine Karte (Leaflet + OpenStreetMap-Kacheln, kostenlos) wählbar: Zuhause, gesuchte Stadt oder Klick auf die Karte; Radius frei per Regler (1–150 km); bei „Fit to time“ darf die Anreise etwa ein Viertel des Zeitfensters dauern (15–120 min), umgerechnet über ein grobes Durchschnittstempo je Verkehrsmittel. Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Mit gewähltem Zielort beginnt das Date immer dort; ohne Zielort wird meist am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
 6. **Budget und Zeit einteilen:** Für noch geplante Punkte wird Budget (Mahlzeit ~25 €, Snack ~8 €) und Zeit (Programmpunkt ~75 min, Mahlzeit ~90 min, Snack ~40 min) zurückgehalten; günstigere Ideen werden relativ zum Restbudget bevorzugt.
 7. **Lange Tage auffüllen:** Bleiben vor der Heimfahrt ≥ 90 min frei, werden weitere Punkte ergänzt (max. 5 insgesamt), bevorzugt kostenlose (Bücherei, Park, Markt, Kirche …).
 8. **Kein Heimfahren zwischendurch:** Unterwegs sind Aktivitäten zu Hause nur als letzter geplanter Punkt erlaubt; danach darf zu Hause aufgefüllt werden.
 9. **Budget überziehen (immer aktiv):** Jeder Punkt wird zuerst im Budget gesucht; nur wenn sonst nichts passt, darf bis 50 % über Budget geplant werden. Der Mehrbetrag wird angezeigt.
-10. **Rückfall ohne Rücklage:** Passt ein Punkt nur nicht, weil Zeit/Geld für spätere Punkte reserviert ist, wird er ohne Rücklage geplant (lieber ein Punkt als keiner). Gefundene Orte werden pro Planung zwischengespeichert, Wiederholungen kosten keine neuen Abfragen.
+10. **Rückfall ohne Rücklage:** Passt ein Punkt nur nicht, weil Zeit/Geld für spätere Punkte reserviert ist, wird er ohne Rücklage geplant (lieber ein Punkt als keiner). Gefundene Orte werden pro Planung zwischengespeichert, Wiederholungen kosten keine neuen Abfragen. Vor jeder Ortsabfrage wird geprüft, ob die Idee selbst am günstigsten Punkt des Suchgebiets in Zeit und Budget passt; sonst wird sie ohne Abfrage übersprungen (wichtig bei weit entfernten Zielorten).
 11. **Sonnenstand:** Ideen mit Tag `sunset` müssen den Sonnenuntergang einschließen, `after_dark` beginnen ≥ 45 min danach; dafür darf bis 90 min gewartet werden. Sonnenuntergang wird lokal astronomisch berechnet (keine API, jedes Datum).
 12. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
 
 ## Essen
 
 - Mahlzeiten und Snacks sind eigene Slot-Typen; optionaler Filter **Cuisine** (Bavarian, Italian, Asian, Burger, Mexican, Greek, Indian, Veggie) beschränkt Mahlzeiten auf passend getaggte Aktivitäten.
+- **Kosten:** Kennt Google eine Preisspanne pro Person (`priceRange`, gleiche Enterprise-SKU wie Bewertung, daher ohne Mehrkosten), zählt deren Mitte × 2; sonst die Mitte der Kostenspanne der Aktivität. Nur für Essen, da Google-Preise bei anderen Orten nicht vergleichbar sind.
 - Jeder Punkt mit Ort zeigt bis zu **2 Alternativen** aus derselben Ortssuche (ohne Zusatzabfrage), die ebenfalls ins Zeitfenster passen und geöffnet sind; Antippen tauscht den Ort und berechnet Zeiten/Wege neu.
 
 ## Ideen generieren (Admin)

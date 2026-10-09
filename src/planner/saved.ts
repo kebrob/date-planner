@@ -6,7 +6,7 @@ import { getDb } from '@/db/client';
 import { activity, datePlan, planItem, settings, suggestionLog } from '@/db/schema';
 import { toLocalDate, toLocalTime } from '@/lib/time';
 import type { Place } from '@/ports/places';
-import { generatePlan, type PlanInput } from './service';
+import { generatePlan, homePoint, type PlanInput } from './service';
 import { toPlanView, type Leg, type PlanView } from './view';
 
 export class PlanNotFoundError extends Error {}
@@ -363,7 +363,7 @@ function keepRecord(entries: (KeepEntry | null)[]) {
 async function homeLocation() {
   const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
   if (!home) throw new Error('Settings missing');
-  return { lat: home.homeLat, lng: home.homeLng };
+  return homePoint(home);
 }
 
 /** Re-plans a saved, upcoming plan; returns how many items had to be dropped. */

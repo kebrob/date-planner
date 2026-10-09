@@ -20,7 +20,7 @@ import { activity, chatMessage } from '@/db/schema';
 import { getCostGuard } from '@/guard';
 import { fromLocal, localParts, toLocalDate, toLocalTime } from '@/lib/time';
 import { listUpcoming } from '@/planner/saved';
-import { AreaNotFoundError, generatePlan, type PlanInput } from '@/planner/service';
+import { AreaNotFoundError, generatePlan, homePoint, type PlanInput } from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
 
 export type ChatPlan = { input: PlanInput; view: PlanView };
@@ -80,7 +80,7 @@ function handlers(collected: ChatPlan[]): ChatToolHandlers {
         }
         throw error;
       });
-      const view = toPlanView(plan, { lat: home.homeLat, lng: home.homeLng }, area);
+      const view = toPlanView(plan, homePoint(home), area);
       collected.push({ input, view });
       return planSummary(view, collected.length);
     },
