@@ -2,7 +2,7 @@ import { desc } from 'drizzle-orm';
 import { requireSession } from '@/auth/session';
 import { getDb } from '@/db/client';
 import { passkey } from '@/db/schema';
-import { AddPasskey, LogoutButton } from './client';
+import { AddPasskey, DeletePasskey, LogoutButton } from './client';
 
 export default async function SecurityPage() {
   await requireSession();
@@ -19,13 +19,19 @@ export default async function SecurityPage() {
         <ul className="flex flex-col gap-2 text-sm">
           {passkeys.length === 0 && <li className="text-stone-500">No passkeys yet.</li>}
           {passkeys.map((p) => (
-            <li key={p.id} className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
-              {p.deviceName}
-              <span className="block text-stone-500">
-                {p.lastUsedAt
-                  ? `Last used ${p.lastUsedAt.toLocaleDateString('en-GB')}`
-                  : 'Never used'}
+            <li
+              key={p.id}
+              className="flex items-center justify-between rounded-lg border border-stone-200 p-3 dark:border-stone-800"
+            >
+              <span>
+                {p.deviceName}
+                <span className="block text-stone-500">
+                  {p.lastUsedAt
+                    ? `Last used ${p.lastUsedAt.toLocaleDateString('en-GB')}`
+                    : 'Never used'}
+                </span>
               </span>
+              <DeletePasskey id={p.id} name={p.deviceName} />
             </li>
           ))}
         </ul>

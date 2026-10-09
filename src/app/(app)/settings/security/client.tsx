@@ -2,7 +2,8 @@
 
 import { startRegistration } from '@simplewebauthn/browser';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { deletePasskeyAction } from '../../actions';
 
 export function AddPasskey() {
   const router = useRouter();
@@ -57,6 +58,26 @@ export function LogoutButton() {
       className="self-start text-sm text-stone-500 underline"
     >
       Sign out
+    </button>
+  );
+}
+
+export function DeletePasskey({ id, name }: { id: string; name: string }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => {
+        if (
+          confirm(`Remove passkey "${name}"? That device will need the emergency password again.`)
+        ) {
+          startTransition(() => deletePasskeyAction(id));
+        }
+      }}
+      className="text-sm text-red-600 disabled:opacity-50"
+    >
+      Remove
     </button>
   );
 }

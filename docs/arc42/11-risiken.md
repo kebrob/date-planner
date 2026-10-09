@@ -1,11 +1,14 @@
 # 11. Risiken und technische Schulden
 
-| Risiko                                            | Auswirkung                            | Maßnahme                                                                        |
-| ------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
-| Inoffizielle DB-Schnittstelle ändert sich         | Zugverbindungen fallen aus            | Adapter austauschbar, Fallback-Link bahn.de, Spike vor Umsetzung                |
-| Preisänderungen Anthropic/Google                  | Hochrechnung stimmt nicht mehr        | Harte Anbieter-Limits; monatliche Kontrolle laut Runbook                        |
-| Google-Nutzungsbedingungen (Caching, Darstellung) | Verstoß bei Speicherung von Ortsdaten | Nur Place-ID dauerhaft speichern; Bedingungen vor Umsetzung des Adapters prüfen |
-| Claude erfindet lokale Details                    | Falsche Vorschläge                    | Claude erzeugt allgemeine Ideen; konkrete Orte kommen ausschließlich aus Places |
-| Wettervorhersage > 7 Tage unsicher                | Unpassende Outdoor-Vorschläge         | Hinweis in der UI, Outdoor-Aktivitäten mit Alternative                          |
-| Verlust aller Passkeys                            | Kein Zugang                           | Notfall-Passwort                                                                |
-| Neon Free Tier: Pausieren bei Inaktivität         | Erster Aufruf langsamer               | Akzeptiert                                                                      |
+| Risiko                                                                     | Auswirkung                                                         | Maßnahme                                                                          |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Inoffizielle DB-Schnittstelle ändert sich                                  | Zugverbindungen fallen aus                                         | Adapter austauschbar, Fallback-Link bahn.de, Spike vor Umsetzung                  |
+| Preisänderungen Anthropic/Google                                           | Hochrechnung stimmt nicht mehr                                     | Harte Anbieter-Limits; monatliche Kontrolle laut Runbook                          |
+| Google-Nutzungsbedingungen (Caching, Darstellung)                          | Verstoß bei Speicherung von Ortsdaten                              | Nur Place-ID dauerhaft speichern; Bedingungen vor Umsetzung des Adapters prüfen   |
+| Claude erfindet lokale Details                                             | Falsche Vorschläge                                                 | Claude erzeugt allgemeine Ideen; konkrete Orte kommen ausschließlich aus Places   |
+| Wettervorhersage > 7 Tage unsicher                                         | Unpassende Outdoor-Vorschläge                                      | Hinweis in der UI, Outdoor-Aktivitäten mit Alternative                            |
+| Verlust aller Passkeys                                                     | Kein Zugang                                                        | Notfall-Passwort                                                                  |
+| Neon Free Tier: Pausieren bei Inaktivität                                  | Erster Aufruf langsamer                                            | Akzeptiert                                                                        |
+| Fahrzeiten sind Schätzungen (Luftlinie × Umwegfaktor × Durchschnittstempo) | Zeitplan weicht von echten Verbindungen ab                         | Phase 2: echte Zugverbindungen; Google Routes optional                            |
+| Identity Federation statt statischem Claude-Key nicht umgesetzt            | Statischer Key kann leaken                                         | Schaden durch Workspace-Limit begrenzt; Umstellung auf Vercel-OIDC möglich        |
+| Ortssuche liefert nur Treffer um einen Suchmittelpunkt                     | Stopps „auf dem Weg“ werden seltener gefunden als am aktuellen Ort | Akzeptiert; Anteil der Suchen entlang des Wegs als Konstante im Planner anpassbar |

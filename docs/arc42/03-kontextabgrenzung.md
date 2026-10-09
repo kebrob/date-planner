@@ -7,7 +7,7 @@ flowchart LR
     APP -->|Ideen, Chat, Ausflüge| CLAUDE[Claude API<br/>Anthropic]
     APP -->|Ortssuche| GP[Google Places API]
     APP -.->|Fallback Ortssuche| OSM[OpenStreetMap Overpass]
-    APP -->|Vorhersage| OM[Open-Meteo]
+    APP -->|Vorhersage, Geocoding| OM[Open-Meteo]
     APP -.->|Phase 2| DBV[DB-Verbindungen<br/>inoffiziell]
     U -.->|Links| GM[Google Maps / bahn.de]
 ```
@@ -18,6 +18,7 @@ flowchart LR
 | Google Places          | Konkrete Orte, Öffnungszeiten, Bewertungen    | Suchbegriff + grobe Koordinaten                             | Freikontingent, Quota-begrenzt     |
 | OpenStreetMap Overpass | Fallback Ortssuche                            | Ortstyp + grobe Koordinaten                                 | kostenlos                          |
 | Open-Meteo             | Wettervorhersage bis 16 Tage                  | grobe Koordinaten                                           | kostenlos                          |
+| Open-Meteo Geocoding   | Zielort („München“) in Koordinaten umwandeln  | eingegebener Ortsname                                       | kostenlos, Quellenangabe GeoNames  |
 | DB (Phase 2)           | Zugverbindungen, Regionalverkehr              | Start-/Zielbahnhof, Zeit                                    | kostenlos, inoffiziell             |
 | Google Maps / bahn.de  | Route/Verbindung öffnen                       | nur per Klick im Browser                                    | kostenlos                          |
 

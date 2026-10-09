@@ -17,16 +17,18 @@ flowchart TB
     GUARD --> REPO
 ```
 
-| Baustein        | Verantwortung                                                                             | Abhängigkeiten           |
-| --------------- | ----------------------------------------------------------------------------------------- | ------------------------ |
-| `app/`          | Seiten, Formulare, Route Handlers                                                         | alle darunter            |
-| `auth/`         | Passkeys, Notfall-Passwort, Sessions, Login-Rate-Limit                                    | `db`                     |
-| `core/planner/` | Filtern, Scoren, Ablauf bauen – **reine Logik ohne I/O**, vollständig unit-testbar        | nur `ports` (Interfaces) |
-| `ports/`        | Schnittstellen externer Dienste (`PlacesProvider`, `WeatherProvider`, `TransitProvider`)  | –                        |
-| `adapters/`     | Implementierungen der Ports je Anbieter                                                   | `guard`, `fetch`         |
-| `ai/`           | Claude-Anbindung: Ideen generieren, Chat-Tool-Loop, Ausflugsplanung, Prompt-Export/Import | `guard`, `core/planner`  |
-| `guard/`        | Budget-Wächter, Rate Limit, Circuit Breaker für alle kostenpflichtigen Aufrufe            | `db`                     |
-| `db/`           | Drizzle-Schema, Migrationen, Repositories                                                 | Neon Postgres            |
+| Baustein        | Verantwortung                                                                                                                              | Abhängigkeiten                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| `app/`          | Seiten, Formulare, Route Handlers                                                                                                          | alle darunter                    |
+| `auth/`         | Passkeys, Notfall-Passwort, Sessions, Login-Rate-Limit                                                                                     | `db`                             |
+| `core/planner/` | Filtern, Scoren, Ablauf bauen – **reine Logik ohne I/O**, vollständig unit-testbar                                                         | nur `ports` (Interfaces)         |
+| `ports/`        | Schnittstellen externer Dienste (`PlacesProvider`, `WeatherProvider`, `TransitProvider`)                                                   | –                                |
+| `adapters/`     | Implementierungen der Ports je Anbieter                                                                                                    | `guard`, `fetch`                 |
+| `ai/`           | Claude-Anbindung: Ideen generieren, Chat-Tool-Loop, Ausflugsplanung, Prompt-Export/Import                                                  | `guard`, `core/planner`          |
+| `guard/`        | Budget-Wächter, Rate Limit, Circuit Breaker für alle kostenpflichtigen Aufrufe                                                             | `db`                             |
+| `db/`           | Drizzle-Schema, Migrationen, Repositories                                                                                                  | Neon Postgres                    |
+| `planner/`      | Server-Service: lädt Einstellungen, Aktivitäten, Verlauf und Wetter, ruft `core/planner` auf, speichert Pläne und protokolliert Vorschläge | `core/planner`, `adapters`, `db` |
+| `lib/`          | Zeitzonen-Hilfen (Europe/Berlin)                                                                                                           | –                                |
 
 Regel: `core/` importiert nie aus `adapters/`, `ai/` oder `db/`. Adapter werden über eine zentrale Factory anhand der Environment-Variablen ausgewählt.
 

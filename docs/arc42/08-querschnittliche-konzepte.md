@@ -67,8 +67,8 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 1. **Harte Filter:** Budget, Verkehrsmittel, Wetter-Eignung, Dauer passt ins Zeitfenster, Tageszeit/Saison, gesperrte Aktivitäten.
 2. **Score:** Basis + Übereinstimmung mit Vorlieben − Abwechslungs-Abzug (abklingend mit Tagen seit letzter Durchführung/Vorschlag); Phase 2 zusätzlich Bewertungs-Bonus und gelernte Tag-Gewichte.
 3. **Gewichteter Zufall** über die Scores (seedbar für Tests).
-4. **Planformat** aus Zeitfenster: < 3 h eine Aktivität, 3–6 h Aktivität + Essen, > 6 h Tagesplan; manuell überschreibbar.
-5. **Ablauf bauen:** Uhrzeiten aus Dauer + Anreise (Anreise-Routinen, Entfernung × Verkehrsmittel).
+4. **Planformat** aus Zeitfenster (< 3 h eine Aktivität, 3–6 h zwei Programmpunkte, > 6 h Tagesplan), manuell überschreibbar. **Essen** per Filter (Auto / kein Essen / Snack / Mahlzeit); bei „Auto“ zufällige Vorlage inkl. Reihenfolge, Mahlzeiten nur ab 40 € Budget. Passt gewünschtes Essen nicht, gibt es einen Hinweis.
+5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
 6. **Neu würfeln:** ganzer Plan oder ein Programmpunkt; abgelehnte Aktivitäten werden für die laufende Planung abgewertet.
 
 ## Tests
