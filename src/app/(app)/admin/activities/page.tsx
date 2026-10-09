@@ -4,6 +4,8 @@ import { requireSession } from '@/auth/session';
 import { getLimits } from '@/config/limits';
 import { ActivityRow, IdeasPanel } from './client';
 
+export const maxDuration = 120;
+
 export default async function ActivitiesPage() {
   await requireSession();
   const activities = await listActivities();

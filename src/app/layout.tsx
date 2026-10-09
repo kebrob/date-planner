@@ -12,6 +12,8 @@ export const viewport: Viewport = {
   themeColor: '#e11d48',
   width: 'device-width',
   initialScale: 1,
+  // Lets the bottom tab bar extend under the iPhone home indicator (padded via safe-area inset).
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

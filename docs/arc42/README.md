@@ -12,4 +12,4 @@
 10. [Qualitätsanforderungen](10-qualitaetsanforderungen.md)
 11. [Risiken und technische Schulden](11-risiken.md)
 
-Betrieb: [Kostenlimits & Kontingente](../betrieb/kostenlimits.md)
+Betrieb: [Kostenlimits & Kontingente](../betrieb/kostenlimits.md) · [Deployment](../betrieb/deployment.md)

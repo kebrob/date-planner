@@ -60,7 +60,6 @@ export const planInputSchema = z
     food: z.enum(['auto', 'none', 'snack', 'meal']).default('auto'),
     cuisine: z.enum(CUISINES).nullable().optional(),
     area: z.string().trim().max(100).optional(),
-    allowOverBudget: z.boolean().default(false),
     slots: z
       .array(z.enum(['main', 'meal', 'snack']))
       .max(5)
@@ -193,7 +192,8 @@ export async function generatePlan(
       food: input.food,
       cuisine: input.cuisine ?? null,
       area,
-      allowOverBudget: input.allowOverBudget,
+      // Always allowed; the planner still tries to stay within budget first.
+      allowOverBudget: true,
       slots: input.slots,
       excludeActivityIds: input.excludeActivityIds,
       keep,

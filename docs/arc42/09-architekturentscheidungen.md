@@ -65,3 +65,10 @@
 - **Status:** angenommen (2026-10-09)
 - **Entscheidung:** Neue Pakete/Versionen erst, wenn sie mindestens 7 Tage veröffentlicht sind; exakte Versionen im Lockfile; `npm audit` nach jeder Installation, bei `critical` zurückrollen.
 - **Begründung:** Schutz vor kompromittierten Releases (Supply-Chain).
+
+## ADR-011: Chat und Ausflüge ohne serverseitigen Modell-Fallback
+
+- **Status:** angenommen (2026-10-09)
+- **Kontext:** Für Sonnet 5.5 empfiehlt Anthropic `fallbacks: "default"` (abgelehnte Anfragen laufen auf einem anderen Modell weiter). In Tool-Loops entstehen dabei zusätzliche Antwortblöcke, die beim nächsten Request korrekt zurückgegeben werden müssen.
+- **Entscheidung:** „Ideen generieren“ (einzelner Aufruf) nutzt den Fallback; Chat und Ausflüge (Tool-Loops) nicht. Eine Ablehnung beendet die Anfrage mit verständlicher Meldung.
+- **Begründung:** Ablehnungen sind bei Date-Planung praktisch ausgeschlossen; der einfachere Loop ist robuster und leichter zu testen.

@@ -17,7 +17,7 @@ Ausgabe: Ablaufplan mit Uhrzeiten, konkreten Orten, Kosten, Wetterhinweis, Anrei
 
 ## Funktionsumfang nach Phasen
 
-### MVP
+### MVP (umgesetzt, Stand 2026-10-09)
 
 - Login für einen gemeinsamen Account per Passkey (Face ID) + Notfall-Passwort
 - Admin: Einstellungen (Wohnort, Verkehrsmittel, Budget, Anreise-Routinen), Aktivitäten-Verwaltung, Kosten-/Verbrauchsübersicht

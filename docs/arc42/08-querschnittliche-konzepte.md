@@ -73,7 +73,7 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 6. **Budget und Zeit einteilen:** Für noch geplante Punkte wird Budget (Mahlzeit ~25 €, Snack ~8 €) und Zeit (Programmpunkt ~75 min, Mahlzeit ~90 min, Snack ~40 min) zurückgehalten; günstigere Ideen werden relativ zum Restbudget bevorzugt.
 7. **Lange Tage auffüllen:** Bleiben vor der Heimfahrt ≥ 90 min frei, werden weitere Punkte ergänzt (max. 5 insgesamt), bevorzugt kostenlose (Bücherei, Park, Markt, Kirche …).
 8. **Kein Heimfahren zwischendurch:** Unterwegs sind Aktivitäten zu Hause nur als letzter geplanter Punkt erlaubt; danach darf zu Hause aufgefüllt werden.
-9. **Budget überziehen (optional, Standard aus):** Passt nichts mehr, darf bis 50 % über Budget geplant werden; Mehrbetrag wird angezeigt.
+9. **Budget überziehen (immer aktiv):** Jeder Punkt wird zuerst im Budget gesucht; nur wenn sonst nichts passt, darf bis 50 % über Budget geplant werden. Der Mehrbetrag wird angezeigt.
 10. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
 
 ## Essen
@@ -87,6 +87,19 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - **Ablehnungen:** `fallbacks: "default"` lässt eine abgelehnte Anfrage serverseitig auf einem passenden Modell wiederholen. Weil das ein teureres Modell sein kann, reserviert der Budget-Wächter vorab den höchsten Listenpreis; abgerechnet wird der tatsächliche Verbrauch.
 - **Ohne API:** Prompt-Export für die Claude-App (Abo) und JSON-Import; gleiche Validierung, Duplikate (Titel) werden übersprungen.
 - An Claude geht nur der Ortsname des Wohnorts und die Liste vorhandener Ideen-Titel.
+
+## Claude-Chat
+
+- Tool-Loop (max. `AI_MAX_TOOL_ITERATIONS` Runden, max. `AI_MAX_WEB_SEARCHES_CHAT` Websuchen, 4.000 Output-Tokens, `effort: low`) mit eigenen Werkzeugen: `plan_date` (nutzt den Planner, Ergebnis als Karte mit „Speichern“), `get_weather`, `find_ideas`, `save_idea` (nur als Entwurf), `list_plans`.
+- Werkzeug-Eingaben sind strikt (JSON-Schema, alle Felder Pflicht) und werden vor Ausführung zusätzlich mit Zod geprüft.
+- Pro Nachricht werden nur die letzten 12 Nachrichten mitgeschickt (begrenzt Input-Tokens). Gespeichert wird nur Text; Plankarten enthalten Ortsdaten und werden nicht dauerhaft abgelegt.
+- Antworten als Klartext; Links werden nur als `https`-Links klickbar gemacht, kein HTML vom Modell.
+
+## Mehrtägige Ausflüge
+
+- Ein Tool-Loop mit serverseitiger Websuche (max. `AI_MAX_WEB_SEARCHES_TRIP`) und max. 4 Runden; Claude liefert das Ergebnis über das Werkzeug `submit_trip_plan`, dessen Eingabe gegen ein Schema geprüft wird (fehlerhafte Einreichung → Claude bekommt den Fehler und korrigiert). Nur `https`-Links aus Suchergebnissen.
+- Nur Vorschläge – keine Buchung; Hinweis in der Oberfläche.
+- Gemessen: ~20 Cent für ein Wochenende.
 
 ## Gespeicherte Pläne
 

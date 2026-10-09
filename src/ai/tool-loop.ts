@@ -22,6 +22,9 @@ export type ToolLoopOptions = {
   maxIterations: number;
   /** Total web searches allowed across all iterations of this loop; 0 disables web search. */
   maxWebSearches: number;
+  effort?: 'low' | 'medium' | 'high';
+  /** Stops the loop early once this returns true (e.g. a final "submit" tool was called). */
+  isDone?: () => boolean;
 };
 
 export type ToolLoopResult = {
@@ -91,6 +94,7 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<ToolLoopRes
       system: options.system,
       messages: [...messages],
       tools,
+      ...(options.effort ? { output_config: { effort: options.effort } } : {}),
     };
     const estimate = estimateMaxCostUsd(params, JSON.stringify(params).length, remainingSearches);
 
@@ -115,6 +119,7 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<ToolLoopRes
       case 'tool_use': {
         const results = await runClientTools(message, options.tools);
         if (results.length > 0) messages.push({ role: 'user', content: results });
+        if (options.isDone?.()) return result('done');
         break;
       }
       // Server-side search loop paused; resending the conversation continues it.

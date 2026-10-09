@@ -15,6 +15,13 @@
       "when": 1791550536592,
       "tag": "0001_saved_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791551934225,
+      "tag": "0002_trips",
+      "breakpoints": true
     }
   ]
 }

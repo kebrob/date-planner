@@ -203,3 +203,14 @@ export const tagWeight = pgTable(
   },
   (t) => [primaryKey({ columns: [t.tag, t.context] })],
 );
+
+export const trip = pgTable('trip', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  startDate: text('start_date').notNull(),
+  endDate: text('end_date').notNull(),
+  input: jsonb('input').notNull(),
+  plan: jsonb('plan').notNull(),
+  isFavorite: boolean('is_favorite').notNull().default(false),
+  createdAt: createdAt(),
+});

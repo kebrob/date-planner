@@ -30,4 +30,9 @@ if (password.length < 16) {
   console.error('Password too short.');
   process.exit(1);
 }
-console.log(await hashPassword(password));
+const hash = await hashPassword(password);
+console.log(hash);
+console.error(
+  '\nVercel: paste the value above as is.\n.env.local: Next.js expands "$" in env files – escape it:\n' +
+    `AUTH_PASSWORD_HASH=${hash.replaceAll('$', '\\$')}`,
+);

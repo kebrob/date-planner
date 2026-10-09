@@ -45,14 +45,19 @@ export default async function AdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Admin</h1>
-        <Link
-          href="/admin/activities"
-          className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white"
-        >
-          Manage activities
-        </Link>
+        <div className="flex items-center gap-3 whitespace-nowrap">
+          <Link href="/settings/security" className="text-sm text-stone-500 underline">
+            Security &amp; passkeys
+          </Link>
+          <Link
+            href="/admin/activities"
+            className="rounded-xl bg-rose-600 px-4 py-2 text-sm text-white"
+          >
+            Manage activities
+          </Link>
+        </div>
       </div>
 
       <section className={card}>

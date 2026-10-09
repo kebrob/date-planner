@@ -6,6 +6,7 @@ Private date planner PWA: suggests date ideas and builds a concrete schedule bas
 
 - Architecture (arc42, German): [docs/arc42](docs/arc42/README.md)
 - **Cost limits & provider quotas — set these up before deploying:** [docs/betrieb/kostenlimits.md](docs/betrieb/kostenlimits.md)
+- Deployment (Vercel, Neon, Cloudflare): [docs/betrieb/deployment.md](docs/betrieb/deployment.md)
 
 ## Local setup
 

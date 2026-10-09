@@ -101,7 +101,6 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
   const [cuisine, setCuisine] = useState<Cuisine | null>(null);
   const router = useRouter();
   const [area, setArea] = useState('');
-  const [allowOverBudget, setAllowOverBudget] = useState(false);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [lastInput, setLastInput] = useState<PlanInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -120,7 +119,6 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
     food,
     cuisine: food === 'none' || food === 'snack' ? null : cuisine,
     area: area.trim() || undefined,
-    allowOverBudget,
     excludeActivityIds: [],
   });
 
@@ -254,17 +252,6 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
             className="accent-rose-600"
           />
         </label>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={allowOverBudget}
-            onChange={(e) => setAllowOverBudget(e.target.checked)}
-            className="accent-rose-600"
-          />
-          May go up to 50 % over budget if the day would end early
-        </label>
-
         <label className="flex flex-col gap-1 text-sm">
           Where?
           <input
