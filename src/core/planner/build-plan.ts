@@ -18,6 +18,12 @@ import type {
 } from './types';
 
 const MAX_CANDIDATES_PER_SLOT = 15;
+const MAX_ITEMS = 5;
+// Free time left (before heading home) that is worth filling with another item.
+const MIN_FILL_MINUTES = 90;
+// Kept back for later slots so the first item cannot use up the whole budget.
+const SLOT_RESERVE_EUR: Record<Slot, number> = { main: 0, meal: 25, snack: 8 };
+const STRETCH_FACTOR = 1.5;
 // First venue when starting from home, by plan size.
 const HOME_RADIUS_KM: Record<PlanFormat, number> = { single: 25, evening: 40, day: 120 };
 // Around an explicit destination.
@@ -61,7 +67,7 @@ type State = {
   location: LatLng;
   atHomeLocation: boolean;
   reachedArea: boolean;
-  budget: number;
+  spentEur: number;
   used: Set<string>;
   lookups: number;
   warnings: Set<PlanWarning>;
@@ -182,6 +188,31 @@ function targetOf(
     : state.location;
 }
 
+type Pass = {
+  /** Max cost of this item including travel there and back home. */
+  limitEur: number;
+  /** Extra items after the planned slots: prefer free ideas, stay out (no going home mid-trip). */
+  filler: boolean;
+  /** Going home is only allowed for the last planned item, never in the middle of an outing. */
+  homeAllowed: boolean;
+};
+
+function makePass(
+  state: State,
+  request: PlanRequest,
+  laterSlots: Slot[],
+  stretch: boolean,
+  filler = false,
+): Pass {
+  const budget = request.budgetEur * (stretch ? STRETCH_FACTOR : 1);
+  const reserve = laterSlots.reduce((sum, s) => sum + SLOT_RESERVE_EUR[s], 0);
+  return {
+    limitEur: budget - state.spentEur - reserve,
+    filler,
+    homeAllowed: state.atHomeLocation || (!filler && laterSlots.length === 0),
+  };
+}
+
 function schedule(
   slot: Slot,
   activity: Activity,
@@ -189,6 +220,7 @@ function schedule(
   state: State,
   request: PlanRequest,
   ctx: PlanContext,
+  pass: Pass,
 ): PlanItem | null {
   const target = targetOf(activity, place, state, request, ctx);
   const travel = travelTo(target, state, request, ctx);
@@ -198,7 +230,7 @@ function schedule(
   if (addMinutes(end, back?.minutes ?? 0) > request.end) return null;
 
   const costEur = estimatedCost(activity) + (travel?.costEur ?? 0);
-  if (costEur + (back?.costEur ?? 0) > state.budget) return null;
+  if (costEur + (back?.costEur ?? 0) > pass.limitEur) return null;
 
   if (place?.openingHours && !isOpenDuring(place.openingHours, start, end)) return null;
 
@@ -220,22 +252,30 @@ async function fillSlot(
   request: PlanRequest,
   ctx: PlanContext,
   format: PlanFormat,
+  pass: Pass,
 ): Promise<PlanItem | null> {
-  const candidates = ctx.activities.filter((a) =>
-    isCandidate(a, {
-      slot,
-      slotStart: state.cursor,
-      availableMinutes: minutesBetween(state.cursor, request.end),
-      remainingBudgetEur: state.budget,
-      used: state.used,
-      request,
-      weather: ctx.weather,
-      placeLookupsLeft: state.lookups < ctx.maxPlaceLookups,
-    }),
+  const candidates = ctx.activities.filter(
+    (a) =>
+      (pass.homeAllowed || !a.atHome) &&
+      isCandidate(a, {
+        slot,
+        slotStart: state.cursor,
+        availableMinutes: minutesBetween(state.cursor, request.end),
+        remainingBudgetEur: pass.limitEur,
+        used: state.used,
+        request,
+        weather: ctx.weather,
+        placeLookupsLeft: state.lookups < ctx.maxPlaceLookups,
+      }),
   );
+  // Cheaper ideas get a boost relative to what is left, fillers strongly prefer free ones.
+  const affordability = (a: Activity) => 1 / (1 + estimatedCost(a) / Math.max(10, pass.limitEur));
   const ordered = weightedShuffle(
     candidates,
-    (a) => score(a, request.preferences, ctx.history, ctx.tagWeights),
+    (a) =>
+      score(a, request.preferences, ctx.history, ctx.tagWeights) *
+      affordability(a) *
+      (pass.filler && a.costMaxEur === 0 ? 3 : 1),
     ctx.random,
   ).slice(0, MAX_CANDIDATES_PER_SLOT);
 
@@ -244,7 +284,7 @@ async function fillSlot(
 
   for (const activity of ordered) {
     if (!needsPlace(activity)) {
-      const item = schedule(slot, activity, null, state, request, ctx);
+      const item = schedule(slot, activity, null, state, request, ctx, pass);
       if (item) return item;
       continue;
     }
@@ -260,17 +300,51 @@ async function fillSlot(
         (!limitedRange || distanceKm(ctx.home, p.location) <= maxDistanceKm(request.transport)),
     );
     for (const place of rankPlaces(reachable, region.anchors, region.radiusKm, ctx.random)) {
-      const item = schedule(slot, activity, place, state, request, ctx);
+      const item = schedule(slot, activity, place, state, request, ctx, pass);
       if (item) return item;
     }
   }
   return null;
 }
 
+/** Tries within budget first, then – if allowed – up to the stretched budget. */
+async function fillWithStretch(
+  slot: Slot,
+  laterSlots: Slot[],
+  state: State,
+  request: PlanRequest,
+  ctx: PlanContext,
+  format: PlanFormat,
+  filler = false,
+): Promise<PlanItem | null> {
+  const normal = await fillSlot(
+    slot,
+    state,
+    request,
+    ctx,
+    format,
+    makePass(state, request, laterSlots, false, filler),
+  );
+  if (normal || !request.allowOverBudget) return normal;
+  return fillSlot(
+    slot,
+    state,
+    request,
+    ctx,
+    format,
+    makePass(state, request, laterSlots, true, filler),
+  );
+}
+
+function freeMinutes(state: State, request: PlanRequest, ctx: PlanContext): number {
+  const home = travelHome(state.location, request, ctx);
+  return minutesBetween(state.cursor, request.end) - (home?.minutes ?? 0);
+}
+
 function apply(item: PlanItem, state: State, request: PlanRequest, ctx: PlanContext) {
   const target = targetOf(item.activity, item.place, state, request, ctx);
   state.cursor = item.end;
-  state.budget -= item.costEur;
+  state.spentEur += item.costEur;
   state.used.add(item.activity.id);
   state.atHomeLocation = distanceKm(target, ctx.home) < 0.05;
   state.location = target;
@@ -284,8 +358,8 @@ function apply(item: PlanItem, state: State, request: PlanRequest, ctx: PlanCont
 }
 
 /**
- * Builds a schedule for the request. All loops are bounded: at most 4 slots, 15 candidates per slot
- * and `maxPlaceLookups` place searches in total.
+ * Builds a schedule for the request. All loops are bounded: at most `MAX_ITEMS` items, 15 candidates
+ * per slot and attempt, and `maxPlaceLookups` place searches in total.
  */
 export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise<Plan> {
   const duration = minutesBetween(request.start, request.end);
@@ -295,7 +369,7 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
     location: ctx.home,
     atHomeLocation: true,
     reachedArea: false,
-    budget: request.budgetEur,
+    spentEur: 0,
     used: new Set(),
     lookups: 0,
     warnings: new Set(),
@@ -303,23 +377,42 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
   if (ctx.weather.reliability === 'none') state.warnings.add('forecast_unavailable');
   if (ctx.weather.reliability === 'low') state.warnings.add('forecast_unreliable');
 
-  const slots = chooseSlots(
-    format,
-    duration,
-    request.food ?? 'auto',
-    request.budgetEur,
-    ctx.random,
-  );
+  const slots = (
+    request.slots ??
+    chooseSlots(format, duration, request.food ?? 'auto', request.budgetEur, ctx.random)
+  ).slice(0, MAX_ITEMS);
   const items: PlanItem[] = [];
   for (const [index, slot] of slots.entries()) {
+    const later = slots.slice(index + 1);
     const kept = request.keep?.[index];
-    const item =
-      (kept && schedule(slot, kept.activity, kept.place, state, request, ctx)) ||
-      (await fillSlot(slot, state, request, ctx, format));
+    const keptItem =
+      kept &&
+      schedule(
+        slot,
+        kept.activity,
+        kept.place,
+        state,
+        request,
+        ctx,
+        makePass(state, request, later, request.allowOverBudget ?? false),
+      );
+    const item = keptItem || (await fillWithStretch(slot, later, state, request, ctx, format));
     if (item) {
       items.push(item);
       apply(item, state, request, ctx);
     }
+  }
+
+  // Long days: fill remaining free time, preferring free or cheap ideas nearby.
+  while (
+    items.length > 0 &&
+    items.length < MAX_ITEMS &&
+    freeMinutes(state, request, ctx) >= MIN_FILL_MINUTES
+  ) {
+    const item = await fillWithStretch('main', [], state, request, ctx, format, true);
+    if (!item) break;
+    items.push(item);
+    apply(item, state, request, ctx);
   }
 
   const food = request.food ?? 'auto';
@@ -328,7 +421,15 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
   }
 
   if (items.length === 0) {
-    const fallback = schedule('main', FALLBACK_ACTIVITY, null, state, request, ctx) ?? {
+    const fallback = schedule(
+      'main',
+      FALLBACK_ACTIVITY,
+      null,
+      state,
+      request,
+      ctx,
+      makePass(state, request, [], false),
+    ) ?? {
       slot: 'main' as const,
       activity: FALLBACK_ACTIVITY,
       place: null,
@@ -344,11 +445,15 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
   }
 
   const home = travelHome(state.location, request, ctx);
+  const totalCostEur = items.reduce((sum, i) => sum + i.costEur, 0) + (home?.costEur ?? 0);
+  const overBudgetEur = Math.max(0, totalCostEur - request.budgetEur);
+  if (overBudgetEur > 0) state.warnings.add('over_budget');
   return {
     format,
     items,
     travelHome: home,
-    totalCostEur: items.reduce((sum, i) => sum + i.costEur, 0) + (home?.costEur ?? 0),
+    totalCostEur,
+    overBudgetEur,
     weather: ctx.weather,
     warnings: [...state.warnings],
     placeLookups: state.lookups,

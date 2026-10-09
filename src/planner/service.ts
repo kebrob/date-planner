@@ -60,6 +60,11 @@ export const planInputSchema = z
     format: z.enum(['single', 'evening', 'day']).optional(),
     food: z.enum(['auto', 'none', 'snack', 'meal']).default('auto'),
     area: z.string().trim().max(100).optional(),
+    allowOverBudget: z.boolean().default(false),
+    slots: z
+      .array(z.enum(['main', 'meal', 'snack']))
+      .max(5)
+      .optional(),
     excludeActivityIds: z.array(z.string().max(100)).max(100).default([]),
     keep: z
       .record(z.string(), z.object({ activityId: z.string(), place: placeSchema.nullable() }))
@@ -174,6 +179,8 @@ export async function generatePlan(
       format: input.format,
       food: input.food,
       area,
+      allowOverBudget: input.allowOverBudget,
+      slots: input.slots,
       excludeActivityIds: input.excludeActivityIds,
       keep,
     },
@@ -197,6 +204,7 @@ export async function generatePlan(
           center,
           radiusKm,
           maxResults: 10,
+          free: a.costMaxEur === 0,
         }),
       random: Math.random,
     },

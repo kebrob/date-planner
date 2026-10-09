@@ -60,9 +60,13 @@ export type PlanRequest = {
   food?: FoodPreference;
   /** Optional destination; the first venue is searched around it instead of home. */
   area?: { name: string; location: LatLng } | null;
+  /** Allows going up to 50 % over budget if nothing else fits; flagged in the plan. */
+  allowOverBudget?: boolean;
+  /** Slot layout of a previous plan; used when re-rolling a single item so `keep` indices match. */
+  slots?: Slot[];
   /** Activities rejected during this planning session. */
   excludeActivityIds: string[];
-  /** Items kept from a previous plan when re-rolling a single slot, keyed by slot index. */
+  /** Items kept from a previous plan when re-rolling a single item, keyed by item index. */
   keep?: Record<number, { activity: Activity; place: Place | null }>;
 };
 
@@ -100,13 +104,15 @@ export type PlanWarning =
   | 'opening_hours_unknown'
   | 'place_lookup_limit_reached'
   | 'fallback_used'
-  | 'food_skipped';
+  | 'food_skipped'
+  | 'over_budget';
 
 export type Plan = {
   format: PlanFormat;
   items: PlanItem[];
   travelHome: Travel | null;
   totalCostEur: number;
+  overBudgetEur: number;
   weather: WeatherSummary;
   warnings: PlanWarning[];
   placeLookups: number;

@@ -4,7 +4,11 @@ import type { GeocodingProvider } from '@/ports/geocoding';
 import type { PlacesProvider } from '@/ports/places';
 import type { WeatherProvider } from '@/ports/weather';
 import { OpenMeteoGeocoder } from './geocoding/open-meteo';
-import { CachedPlacesProvider, FallbackPlacesProvider } from './places/composite';
+import {
+  CachedPlacesProvider,
+  FallbackPlacesProvider,
+  RoutingPlacesProvider,
+} from './places/composite';
 import { GooglePlacesProvider } from './places/google';
 import { OsmPlacesProvider } from './places/osm';
 import { OpenMeteoProvider } from './weather/open-meteo';
@@ -20,7 +24,10 @@ export function getPlacesProvider(): PlacesProvider {
     const useGoogle = getLimits().places.provider === 'google' && Boolean(key);
     places = new CachedPlacesProvider(
       useGoogle
-        ? new FallbackPlacesProvider(new GooglePlacesProvider(key!, getCostGuard()), osm)
+        ? new RoutingPlacesProvider(
+            new FallbackPlacesProvider(new GooglePlacesProvider(key!, getCostGuard()), osm),
+            osm,
+          )
         : osm,
     );
   }

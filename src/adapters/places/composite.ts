@@ -16,6 +16,18 @@ export class FallbackPlacesProvider implements PlacesProvider {
   }
 }
 
+/** Sends searches for free ideas to a free provider to save paid quota. */
+export class RoutingPlacesProvider implements PlacesProvider {
+  constructor(
+    private readonly paid: PlacesProvider,
+    private readonly free: PlacesProvider,
+  ) {}
+
+  search(request: PlaceSearch): Promise<Place[]> {
+    return (request.free ? this.free : this.paid).search(request);
+  }
+}
+
 const TTL_MS = 60 * 60_000;
 const MAX_ENTRIES = 200;
 
@@ -33,6 +45,7 @@ export class CachedPlacesProvider implements PlacesProvider {
 
   async search(request: PlaceSearch): Promise<Place[]> {
     const key = JSON.stringify([
+      request.free ?? false,
       request.placeType,
       request.query,
       request.center.lat.toFixed(2),

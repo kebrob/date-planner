@@ -35,6 +35,7 @@ Die App-Limits liegen bewusst **unter** den Anbieter-Limits, damit die App saube
 - **Google 30/Tag:** Abfragen mit Öffnungszeiten/Bewertungen laufen über die Enterprise-SKU mit **1.000 kostenlosen Abfragen/Monat**. 30 × 31 = 930 → bleibt garantiert im Freikontingent.
 - **Google Places (New):** Text Search, Nearby Search und Place Details haben getrennte Kontingente und getrennte Freikontingente – deshalb jedes einzeln begrenzen.
 - **Google-Testzeitraum:** Im kostenlosen Testzeitraum lassen sich Kontingente ggf. nicht bearbeiten. Kein Kostenrisiko, solange nicht manuell auf ein vollständiges Konto umgestellt wird. **Vor dem Upgrade** Schritte 6 und 7 erledigen.
+- **App-Limit vs. Freikontingent:** Bei `PLACES_DAILY_LIMIT=35` wären im Extremfall 35 × 31 = 1.085 Abfragen/Monat möglich (Freikontingent 1.000). In der Praxis deutlich weniger, da kostenlose Ideen (Park, Bücherei …) über OpenStreetMap gesucht werden und Ergebnisse 1 h zwischengespeichert sind. Wer garantiert im Freikontingent bleiben will: ≤ 32.
 - **Google Budget ≠ Limit:** Google-Budgets **alarmieren nur, sie stoppen nichts**. Das harte Limit sind ausschließlich die Quotas (Schritt 6/7).
 
 ---

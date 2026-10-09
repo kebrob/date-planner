@@ -4,7 +4,11 @@ import { MemoryUsageStore } from '@/guard/memory-store';
 import type { GuardLimits } from '@/guard/types';
 import type { PlaceSearch, PlacesProvider } from '@/ports/places';
 import { OpenMeteoGeocoder } from './geocoding/open-meteo';
-import { CachedPlacesProvider, FallbackPlacesProvider } from './places/composite';
+import {
+  CachedPlacesProvider,
+  FallbackPlacesProvider,
+  RoutingPlacesProvider,
+} from './places/composite';
 import { GooglePlacesProvider, parseOpeningHours } from './places/google';
 import { buildQuery, OsmPlacesProvider } from './places/osm';
 import { OpenMeteoProvider } from './weather/open-meteo';
@@ -175,6 +179,18 @@ describe('OsmPlacesProvider', () => {
     expect(buildQuery(search)).toContain(
       'nwr["leisure"="miniature_golf"]["name"](around:25000,47.86,12.13);',
     );
+  });
+});
+
+describe('RoutingPlacesProvider', () => {
+  it('sends free ideas to the free provider and everything else to the paid one', async () => {
+    const paid: PlacesProvider = { search: vi.fn(async () => []) };
+    const free: PlacesProvider = { search: vi.fn(async () => []) };
+    const routing = new RoutingPlacesProvider(paid, free);
+    await routing.search({ ...search, placeType: 'park', free: true });
+    await routing.search(search);
+    expect(free.search).toHaveBeenCalledTimes(1);
+    expect(paid.search).toHaveBeenCalledTimes(1);
   });
 });
 

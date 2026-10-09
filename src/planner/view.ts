@@ -30,6 +30,7 @@ export type PlanView = {
   }[];
   travelHome: Leg | null;
   totalCostEur: number;
+  overBudgetEur: number;
   weather: WeatherSummary;
   warnings: PlanWarning[];
 };
@@ -106,6 +107,7 @@ export function toPlanView(
     items,
     travelHome: leg(plan.travelHome, previous, homePoint),
     totalCostEur: plan.totalCostEur,
+    overBudgetEur: plan.overBudgetEur,
     weather: plan.weather,
     warnings: plan.warnings,
   };

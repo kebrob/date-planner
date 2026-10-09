@@ -24,6 +24,8 @@ export type PlaceSearch = {
   center: LatLng;
   radiusKm: number;
   maxResults: number;
+  /** Free ideas (parks, libraries …) where opening hours and ratings matter less. */
+  free?: boolean;
 };
 
 export interface PlacesProvider {

@@ -86,6 +86,7 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
   const [format, setFormat] = useState<Format | 'auto'>('auto');
   const [food, setFood] = useState<Food>('auto');
   const [area, setArea] = useState('');
+  const [allowOverBudget, setAllowOverBudget] = useState(false);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [lastInput, setLastInput] = useState<PlanInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -103,6 +104,7 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
     format: format === 'auto' ? undefined : format,
     food,
     area: area.trim() || undefined,
+    allowOverBudget,
     excludeActivityIds: [],
   });
 
@@ -125,7 +127,7 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
     if (!plan || !lastInput) return;
     const next = [...new Set([...excluded, ...plan.items.map((i) => i.activityId)])];
     setExcluded(next);
-    run({ ...lastInput, excludeActivityIds: next, keep: undefined });
+    run({ ...lastInput, excludeActivityIds: next, keep: undefined, slots: undefined });
   };
 
   const rerollItem = (index: number) => {
@@ -137,7 +139,12 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
         .map((item, i) => [String(i), { activityId: item.activityId, place: item.place }] as const)
         .filter(([i]) => Number(i) !== index),
     );
-    run({ ...lastInput, excludeActivityIds: next, keep });
+    run({
+      ...lastInput,
+      excludeActivityIds: next,
+      keep,
+      slots: plan.items.map((i) => i.slot),
+    });
   };
 
   const accept = () => {
@@ -212,6 +219,16 @@ export function Planner({ defaults }: { defaults: { transport: Transport; budget
             onChange={(e) => setBudget(Number(e.target.value))}
             className="accent-rose-600"
           />
+        </label>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={allowOverBudget}
+            onChange={(e) => setAllowOverBudget(e.target.checked)}
+            className="accent-rose-600"
+          />
+          May go up to 50 % over budget if the day would end early
         </label>
 
         <label className="flex flex-col gap-1 text-sm">

@@ -20,6 +20,7 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
   opening_hours_unknown: 'Opening hours unknown for some places — check before you go.',
   place_lookup_limit_reached: 'Place search limit reached; some ideas were skipped.',
   fallback_used: 'Nothing else fit — here is a cozy fallback.',
+  over_budget: 'Slightly over budget so the day does not end early.',
   food_skipped: 'Food did not fit the budget or time — raise the budget or re-roll.',
 };
 
@@ -76,7 +77,14 @@ export function PlanResult({ plan, pending, onRerollAll, onRerollItem, onAccept 
           </h2>
           {weather && <p className="text-sm text-stone-500">{weather}</p>}
         </div>
-        <p className="text-lg font-semibold">~{plan.totalCostEur} €</p>
+        <div className="text-right">
+          <p className="text-lg font-semibold">~{plan.totalCostEur} €</p>
+          {plan.overBudgetEur > 0 && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              +{plan.overBudgetEur} € over budget
+            </p>
+          )}
+        </div>
       </header>
 
       <ol className="flex flex-col gap-3">

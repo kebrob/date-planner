@@ -60,6 +60,7 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - Jeder externe Dienst hat ein Interface in `ports/` mit eigenen, anbieterneutralen Typen.
 - Adapter übersetzen Anbieter-Datenformate in diese Typen; nichts außerhalb eines Adapters kennt Anbieter-Formate.
 - Auswahl per Environment-Variable (z. B. `PLACES_PROVIDER=google|osm`) in einer zentralen Factory.
+- Kostenlose Ideen (Park, Bücherei, Kirche …) werden immer über OpenStreetMap gesucht, um Google-Kontingent zu sparen.
 - Für jeden Port gibt es eine gemeinsame Contract-Test-Suite, die alle Adapter erfüllen müssen.
 
 ## Planner-Logik
@@ -69,7 +70,11 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 3. **Gewichteter Zufall** über die Scores (seedbar für Tests).
 4. **Planformat** aus Zeitfenster (< 3 h eine Aktivität, 3–6 h zwei Programmpunkte, > 6 h Tagesplan), manuell überschreibbar. **Essen** per Filter (Auto / kein Essen / Snack / Mahlzeit); bei „Auto“ zufällige Vorlage inkl. Reihenfolge, Mahlzeiten nur ab 40 € Budget. Passt gewünschtes Essen nicht, gibt es einen Hinweis.
 5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Meist wird am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
-6. **Neu würfeln:** ganzer Plan oder ein Programmpunkt; abgelehnte Aktivitäten werden für die laufende Planung abgewertet.
+6. **Budget einteilen:** Für noch geplante Mahlzeiten (~25 €) und Snacks (~8 €) wird Budget zurückgehalten; günstigere Ideen werden relativ zum Restbudget bevorzugt.
+7. **Lange Tage auffüllen:** Bleiben vor der Heimfahrt ≥ 90 min frei, werden weitere Punkte ergänzt (max. 5 insgesamt), bevorzugt kostenlose (Bücherei, Park, Markt, Kirche …).
+8. **Kein Heimfahren zwischendurch:** Unterwegs sind Aktivitäten zu Hause nur als letzter geplanter Punkt erlaubt; danach darf zu Hause aufgefüllt werden.
+9. **Budget überziehen (optional, Standard aus):** Passt nichts mehr, darf bis 50 % über Budget geplant werden; Mehrbetrag wird angezeigt.
+10. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
 
 ## Tests
 

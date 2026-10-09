@@ -290,6 +290,142 @@ describe('buildPlan', () => {
   });
 });
 
+describe('budget and long days', () => {
+  const escapeRoom = activity({
+    id: 'escape-room',
+    costMinEur: 60,
+    costMaxEur: 70,
+    placeType: 'escape_room',
+    placeQuery: 'Escape Room',
+  });
+  const cheapCinema = activity({
+    id: 'cheap-cinema',
+    costMinEur: 20,
+    costMaxEur: 30,
+    durationMinutes: 120,
+    placeType: 'cinema',
+    placeQuery: 'Kino',
+  });
+  const freeWalk = activity({ id: 'free-walk', tags: ['outdoor'], durationMinutes: 60 });
+  const library = activity({
+    id: 'library',
+    durationMinutes: 60,
+    placeType: 'library',
+    placeQuery: 'Bibliothek',
+  });
+
+  it('keeps money back for a planned meal instead of spending it all on the first item', async () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const plan = await buildPlan(
+        request({ food: 'meal', budgetEur: 80 }),
+        context({ activities: [escapeRoom, cheapCinema, dinner], random: seededRandom(seed) }),
+      );
+      expect(plan.items.map((i) => i.activity.id)).toContain('dinner');
+      expect(plan.totalCostEur).toBeLessThanOrEqual(80);
+    }
+  });
+
+  it('fills a long day with free ideas instead of ending early', async () => {
+    const req = request({
+      food: 'none',
+      start: fromLocal('2026-10-10', '10:00'),
+      end: fromLocal('2026-10-10', '20:00'),
+      budgetEur: 40,
+    });
+    const plan = await buildPlan(
+      req,
+      context({ activities: [cheapCinema, freeWalk, library, boardGames] }),
+    );
+    expect(plan.items.length).toBeGreaterThanOrEqual(3);
+    expect(plan.items.map((i) => i.activity.id)).toEqual(
+      expect.arrayContaining(['free-walk', 'library']),
+    );
+    const arrival = plan.items.at(-1)!.end.getTime() + (plan.travelHome?.minutes ?? 0) * 60_000;
+    expect(arrival).toBeLessThanOrEqual(req.end.getTime());
+  });
+
+  it('does not send you home for a filler while out', async () => {
+    const plan = await buildPlan(
+      request({
+        food: 'none',
+        slots: ['main'],
+        keep: { 0: { activity: cheapCinema, place: placeAt(HOME, 5, 'cinema') } },
+        start: fromLocal('2026-10-10', '10:00'),
+        end: fromLocal('2026-10-10', '20:00'),
+      }),
+      context({ activities: [cheapCinema, boardGames] }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual(['cheap-cinema']);
+  });
+
+  it('only returns home for the last planned item, not in the middle of an outing', async () => {
+    const cookAtHome = activity({
+      id: 'cook-at-home',
+      category: 'food',
+      tags: ['food', 'meal'],
+      atHome: true,
+    });
+    for (let seed = 1; seed <= 20; seed++) {
+      const plan = await buildPlan(
+        request({
+          slots: ['main', 'meal', 'main'],
+          keep: { 0: { activity: cheapCinema, place: placeAt(HOME, 5, 'cinema') } },
+          start: fromLocal('2026-10-10', '12:00'),
+          end: fromLocal('2026-10-10', '23:00'),
+        }),
+        context({
+          activities: [cheapCinema, dinner, cookAtHome, freeWalk, boardGames],
+          random: seededRandom(seed),
+        }),
+      );
+      expect(plan.items[1]?.activity.atHome).toBe(false);
+    }
+  });
+
+  it('never plans more than five items', async () => {
+    const many = Array.from({ length: 12 }, (_, i) =>
+      activity({ id: `short-${i}`, durationMinutes: 30 }),
+    );
+    const plan = await buildPlan(
+      request({
+        food: 'none',
+        start: fromLocal('2026-10-10', '08:00'),
+        end: fromLocal('2026-10-10', '23:00'),
+      }),
+      context({ activities: many }),
+    );
+    expect(plan.items).toHaveLength(5);
+  });
+
+  it('only goes over budget when allowed, by at most 50 % and with a warning', async () => {
+    const base = { food: 'meal' as const, budgetEur: 40, format: 'evening' as const };
+    const strict = await buildPlan(request(base), context({ activities: [freeWalk, dinner] }));
+    expect(strict.items.map((i) => i.activity.id)).not.toContain('dinner');
+    expect(strict.overBudgetEur).toBe(0);
+
+    const stretched = await buildPlan(
+      request({ ...base, allowOverBudget: true }),
+      context({ activities: [freeWalk, dinner] }),
+    );
+    expect(stretched.items.map((i) => i.activity.id)).toContain('dinner');
+    expect(stretched.overBudgetEur).toBeGreaterThan(0);
+    expect(stretched.totalCostEur).toBeLessThanOrEqual(60);
+    expect(stretched.warnings).toContain('over_budget');
+  });
+
+  it('reuses the previous slot layout when re-rolling a single item', async () => {
+    const plan = await buildPlan(
+      request({
+        slots: ['meal', 'main'],
+        keep: { 0: { activity: dinner, place: placeAt(HOME, 1, 'kept-dinner') } },
+      }),
+      context(),
+    );
+    expect(plan.items[0]).toMatchObject({ slot: 'meal', place: { id: 'kept-dinner' } });
+    expect(plan.items[1]!.slot).toBe('main');
+  });
+});
+
 describe('route planning', () => {
   const north = (km: number) => ({ lat: HOME.lat + km / 111, lng: HOME.lng });
 

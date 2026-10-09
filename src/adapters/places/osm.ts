@@ -28,6 +28,11 @@ export const OSM_FILTERS: Record<string, string[]> = {
   trampoline: ['["leisure"="trampoline_park"]'],
   viewpoint: ['["tourism"="viewpoint"]'],
   park: ['["leisure"="park"]'],
+  library: ['["amenity"="library"]'],
+  bookshop: ['["shop"="books"]'],
+  church: ['["amenity"="place_of_worship"]["religion"="christian"]["building"~"cathedral|church"]'],
+  marketplace: ['["amenity"="marketplace"]'],
+  mall: ['["shop"="mall"]'],
   mountain_hut: ['["tourism"="alpine_hut"]'],
 };
 
