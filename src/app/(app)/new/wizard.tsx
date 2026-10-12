@@ -5,19 +5,17 @@ import { useEffect, useRef, useState } from 'react';
 import { autoAreaRadiusKm, autoRadiusKm } from '@/core/planner/build-plan';
 import { fromLocal, minutesBetween } from '@/lib/time';
 import type { PlanInput } from '@/planner/service';
-import { LocationPicker, type Point } from '../location-picker';
+import { BackIcon } from '../icons';
+import type { Point } from '../location-picker';
 import { SessionResult, usePlanSession } from '../plan-session';
-import { StopPicker, type PickedStop } from '../stop-picker';
-import { MOODS } from '../moods';
-import { Face } from './face';
+import type { PickedStop } from '../stop-picker';
+import { StepHeading } from './controls';
 import type { TimePreset } from './presets';
-import { TRANSPORTS } from '../transports';
-import { BackIcon, CloseIcon } from '../icons';
+import { FoodStep, HowStep, MoodStep, PlansStep, WhenStep, WhereStep, type Format } from './steps';
 
 type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
 type Cuisine = NonNullable<PlanInput['cuisine']>;
-type Format = NonNullable<PlanInput['format']>;
 
 export type WizardDefaults = {
   transport: Transport;
@@ -29,152 +27,6 @@ export type WizardDefaults = {
 
 const STEPS = ['when', 'where', 'plans', 'how', 'mood', 'food'] as const;
 type Step = (typeof STEPS)[number];
-
-const FOODS: { value: Food; label: string; hint: string }[] = [
-  { value: 'auto', label: 'Surprise us', hint: 'Maybe a meal, maybe a snack' },
-  { value: 'meal', label: 'A proper meal', hint: 'Dinner, lunch or brunch' },
-  { value: 'snack', label: 'Coffee or ice cream', hint: 'Something small' },
-  { value: 'none', label: 'No food', hint: 'Just the plan' },
-];
-
-const CUISINES: { value: Cuisine | null; label: string }[] = [
-  { value: null, label: 'Any' },
-  { value: 'bavarian', label: 'Bavarian' },
-  { value: 'italian', label: 'Italian' },
-  { value: 'asian', label: 'Asian' },
-  { value: 'burger', label: 'Burger' },
-  { value: 'mexican', label: 'Mexican' },
-  { value: 'greek', label: 'Greek' },
-  { value: 'indian', label: 'Indian' },
-  { value: 'veggie', label: 'Veggie' },
-];
-
-const FORMATS: { value: Format | null; label: string }[] = [
-  { value: null, label: 'Fits the time' },
-  { value: 'single', label: 'One thing' },
-  { value: 'evening', label: 'Two stops' },
-  { value: 'day', label: 'Full day' },
-];
-
-function Choice({
-  selected,
-  onClick,
-  children,
-  className = '',
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`rounded-full px-4 py-3 text-sm font-medium ${
-        selected ? 'bg-butter text-ink' : 'bg-cream text-ink hover:bg-butter/60'
-      } ${className}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** Whether the date starts/ends at home or already in the chosen place (no train there/back). */
-function TripEnds(props: {
-  place: string | null;
-  startInArea: boolean;
-  onStartChange: (v: boolean) => void;
-  endInArea: boolean;
-  onEndChange: (v: boolean) => void;
-}) {
-  const there = props.place ? `in ${props.place}` : 'there';
-  const rows = [
-    {
-      label: 'Starting',
-      value: props.startInArea,
-      onChange: props.onStartChange,
-      options: ['From home', `Already ${there}`],
-    },
-    {
-      label: 'Afterwards',
-      value: props.endInArea,
-      onChange: props.onEndChange,
-      options: ['Back home', `Staying ${there}`],
-    },
-  ];
-  return (
-    <div className="flex flex-col gap-3">
-      {rows.map((row) => (
-        <div key={row.label} className="flex flex-col gap-1.5">
-          <span className="text-xs text-mist">{row.label}</span>
-          <div className="grid grid-cols-2 gap-2">
-            {row.options.map((option, i) => (
-              <Choice
-                key={option}
-                selected={row.value === (i === 1)}
-                onClick={() => row.onChange(i === 1)}
-                className="truncate"
-              >
-                {option}
-              </Choice>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function OptionRow({
-  selected,
-  onClick,
-  label,
-  hint,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  label: string;
-  hint: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`flex w-full items-center justify-between rounded-3xl px-5 py-4 text-left ${
-        selected ? 'bg-butter' : 'bg-white ring-1 ring-line hover:bg-cream'
-      }`}
-    >
-      <span>
-        <span className="block font-medium">{label}</span>
-        <span className="block text-sm text-mist">{hint}</span>
-      </span>
-      <span
-        className={`grid h-6 w-6 place-items-center rounded-full border ${
-          selected ? 'border-ink bg-ink text-white' : 'border-line'
-        }`}
-        aria-hidden
-      >
-        {selected && (
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="m2.5 6.2 2.3 2.3 4.7-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </span>
-    </button>
-  );
-}
-
-const field = 'w-full rounded-2xl bg-white px-4 py-3 text-[15px] ring-1 ring-line';
 
 export function Wizard({
   defaults,
@@ -204,7 +56,6 @@ export function Wizard({
   const [food, setFood] = useState<Food>('auto');
   const [cuisine, setCuisine] = useState<Cuisine | null>(null);
   const [picks, setPicks] = useState<PickedStop[]>([]);
-  const [picking, setPicking] = useState(false);
 
   const windowMinutes = (() => {
     try {
@@ -280,8 +131,6 @@ export function Wizard({
     next();
   };
 
-  const activeMood = MOODS.find((m) => m.tag === moods.at(-1));
-
   return (
     <div className="flex min-h-[calc(100dvh-3rem)] flex-col">
       <div className="flex items-center gap-3">
@@ -331,9 +180,7 @@ export function Wizard({
       {step === 'result' ? (
         <div className="mt-6 flex flex-col gap-5">
           <div className="flex items-end justify-between">
-            <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
-              {session.planning ? 'Planning your date…' : 'Your date'}
-            </h1>
+            <StepHeading>{session.planning ? 'Planning your date…' : 'Your date'}</StepHeading>
             {!quick && (
               <button
                 type="button"
@@ -356,270 +203,37 @@ export function Wizard({
       ) : (
         <>
           <div className="mt-8 flex flex-1 flex-col gap-6">
-            {step === 'when' && (
-              <>
-                <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
-                  When&apos;s your date?
-                </h1>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {timePresets.map((p) => (
-                    <Choice
-                      key={p.label}
-                      selected={
-                        p.date === when.date &&
-                        p.startTime === when.startTime &&
-                        p.endTime === when.endTime
-                      }
-                      onClick={() => setWhen(p)}
-                    >
-                      {p.label}
-                    </Choice>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {/* One caption for two inputs, so each input carries its own name. */}
-                  <div role="group" aria-label="From" className="flex flex-col gap-1.5 text-mist">
-                    <span aria-hidden>From</span>
-                    <input
-                      type="date"
-                      aria-label="Start date"
-                      className={field}
-                      value={when.date}
-                      onChange={(e) => setWhen({ ...when, date: e.target.value })}
-                    />
-                    <input
-                      type="time"
-                      aria-label="Start time"
-                      className={field}
-                      value={when.startTime}
-                      onChange={(e) => setWhen({ ...when, startTime: e.target.value })}
-                    />
-                  </div>
-                  <div role="group" aria-label="Until" className="flex flex-col gap-1.5 text-mist">
-                    <span aria-hidden>Until</span>
-                    <input
-                      type="date"
-                      aria-label="End date"
-                      className={field}
-                      value={when.endDate}
-                      onChange={(e) => setWhen({ ...when, endDate: e.target.value })}
-                    />
-                    <input
-                      type="time"
-                      aria-label="End time"
-                      className={field}
-                      value={when.endTime}
-                      onChange={(e) => setWhen({ ...when, endTime: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
+            {step === 'when' && <WhenStep presets={timePresets} when={when} setWhen={setWhen} />}
             {step === 'where' && (
-              <>
-                <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
-                  Where should it be?
-                </h1>
-                <p className="-mt-3 text-sm text-mist">
-                  Around {defaults.homeName} unless you pick a town or tap the map. “Fit to time”
-                  keeps the trip there to about a quarter of your time.
-                </p>
-                <LocationPicker
-                  home={{ name: defaults.homeName, ...defaults.home }}
-                  center={center}
-                  onCenterChange={setCenter}
-                  radiusKm={maxDistanceKm}
-                  onRadiusChange={setMaxDistanceKm}
-                  autoRadiusKm={autoKm}
-                />
-                {center && (
-                  <TripEnds
-                    place={center.name === 'Pinned location' ? null : center.name.split(',')[0]!}
-                    startInArea={startInArea}
-                    onStartChange={setStartInArea}
-                    endInArea={endInArea}
-                    onEndChange={setEndInArea}
-                  />
-                )}
-              </>
+              <WhereStep
+                home={{ name: defaults.homeName, ...defaults.home }}
+                center={center}
+                setCenter={setCenter}
+                maxDistanceKm={maxDistanceKm}
+                setMaxDistanceKm={setMaxDistanceKm}
+                autoKm={autoKm}
+                startInArea={startInArea}
+                setStartInArea={setStartInArea}
+                endInArea={endInArea}
+                setEndInArea={setEndInArea}
+              />
             )}
-
             {step === 'plans' && (
-              <>
-                <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
-                  Anything set already?
-                </h1>
-                <p className="-mt-3 text-sm text-mist">
-                  Add what you want to do for sure, at a set time if you like. The planner fits the
-                  rest around it.
-                </p>
-                {picks.length > 0 && (
-                  <ul className="flex flex-col gap-2">
-                    {picks.map((p, i) => (
-                      <li
-                        key={`${p.title}-${i}`}
-                        className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-butter px-4 py-2"
-                      >
-                        <span className="flex flex-col">
-                          <span className="font-medium">{p.title}</span>
-                          {p.when && <span className="text-sm text-ink/70">{p.when}</span>}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Remove ${p.title}`}
-                          onClick={() => setPicks((cur) => cur.filter((_, j) => j !== i))}
-                          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/70 hover:bg-white"
-                        >
-                          <CloseIcon />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {picks.length < 3 && (
-                  <button
-                    type="button"
-                    onClick={() => setPicking(true)}
-                    className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line text-[15px] font-medium hover:bg-cream"
-                  >
-                    <span aria-hidden className="text-xl leading-none">
-                      +
-                    </span>
-                    {picks.length === 0 ? 'Add something' : 'Add another'}
-                  </button>
-                )}
-                {picking && (
-                  <StopPicker
-                    heading="What do you want to do?"
-                    near={center}
-                    timeWindow={{ start: when.startTime, end: when.endTime }}
-                    onClose={() => setPicking(false)}
-                    onPick={(picked) => {
-                      setPicks((cur) => [...cur, picked]);
-                      setPicking(false);
-                    }}
-                  />
-                )}
-              </>
+              <PlansStep picks={picks} setPicks={setPicks} center={center} when={when} />
             )}
-
             {step === 'how' && (
-              <>
-                <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
-                  How do you get around?
-                </h1>
-                <div className="flex flex-col gap-2.5">
-                  {TRANSPORTS.map((t) => (
-                    <OptionRow
-                      key={t.value}
-                      selected={transport === t.value}
-                      onClick={() => setTransport(t.value)}
-                      label={t.label}
-                      hint={t.hint}
-                    />
-                  ))}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-medium">Budget for both</span>
-                    <span className="text-2xl font-semibold tabular-nums">{budgetEur} €</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={300}
-                    step={5}
-                    value={budgetEur}
-                    onChange={(e) => setBudgetEur(Number(e.target.value))}
-                    className="accent-ink"
-                    aria-label="Budget in euros"
-                  />
-                  <span className="text-xs text-mist">
-                    May go up to 50 % over if the day would otherwise end early.
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="font-medium">How much should happen?</span>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {FORMATS.map((f) => (
-                      <Choice
-                        key={f.label}
-                        selected={format === f.value}
-                        onClick={() => setFormat(f.value)}
-                      >
-                        {f.label}
-                      </Choice>
-                    ))}
-                  </div>
-                </div>
-              </>
+              <HowStep
+                transport={transport}
+                setTransport={setTransport}
+                budgetEur={budgetEur}
+                setBudgetEur={setBudgetEur}
+                format={format}
+                setFormat={setFormat}
+              />
             )}
-
-            {step === 'mood' && (
-              <>
-                <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
-                  How are you feeling?
-                </h1>
-                <div
-                  className={`mx-auto flex w-60 -rotate-2 flex-col items-center gap-1 rounded-[36px] p-7 transition-colors ${activeMood?.tint ?? 'bg-butter'}`}
-                >
-                  <Face variant={activeMood?.face ?? 'happy'} />
-                  <span className="text-lg font-medium">
-                    {activeMood?.label.toLowerCase() ?? 'anything goes'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2.5">
-                  {MOODS.map((m) => (
-                    <Choice
-                      key={m.tag}
-                      selected={moods.includes(m.tag)}
-                      onClick={() =>
-                        setMoods((cur) =>
-                          cur.includes(m.tag) ? cur.filter((x) => x !== m.tag) : [...cur, m.tag],
-                        )
-                      }
-                      className="px-2"
-                    >
-                      {m.label}
-                    </Choice>
-                  ))}
-                </div>
-              </>
-            )}
-
+            {step === 'mood' && <MoodStep moods={moods} setMoods={setMoods} />}
             {step === 'food' && (
-              <>
-                <h1 className="text-[30px] leading-tight font-semibold tracking-tight">Hungry?</h1>
-                <div className="flex flex-col gap-2.5">
-                  {FOODS.map((f) => (
-                    <OptionRow
-                      key={f.value}
-                      selected={food === f.value}
-                      onClick={() => setFood(f.value)}
-                      label={f.label}
-                      hint={f.hint}
-                    />
-                  ))}
-                </div>
-                {(food === 'meal' || food === 'auto') && (
-                  <div className="flex flex-col gap-2">
-                    <span className="font-medium">Any cuisine in mind?</span>
-                    <div className="grid grid-cols-3 gap-2.5">
-                      {CUISINES.map((c) => (
-                        <Choice
-                          key={c.label}
-                          selected={cuisine === c.value}
-                          onClick={() => setCuisine(c.value)}
-                          className="px-2"
-                        >
-                          {c.label}
-                        </Choice>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
+              <FoodStep food={food} setFood={setFood} cuisine={cuisine} setCuisine={setCuisine} />
             )}
           </div>
 
