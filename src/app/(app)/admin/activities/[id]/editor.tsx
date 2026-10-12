@@ -51,6 +51,7 @@ function Chips<T extends string>({
         <button
           key={o}
           type="button"
+          aria-pressed={value.includes(o)}
           onClick={() => onChange(toggle(value, o))}
           className={`rounded-full border px-2 py-1 text-xs ${
             value.includes(o)

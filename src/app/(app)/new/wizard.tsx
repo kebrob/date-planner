@@ -391,36 +391,41 @@ export function Wizard({
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <label className="flex flex-col gap-1.5 text-mist">
-                    From
+                  {/* One caption for two inputs, so each input carries its own name. */}
+                  <div role="group" aria-label="From" className="flex flex-col gap-1.5 text-mist">
+                    <span aria-hidden>From</span>
                     <input
                       type="date"
+                      aria-label="Start date"
                       className={field}
                       value={when.date}
                       onChange={(e) => setWhen({ ...when, date: e.target.value })}
                     />
                     <input
                       type="time"
+                      aria-label="Start time"
                       className={field}
                       value={when.startTime}
                       onChange={(e) => setWhen({ ...when, startTime: e.target.value })}
                     />
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-mist">
-                    Until
+                  </div>
+                  <div role="group" aria-label="Until" className="flex flex-col gap-1.5 text-mist">
+                    <span aria-hidden>Until</span>
                     <input
                       type="date"
+                      aria-label="End date"
                       className={field}
                       value={when.endDate}
                       onChange={(e) => setWhen({ ...when, endDate: e.target.value })}
                     />
                     <input
                       type="time"
+                      aria-label="End time"
                       className={field}
                       value={when.endTime}
                       onChange={(e) => setWhen({ ...when, endTime: e.target.value })}
                     />
-                  </label>
+                  </div>
                 </div>
               </>
             )}
