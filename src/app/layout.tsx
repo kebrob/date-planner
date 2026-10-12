@@ -9,7 +9,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#e11d48',
+  // Matches the page background (paper), so the browser and status bar blend in.
+  themeColor: '#fbfbf8',
   width: 'device-width',
   initialScale: 1,
   // Lets the bottom tab bar extend under the iPhone home indicator (padded via safe-area inset).
