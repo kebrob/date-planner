@@ -1,5 +1,6 @@
 'use client';
 
+import { shortDayFormat } from '@/lib/time';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { SavedPlanView } from '@/planner/saved';
@@ -19,15 +20,8 @@ type Rating = SavedPlanView['rating'];
 const quietButton =
   'inline-flex min-h-11 items-center rounded-full px-3 text-sm text-mist hover:bg-white/70 hover:text-ink disabled:opacity-50';
 
-const DAY = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-});
-
 /** Three options; tapping the selected one again removes the rating. */
-export function RatingButtons({
+function RatingButtons({
   value,
   onChange,
   disabled,
@@ -112,8 +106,13 @@ export function DateRating({
         value={rating}
         disabled={pending}
         onChange={(next) => {
+          const previous = rating;
           setRating(next);
-          run(() => rateDateAction(plan.id, next));
+          run(async () => {
+            const result = await rateDateAction(plan.id, next);
+            if (!result.ok) setRating(previous);
+            return result;
+          });
         }}
       />
       <div className="-mx-3 flex flex-wrap justify-between">
@@ -159,14 +158,23 @@ export function ItemRating({
   const [placeBlamed, setPlaceBlamed] = useState(initial.placeBlamed);
   const [suggestBlock, setSuggestBlock] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const save = (next: Rating, blamed: boolean) => {
+    const previous = { rating, placeBlamed };
     // Outside the transition, so the buttons and checkbox respond before the server does.
     setRating(next);
     setPlaceBlamed(blamed);
+    setError(null);
     startTransition(async () => {
       const result = await rateItemAction(planId, position, next, blamed);
-      setSuggestBlock(result.ok && result.data.suggestBlock);
+      if (!result.ok) {
+        setRating(previous.rating);
+        setPlaceBlamed(previous.placeBlamed);
+        setError(result.error);
+        return;
+      }
+      setSuggestBlock(result.data.suggestBlock);
       router.refresh();
     });
   };
@@ -233,6 +241,7 @@ export function ItemRating({
         </p>
       )}
       {blocked && <p className="text-sm text-mist">Blocked – it won&apos;t be suggested again.</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }
@@ -242,10 +251,13 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const run = (action: () => Promise<unknown>) =>
+  const run = (action: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {
-      await action();
+      setError(null);
+      const result = await action();
+      if (!result.ok) return setError(result.error ?? 'Something went wrong.');
       setDone(true);
       router.refresh();
     });
@@ -255,7 +267,7 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
     <section className="flex flex-col gap-3 rounded-3xl bg-cream p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">How was {DAY.format(prompt.startsAt)}?</p>
+          <p className="font-medium">How was {shortDayFormat.format(prompt.startsAt)}?</p>
           <p className="text-sm text-mist">{prompt.titles.join(' → ')}</p>
         </div>
         <button
@@ -280,6 +292,7 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
       >
         We didn&apos;t go
       </button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </section>
   );
 }

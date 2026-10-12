@@ -1,4 +1,5 @@
 import type { Place, PlaceSearch, PlacesProvider } from '@/ports/places';
+import { TtlCache } from '../http';
 
 /** Uses the fallback when the primary fails, e.g. because the cost guard denied the call. */
 export class FallbackPlacesProvider implements PlacesProvider {
@@ -60,12 +61,14 @@ const MAX_ENTRIES = 200;
  * Kept short on purpose: provider terms restrict long-term storage of place data.
  */
 export class CachedPlacesProvider implements PlacesProvider {
-  private readonly cache = new Map<string, { at: number; places: Place[] }>();
+  private readonly cache: TtlCache<Place[]>;
 
   constructor(
     private readonly inner: PlacesProvider,
-    private readonly now: () => number = Date.now,
-  ) {}
+    now: () => number = Date.now,
+  ) {
+    this.cache = new TtlCache(MAX_ENTRIES, now);
+  }
 
   async search(request: PlaceSearch): Promise<Place[]> {
     const key = JSON.stringify([
@@ -77,15 +80,10 @@ export class CachedPlacesProvider implements PlacesProvider {
       request.radiusKm,
       request.maxResults,
     ]);
-    const hit = this.cache.get(key);
-    if (hit && this.now() - hit.at < TTL_MS) return hit.places;
-
+    const hit = this.cache.get(key, TTL_MS);
+    if (hit) return hit;
     const places = await this.inner.search(request);
-    if (this.cache.size >= MAX_ENTRIES) {
-      const oldest = this.cache.keys().next().value;
-      if (oldest !== undefined) this.cache.delete(oldest);
-    }
-    this.cache.set(key, { at: this.now(), places });
+    this.cache.set(key, places);
     return places;
   }
 }

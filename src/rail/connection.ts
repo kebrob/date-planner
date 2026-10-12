@@ -1,3 +1,4 @@
+import { normalizeStationName } from '@/lib/station-name';
 import { distanceKm } from '@/core/planner/geo';
 import type { TrainLeg } from '@/core/planner/types';
 import type { LatLng } from '@/ports/places';
@@ -48,20 +49,6 @@ export type TrainConnection = {
 };
 
 export const isRegional = (category: string) => !LONG_DISTANCE.has(category.toUpperCase());
-
-/** Station names differ between sources ("München Hauptbahnhof" vs "München Hbf"). */
-export function normalizeStationName(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replace(/\(.*?\)/g, '')
-      // Platform suffixes like "München Hbf Gl.5-10".
-      .replace(/\s+gl\.?\s*[\d-]+.*$/, '')
-      .replace(/hauptbahnhof/g, 'hbf')
-      .replace(/bahnhof/g, '')
-      .replace(/[^a-zäöüß0-9]/g, '')
-  );
-}
 
 /** A train run is the stop id without its stop index. */
 const runOf = (stopId: string) => stopId.replace(/-\d+$/, '');

@@ -99,10 +99,12 @@ export function IdeasPanel({ aiEnabled }: { aiEnabled: boolean }) {
           value={focus}
           maxLength={120}
           onChange={(e) => setFocus(e.target.value)}
+          aria-label="Focus of the new ideas"
           placeholder="Optional focus, e.g. rainy days, winter, cheap"
         />
         <div className="flex flex-wrap items-center gap-2">
           <select
+            aria-label="Number of ideas"
             className={field}
             value={count}
             onChange={(e) => setCount(Number(e.target.value))}
@@ -165,6 +167,7 @@ export function IdeasPanel({ aiEnabled }: { aiEnabled: boolean }) {
             rows={6}
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
+            aria-label="Claude's JSON answer"
             placeholder="Paste Claude's JSON answer here"
           />
           <button

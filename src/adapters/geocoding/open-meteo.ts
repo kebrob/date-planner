@@ -1,4 +1,5 @@
 import type { GeoArea, GeocodingProvider } from '@/ports/geocoding';
+import { fetchJson } from '../http';
 
 const ENDPOINT = 'https://geocoding-api.open-meteo.com/v1/search';
 const TIMEOUT_MS = 10_000;
@@ -45,11 +46,13 @@ export class OpenMeteoGeocoder implements GeocodingProvider {
       countryCode: 'DE',
       format: 'json',
     });
-    const res = await this.fetchFn(`${ENDPOINT}?${params}`, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`Open-Meteo geocoding responded ${res.status}`);
-    const results = ((await res.json()) as { results?: Result[] }).results ?? [];
+    const body = await fetchJson<{ results?: Result[] }>(
+      this.fetchFn,
+      `${ENDPOINT}?${params}`,
+      'Open-Meteo geocoding',
+      { timeoutMs: TIMEOUT_MS },
+    );
+    const results = body.results ?? [];
     // Prefer towns over e.g. the airport named after them ("Nuremberg").
     return results.find((r) => r.feature_code?.startsWith('PPL')) ?? results[0] ?? null;
   }

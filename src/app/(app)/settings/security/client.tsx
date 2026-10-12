@@ -3,7 +3,7 @@
 import { startRegistration } from '@simplewebauthn/browser';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { deletePasskeyAction } from '../../actions';
+import { deletePasskeyAction, signOutEverywhereAction } from '../../actions';
 
 export function AddPasskey() {
   const router = useRouter();
@@ -15,7 +15,10 @@ export function AddPasskey() {
     setMessage(null);
     try {
       const optionsRes = await fetch('/api/auth/passkey/register-options', { method: 'POST' });
-      if (!optionsRes.ok) throw new Error('Could not start registration');
+      if (!optionsRes.ok) {
+        const body = (await optionsRes.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? 'Could not start registration');
+      }
       const response = await startRegistration({ optionsJSON: await optionsRes.json() });
       const res = await fetch('/api/auth/passkey/register', {
         method: 'POST',
@@ -65,21 +68,52 @@ export function LogoutButton() {
 }
 
 export function DeletePasskey({ id, name }: { id: string; name: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          if (!confirm(`Remove passkey "${name}"? Devices signed in with it are signed out.`)) {
+            return;
+          }
+          setError(null);
+          startTransition(async () => {
+            const result = await deletePasskeyAction(id);
+            if (!result.ok) setError(result.error);
+            else router.refresh();
+          });
+        }}
+        className="text-sm text-red-600 disabled:opacity-50"
+      >
+        Remove
+      </button>
+      {error && (
+        <span role="alert" className="text-right text-xs text-mist">
+          {error}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function SignOutEverywhere() {
   const [pending, startTransition] = useTransition();
   return (
     <button
       type="button"
       disabled={pending}
       onClick={() => {
-        if (
-          confirm(`Remove passkey "${name}"? That device will need the emergency password again.`)
-        ) {
-          startTransition(() => deletePasskeyAction(id));
+        if (confirm('Sign out on all devices, including this one?')) {
+          startTransition(() => signOutEverywhereAction());
         }
       }}
-      className="text-sm text-red-600 disabled:opacity-50"
+      className="self-start text-sm text-mist underline disabled:opacity-50"
     >
-      Remove
+      Sign out on all devices
     </button>
   );
 }

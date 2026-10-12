@@ -1,3 +1,4 @@
+import { MAX_ITEMS } from '@/core/planner/types';
 import type {
   Plan,
   PlanWarning,
@@ -58,7 +59,7 @@ const TRAVEL_MODE: Record<TravelMode, string> = {
 
 type Point = { name: string; location: LatLng; place?: Place };
 
-export function directionsUrl(from: Point, to: Point, mode: TravelMode): string {
+function directionsUrl(from: Point, to: Point, mode: TravelMode): string {
   const params = new URLSearchParams({
     api: '1',
     origin: `${from.location.lat},${from.location.lng}`,
@@ -160,10 +161,8 @@ export function toPlanView(
 
 // A new stop needs time for itself and for getting there.
 const MIN_GAP_MINUTES = 60;
-// Same cap as the planner's.
-const MAX_STOPS = 5;
 
-export type FreeGap = {
+type FreeGap = {
   /** Where a new stop would go: before the item at this index (or at the end). */
   position: number;
   minutes: number;
@@ -171,7 +170,7 @@ export type FreeGap = {
 
 /** Free time between stops (and before the first / after the last) that could take another stop. */
 export function freeGaps(plan: PlanView, start: Date, end: Date): FreeGap[] {
-  if (plan.items.length >= MAX_STOPS) return [];
+  if (plan.items.length >= MAX_ITEMS) return [];
   const gaps: FreeGap[] = [];
   let free = start;
   const add = (position: number, until: Date, travelMinutes: number) => {

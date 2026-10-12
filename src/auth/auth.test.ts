@@ -34,8 +34,13 @@ describe('tokens', () => {
 
 describe('isLoginBlocked', () => {
   it('blocks after too many failures per IP or globally', () => {
-    expect(isLoginBlocked({ ip: MAX_FAILURES_PER_IP - 1, global: 0 })).toBe(false);
-    expect(isLoginBlocked({ ip: MAX_FAILURES_PER_IP, global: 0 })).toBe(true);
-    expect(isLoginBlocked({ ip: 0, global: MAX_FAILURES_GLOBAL })).toBe(true);
+    expect(isLoginBlocked({ ip: MAX_FAILURES_PER_IP - 1, global: 0 }, 'password')).toBe(false);
+    expect(isLoginBlocked({ ip: MAX_FAILURES_PER_IP, global: 0 }, 'password')).toBe(true);
+    expect(isLoginBlocked({ ip: 0, global: MAX_FAILURES_GLOBAL }, 'password')).toBe(true);
+  });
+
+  it('applies only the per-IP limit to passkeys, so nobody can lock them out globally', () => {
+    expect(isLoginBlocked({ ip: 0, global: MAX_FAILURES_GLOBAL }, 'passkey')).toBe(false);
+    expect(isLoginBlocked({ ip: MAX_FAILURES_PER_IP, global: 0 }, 'passkey')).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import type { CostGuard } from '@/guard/guard';
+import { fetchJson } from '../http';
 import type {
   OpeningHours,
   Place,
@@ -95,11 +96,11 @@ const GOOGLE_TYPES: Partial<Record<PlaceType, string>> = {
   mall: 'shopping_mall',
 };
 
-export function googleTypeFor(placeType: string): string | undefined {
+function googleTypeFor(placeType: string): string | undefined {
   return GOOGLE_TYPES[placeType as PlaceType];
 }
 
-export function boundingBox(center: { lat: number; lng: number }, radiusKm: number) {
+function boundingBox(center: { lat: number; lng: number }, radiusKm: number) {
   const dLat = radiusKm / 111;
   const dLng = radiusKm / (111 * Math.cos((center.lat * Math.PI) / 180));
   return {
@@ -133,29 +134,32 @@ export class GooglePlacesProvider implements PlacesProvider, PlaceDetailsProvide
 
   async search(request: PlaceSearch): Promise<Place[]> {
     return this.guard.run('google_places', 0, async () => {
-      const res = await this.fetchFn(ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'X-Goog-Api-Key': this.apiKey,
-          'X-Goog-FieldMask': FIELD_MASK,
+      const body = await fetchJson<{ places?: GooglePlace[] }>(
+        this.fetchFn,
+        ENDPOINT,
+        'Google Places',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'X-Goog-Api-Key': this.apiKey,
+            'X-Goog-FieldMask': FIELD_MASK,
+          },
+          body: JSON.stringify({
+            textQuery: request.query,
+            pageSize: Math.min(request.maxResults, 20),
+            languageCode: 'de',
+            regionCode: 'DE',
+            // Strict type filtering stops e.g. a skate park from answering a "Park" search.
+            ...(googleTypeFor(request.placeType)
+              ? { includedType: googleTypeFor(request.placeType), strictTypeFiltering: true }
+              : {}),
+            // A bias still returns famous places far outside the area; restrict to its bounding box.
+            locationRestriction: { rectangle: boundingBox(request.center, request.radiusKm) },
+          }),
+          timeoutMs: TIMEOUT_MS,
         },
-        body: JSON.stringify({
-          textQuery: request.query,
-          pageSize: Math.min(request.maxResults, 20),
-          languageCode: 'de',
-          regionCode: 'DE',
-          // Strict type filtering stops e.g. a skate park from answering a "Park" search.
-          ...(googleTypeFor(request.placeType)
-            ? { includedType: googleTypeFor(request.placeType), strictTypeFiltering: true }
-            : {}),
-          // A bias still returns famous places far outside the area; restrict to its bounding box.
-          locationRestriction: { rectangle: boundingBox(request.center, request.radiusKm) },
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`Google Places responded ${res.status}`);
-      const body = (await res.json()) as { places?: GooglePlace[] };
+      );
       const places = (body.places ?? []).flatMap((p) => toPlace(p) ?? []);
       return { result: places, actualCostUsd: 0 };
     });
@@ -164,16 +168,20 @@ export class GooglePlacesProvider implements PlacesProvider, PlaceDetailsProvide
   async details(id: string): Promise<Place | null> {
     if (!/^[\w-]+$/.test(id)) return null;
     return this.guard.run('google_places', 0, async () => {
-      const res = await this.fetchFn(DETAILS_ENDPOINT + id, {
-        headers: {
-          'X-Goog-Api-Key': this.apiKey,
-          // Same fields as the search, without the "places." prefix.
-          'X-Goog-FieldMask': FIELD_MASK.replaceAll('places.', ''),
+      const place = await fetchJson<GooglePlace>(
+        this.fetchFn,
+        DETAILS_ENDPOINT + id,
+        'Google Place Details',
+        {
+          headers: {
+            'X-Goog-Api-Key': this.apiKey,
+            // Same fields as the search, without the "places." prefix.
+            'X-Goog-FieldMask': FIELD_MASK.replaceAll('places.', ''),
+          },
+          timeoutMs: TIMEOUT_MS,
         },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`Google Place Details responded ${res.status}`);
-      return { result: toPlace((await res.json()) as GooglePlace), actualCostUsd: 0 };
+      );
+      return { result: toPlace(place), actualCostUsd: 0 };
     });
   }
 }

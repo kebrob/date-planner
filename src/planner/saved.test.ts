@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Place } from '@/ports/places';
-import { archivedPlace, isFullPlace, oneOffStop, rowsToView } from './saved';
+import { oneOffStop } from './edit';
+import { isFullPlace, rowsToView } from './saved';
 import { chosenStopSchema, customActivity } from './service';
 import { freeGaps, type PlanView } from './view';
 
@@ -14,22 +15,14 @@ const googlePlace: Place = {
   openingHours: { alwaysOpen: true },
   mapsUrl: 'https://maps.google.com/?cid=1',
 };
-const osmPlace: Place = { ...googlePlace, provider: 'osm', id: 'node/1' };
 
-describe('archivedPlace', () => {
-  it('keeps only id and name of Google places', () => {
-    const archived = archivedPlace(googlePlace);
-    expect(archived).toEqual({
-      provider: 'google',
-      id: 'g1',
-      name: 'Ruff’s Burger',
-      archived: true,
-    });
+// What is left of a Google place after the date.
+const archived = { provider: 'google', id: 'g1', name: 'Ruff’s Burger', archived: true };
+
+describe('isFullPlace', () => {
+  it('tells full places from archived ones', () => {
+    expect(isFullPlace(googlePlace)).toBe(true);
     expect(isFullPlace(archived)).toBe(false);
-  });
-
-  it('keeps OpenStreetMap places as they are', () => {
-    expect(archivedPlace(osmPlace)).toBe(osmPlace);
   });
 });
 
@@ -71,7 +64,7 @@ describe('rowsToView', () => {
     placeProvider: 'google',
     placeId: 'g1',
     placeName: 'Ruff’s Burger',
-    place: archivedPlace(googlePlace),
+    place: archived,
     alternatives: [],
     costEur: 30,
     travel: null,
@@ -91,6 +84,18 @@ describe('rowsToView', () => {
       endTime: '22:00',
     });
     expect(view.weather.reliability).toBe('none');
+  });
+
+  it('keeps the map centre the plan was made for, so searches stay near it', () => {
+    const parameters = {
+      ...plan.parameters,
+      areaPoint: { name: 'Augsburg', lat: 48.37, lng: 10.9 },
+    };
+    expect(rowsToView({ ...plan, parameters }, [item], now).areaPoint).toEqual({
+      lat: 48.37,
+      lng: 10.9,
+    });
+    expect(rowsToView(plan, [item], now).areaPoint).toBeNull();
   });
 
   it('offers rating once the date has started, with item ratings in order', () => {
@@ -155,7 +160,7 @@ describe('chosen stops', () => {
     });
     // Stored ideas are kept as ideas; archived places can't be pinned.
     expect(oneOffStop({ ...row, activityId: 'a1' }, 1)).toBeNull();
-    expect(oneOffStop({ ...row, place: archivedPlace(googlePlace) }, 1)).toBeNull();
+    expect(oneOffStop({ ...row, place: archived }, 1)).toBeNull();
   });
 
   it('turns a one-off stop into a text-search idea of its kind', () => {

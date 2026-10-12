@@ -1,4 +1,5 @@
 import type { PlaceType } from '@/ports/place-types';
+import { fetchJson } from '../http';
 import type { Place, PlaceSearch, PlacesProvider } from '@/ports/places';
 
 const ENDPOINT = 'https://overpass-api.de/api/interpreter';
@@ -8,7 +9,7 @@ const TIMEOUT_MS = 4_000;
 const MAX_RADIUS_KM = 15;
 
 // Provider-neutral place type → OSM tag filters (any filter may match).
-export const OSM_FILTERS: Record<PlaceType, string[]> = {
+const OSM_FILTERS: Record<PlaceType, string[]> = {
   miniature_golf: ['["leisure"="miniature_golf"]'],
   cinema: ['["amenity"="cinema"]'],
   bowling: ['["leisure"="bowling_alley"]'],
@@ -65,17 +66,15 @@ export class OsmPlacesProvider implements PlacesProvider {
   async search(request: PlaceSearch): Promise<Place[]> {
     const query = buildQuery(request);
     if (!query) return [];
-    const res = await this.fetchFn(ENDPOINT, {
+    const body = await fetchJson<{ elements?: OsmElement[] }>(this.fetchFn, ENDPOINT, 'Overpass', {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
         'User-Agent': 'date-planner (private)',
       },
       body: new URLSearchParams({ data: query }).toString(),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      timeoutMs: TIMEOUT_MS,
     });
-    if (!res.ok) throw new Error(`Overpass responded ${res.status}`);
-    const body = (await res.json()) as { elements?: OsmElement[] };
     return (body.elements ?? []).flatMap((e): Place[] => {
       const lat = e.lat ?? e.center?.lat;
       const lng = e.lon ?? e.center?.lon;

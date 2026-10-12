@@ -156,6 +156,16 @@ const tripInput = {
   moods: ['culture' as const],
 };
 
+const searchResult = (url: string) =>
+  ({
+    type: 'web_search_tool_result',
+    tool_use_id: 'srv_1',
+    content: [
+      { type: 'web_search_result', url, title: 'Hotel', encrypted_content: '', page_age: null },
+    ],
+  }) as unknown as Anthropic.ContentBlock;
+const hotelSearch = searchResult('https://example.com/hotel');
+
 describe('planTrip', () => {
   const deps = (createMessage: CreateMessage) => ({
     homeName: 'Rosenheim',
@@ -179,7 +189,7 @@ describe('planTrip', () => {
 
   it('returns the submitted plan and stops right after submission', async () => {
     const createMessage = vi.fn<CreateMessage>(async () =>
-      message('tool_use', [toolUse('submit_trip_plan', plan)]),
+      message('tool_use', [hotelSearch, toolUse('submit_trip_plan', plan)]),
     );
     await expect(planTrip(tripInput, deps(createMessage))).resolves.toEqual(plan);
     expect(createMessage).toHaveBeenCalledTimes(1);
@@ -189,12 +199,23 @@ describe('planTrip', () => {
     const createMessage = vi
       .fn<CreateMessage>()
       .mockResolvedValueOnce(
-        message('tool_use', [toolUse('submit_trip_plan', { ...plan, days: [] })]),
+        message('tool_use', [hotelSearch, toolUse('submit_trip_plan', { ...plan, days: [] })]),
       )
       .mockResolvedValueOnce(message('tool_use', [toolUse('submit_trip_plan', plan, 'tu2')]));
     await expect(planTrip(tripInput, deps(createMessage))).resolves.toEqual(plan);
     const feedback = createMessage.mock.calls[1]![0].messages.at(-1);
     expect(JSON.stringify(feedback)).toContain('Invalid plan');
+  });
+
+  it('drops links that did not come from a search result', async () => {
+    const createMessage = vi.fn<CreateMessage>(async () =>
+      message('tool_use', [
+        searchResult('https://example.com/other'),
+        toolUse('submit_trip_plan', plan),
+      ]),
+    );
+    const result = await planTrip(tripInput, deps(createMessage));
+    expect(result.stays[0]!.link).toBeNull();
   });
 
   it('rejects non-https links', async () => {
@@ -209,6 +230,11 @@ describe('planTrip', () => {
     await expect(planTrip(tripInput, deps(createMessage))).rejects.toBeInstanceOf(
       TripPlanningError,
     );
+  });
+
+  it('says so when the plan was cut off for length', async () => {
+    const createMessage = vi.fn<CreateMessage>(async () => message('max_tokens', [text('Day 1')]));
+    await expect(planTrip(tripInput, deps(createMessage))).rejects.toThrow('too long');
   });
 
   it('fails cleanly when nothing is submitted within the limits', async () => {

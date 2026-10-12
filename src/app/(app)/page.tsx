@@ -4,19 +4,14 @@ import { formatDuration } from '@/lib/duration';
 import { listUpcoming } from '@/planner/saved';
 import { nextOuting } from '@/planner/outing';
 import { ideasForNextOuting } from '@/planner/service';
-import { nextTrain } from '@/rail/live';
+import { nextTrain } from '@/planner/live';
 import { listRatingPrompts } from '@/ratings/service';
 import { AskBar } from './ask-bar';
 import { LiveTrainCard } from './live-train';
 import { PlanCard } from './plan-card';
 import { RatingPromptCard } from './rating';
-
-const TODAY = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-});
+import { STEPS } from './new/step-list';
+import { longDayFormat } from '@/lib/time';
 
 function PlayDot({ tone }: { tone: 'butter' | 'ink' | 'white' }) {
   const colors = {
@@ -60,7 +55,7 @@ export default async function HomePage() {
     <div className="flex flex-col gap-7">
       <header className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-mist">{TODAY.format(new Date())}</p>
+          <p className="text-sm text-mist">{longDayFormat.format(new Date())}</p>
           <h1 className="text-[34px] leading-tight font-semibold tracking-tight">Hi, you two!</h1>
         </div>
         <Link
@@ -99,7 +94,7 @@ export default async function HomePage() {
           <span className="text-xl leading-snug font-semibold">Plan a date</span>
           <span className="flex items-end justify-between">
             <PlayDot tone="butter" />
-            <Pill onDark>5 steps</Pill>
+            <Pill onDark>{STEPS.length} steps</Pill>
           </span>
         </Link>
         <Link

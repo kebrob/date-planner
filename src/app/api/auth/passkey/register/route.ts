@@ -1,12 +1,14 @@
 import type { RegistrationResponseJSON } from '@simplewebauthn/server';
 import { z } from 'zod';
-import { hasValidSession } from '@/auth/session';
+import { signInAgain } from '@/auth/responses';
+import { hasFreshSession, hasValidSession } from '@/auth/session';
 import { verifyRegistration } from '@/auth/webauthn';
 
 const body = z.object({ deviceName: z.string().max(60), response: z.unknown() });
 
 export async function POST(request: Request) {
   if (!(await hasValidSession())) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await hasFreshSession())) return signInAgain();
   const parsed = body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: 'Invalid request' }, { status: 400 });
   const ok = await verifyRegistration(

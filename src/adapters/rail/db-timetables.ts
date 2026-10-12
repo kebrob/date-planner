@@ -1,4 +1,5 @@
 import { addMinutes, fromLocal, toLocalDate, toLocalTime } from '@/lib/time';
+import { TtlCache } from '../http';
 import type { RailTimetable, StationEvent, StationStop } from '@/ports/rail';
 
 const BASE = 'https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1';
@@ -85,7 +86,7 @@ function toEvent(planned?: Attrs, change?: Attrs): StationEvent | null {
 }
 
 /** "RB54" → "RB 54"; names that already have a space stay as they are. */
-export function lineName(name: string): string {
+function lineName(name: string): string {
   return name.replace(/^([A-Za-z]+)(\d)/, '$1 $2');
 }
 
@@ -124,7 +125,7 @@ function applyChange(stop: StationStop, change: RawStop | undefined): StationSto
 }
 
 export class DbTimetablesProvider implements RailTimetable {
-  private readonly cache = new Map<string, { at: number; stops: RawStop[] }>();
+  private readonly cache: TtlCache<RawStop[]>;
   // Station numbers practically never change.
   private readonly stationNumbers = new Map<string, string | null>();
   private calls: number[] = [];
@@ -134,7 +135,9 @@ export class DbTimetablesProvider implements RailTimetable {
     private readonly apiKey: string,
     private readonly fetchFn: typeof fetch = fetch,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    this.cache = new TtlCache(CACHE_SIZE, now);
+  }
 
   async stops(eva: string, from: Date, hours: number): Promise<StationStop[]> {
     const until = addMinutes(from, hours * 60);
@@ -173,12 +176,11 @@ export class DbTimetablesProvider implements RailTimetable {
   }
 
   private async get(path: string, ttlMs: number): Promise<RawStop[]> {
-    const hit = this.cache.get(path);
-    if (hit && this.now() - hit.at < ttlMs) return hit.stops;
+    const hit = this.cache.get(path, ttlMs);
+    if (hit) return hit;
     const xml = await this.fetchXml(path);
     const stops = xml ? parseTimetable(xml) : [];
-    if (this.cache.size >= CACHE_SIZE) this.cache.delete(this.cache.keys().next().value!);
-    this.cache.set(path, { at: this.now(), stops });
+    this.cache.set(path, stops);
     return stops;
   }
 

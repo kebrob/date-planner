@@ -1,7 +1,7 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGeocoder } from '@/adapters';
-import { getAnthropic, MODEL } from '@/ai/client';
+import { getAnthropic, MODEL, untilDeadline } from '@/ai/client';
 import {
   buildExportPrompt,
   generateIdeas,
@@ -14,6 +14,7 @@ import { getLimits } from '@/config/limits';
 import { distanceKm } from '@/core/planner/geo';
 import { CUISINES } from '@/core/planner/types';
 import { getDb } from '@/db/client';
+import { isSettingsRow, loadSettings } from '@/db/settings';
 import { activity, apiUsage, settings, travelRoutine } from '@/db/schema';
 import { getCostGuard } from '@/guard';
 import { dayKey, monthKey } from '@/guard/periods';
@@ -25,7 +26,7 @@ export class AdminInputError extends Error {}
 
 // ---------- Settings ----------
 
-export const settingsSchema = z.object({
+const settingsSchema = z.object({
   homeName: z.string().trim().min(2).max(60),
   homePostalCode: z
     .string()
@@ -36,11 +37,7 @@ export const settingsSchema = z.object({
   maxRadiusKm: z.coerce.number().int().min(5).max(300),
 });
 
-export async function getSettings() {
-  const [row] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-  if (!row) throw new Error('Settings missing – run npm run db:seed');
-  return row;
-}
+export const getSettings = loadSettings;
 
 export async function saveSettings(raw: unknown): Promise<void> {
   const input = settingsSchema.parse(raw);
@@ -68,7 +65,7 @@ export async function saveSettings(raw: unknown): Promise<void> {
       homeLng: Math.round(location.lng * 100) / 100,
       updatedAt: new Date(),
     })
-    .where(eq(settings.id, 1));
+    .where(isSettingsRow);
 }
 
 // Close enough to the town that a mis-tap far away is rejected.
@@ -96,12 +93,12 @@ export async function saveHomePin(raw: unknown): Promise<void> {
       homeExactLng: pin ? Math.round(pin.lng * 10_000) / 10_000 : null,
       updatedAt: new Date(),
     })
-    .where(eq(settings.id, 1));
+    .where(isSettingsRow);
 }
 
 // ---------- Travel routines ----------
 
-export const routineSchema = z.object({
+const routineSchema = z.object({
   transport,
   description: z.string().trim().min(2).max(120),
   firstLegMode: transport.nullable(),
@@ -132,7 +129,7 @@ const optionalInt = z.preprocess(
   z.coerce.number().int().min(-20).max(40).nullable(),
 );
 
-export const activityFormSchema = z
+const activityFormSchema = z
   .object({
     title: z.string().trim().min(2).max(80),
     description: z.string().trim().max(300),
@@ -256,8 +253,11 @@ export async function saveActivity(id: string | null, raw: unknown): Promise<str
   const [row] = await db
     .insert(activity)
     .values({ ...values, source: 'manual' })
+    .onConflictDoNothing()
     .returning({ id: activity.id });
-  return row!.id;
+  // Saved under the same title meanwhile.
+  if (!row) throw new AdminInputError(`"${values.title}" already exists.`);
+  return row.id;
 }
 
 export async function setActivityStatus(id: string, status: 'draft' | 'active' | 'blocked') {
@@ -285,18 +285,24 @@ async function ideasContext(count: number, focus?: string) {
 
 async function storeIdeas(ideas: Idea[], existing: string[], source: 'claude' | 'import') {
   const fresh = withoutDuplicates(ideas, existing);
-  if (fresh.length > 0) {
-    await getDb()
-      .insert(activity)
-      .values(fresh.map((i) => toActivityInsert(i, source)));
-  }
-  return { added: fresh.length, skipped: ideas.length - fresh.length };
+  // Titles are unique; one saved meanwhile (e.g. from the chat) is skipped, not an error.
+  const added = fresh.length
+    ? await getDb()
+        .insert(activity)
+        .values(fresh.map((i) => toActivityInsert(i, source)))
+        .onConflictDoNothing()
+        .returning({ id: activity.id })
+    : [];
+  return { added: added.length, skipped: ideas.length - added.length };
 }
 
-export const generateSchema = z.object({
+const generateSchema = z.object({
   count: z.coerce.number().int().min(1).max(10),
   focus: z.string().trim().max(120).optional(),
 });
+
+// Within the admin page's 120 s function limit, leaving time to store the ideas.
+const IDEAS_TIME_BUDGET_MS = 105_000;
 
 export async function generateIdeasWithClaude(raw: unknown) {
   if (!getLimits().ai.enabled) {
@@ -304,10 +310,11 @@ export async function generateIdeasWithClaude(raw: unknown) {
       'Claude is disabled (AI_ENABLED=false). Use the prompt export instead.',
     );
   }
+  const deadline = Date.now() + IDEAS_TIME_BUDGET_MS;
   const { count, focus } = generateSchema.parse(raw);
   const ctx = await ideasContext(count, focus);
   const ideas = await generateIdeas(ctx, {
-    parse: (params) => getAnthropic().beta.messages.parse(params),
+    parse: (params) => getAnthropic().beta.messages.parse(params, untilDeadline(deadline)),
     guard: getCostGuard(),
     model: MODEL,
   });

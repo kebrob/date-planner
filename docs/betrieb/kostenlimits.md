@@ -35,7 +35,7 @@ Die App-Limits liegen bewusst **unter** den Anbieter-Limits, damit die App saube
 - **Google 30/Tag:** Abfragen mit Öffnungszeiten/Bewertungen laufen über die Enterprise-SKU mit **1.000 kostenlosen Abfragen/Monat**. 30 × 31 = 930 → bleibt garantiert im Freikontingent.
 - **Google Places (New):** Text Search, Nearby Search und Place Details haben getrennte Kontingente und getrennte Freikontingente – deshalb jedes einzeln begrenzen.
 - **Google-Testzeitraum:** Im kostenlosen Testzeitraum lassen sich Kontingente ggf. nicht bearbeiten. Kein Kostenrisiko, solange nicht manuell auf ein vollständiges Konto umgestellt wird. **Vor dem Upgrade** Schritte 6 und 7 erledigen.
-- **App-Limit vs. Freikontingent:** Bei `PLACES_DAILY_LIMIT=35` wären im Extremfall 35 × 31 = 1.085 Abfragen/Monat möglich (Freikontingent 1.000). In der Praxis deutlich weniger, da kostenlose Ideen (Park, Bücherei …) über OpenStreetMap gesucht werden und Ergebnisse 1 h zwischengespeichert sind. Wer garantiert im Freikontingent bleiben will: ≤ 32.
+- **App-Limit vs. Anbieter-Limit:** `PLACES_DAILY_LIMIT` (Default 25) zählt alle Google-Abfragen zusammen und muss unter dem Kontingent von 30/Tag bleiben, sonst bricht Google hart ab, bevor die App mit Hinweis auf OpenStreetMap ausweicht. 25 × 31 = 775 Abfragen/Monat bleiben sicher im Freikontingent (1.000).
 - **Google Budget ≠ Limit:** Google-Budgets **alarmieren nur, sie stoppen nichts**. Das harte Limit sind ausschließlich die Quotas (Schritt 6/7).
 
 ---
@@ -69,10 +69,9 @@ Gesetzt in Vercel (Production) bzw. lokal in `.env.local`. Vorlage: `.env.exampl
 | `AI_DAILY_BUDGET_USD`              | `2`      | App-Budget Claude pro Tag                                                                                                         |
 | `AI_MAX_TOOL_ITERATIONS`           | `8`      | Max. Runden im Tool-Loop pro Anfrage                                                                                              |
 | `AI_MAX_WEB_SEARCHES_CHAT`         | `3`      | Max. Websuchen pro Chat-Nachricht                                                                                                 |
-| `AI_MAX_WEB_SEARCHES_GENERATE`     | `5`      | Max. Websuchen pro „Ideen generieren“ (derzeit ungenutzt: Ideen werden ohne Websuche erzeugt)                                     |
 | `AI_MAX_WEB_SEARCHES_TRIP`         | `15`     | Max. Websuchen pro Ausflugsplanung                                                                                                |
 | `AI_MAX_API_CALLS_PER_DAY`         | `200`    | Max. Claude-API-Aufrufe pro Tag; jede Runde im Tool-Loop zählt einzeln                                                            |
-| `AI_REQUEST_TIMEOUT_MS`            | `90000`  | Timeout pro API-Request                                                                                                           |
+| `AI_REQUEST_TIMEOUT_MS`            | `90000`  | Timeout pro API-Request; zusätzlich begrenzt eine Frist unter dem Funktionslimit alle Versuche zusammen (siehe arc42 Kapitel 8)   |
 | `PLACES_PROVIDER`                  | `google` | `google` oder `osm`                                                                                                               |
 | `PLACES_DAILY_LIMIT`               | `25`     | Max. Google-Places-Abfragen pro Tag (unter Google-Quota 30)                                                                       |
 | `PLACES_MAX_LOOKUPS_PER_PLAN`      | `6`      | Max. Ortsabfragen pro Plan-Generierung inkl. Neu würfeln                                                                          |

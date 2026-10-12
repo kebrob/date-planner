@@ -1,6 +1,9 @@
 import type { LatLng, Place } from '@/ports/places';
 import type { WeatherHour } from '@/ports/weather';
 
+/** Most stops a plan can have. */
+export const MAX_ITEMS = 5;
+
 export type Transport = 'deutschlandticket' | 'car' | 'walk' | 'bike';
 export type PlanFormat = 'single' | 'evening' | 'day';
 export type Slot = 'main' | 'meal' | 'snack';
@@ -208,22 +211,25 @@ export type PlanItem = {
   alternatives: Place[];
 };
 
-export type PlanWarning =
-  | 'forecast_unreliable'
-  | 'forecast_unavailable'
-  | 'opening_hours_unknown'
-  | 'place_lookup_limit_reached'
-  | 'fallback_used'
-  | 'food_skipped'
-  | 'over_budget'
-  | 'required_skipped'
-  | 'chosen_time_moved'
-  | 'chosen_closed'
-  | 'places_daily_limit'
-  | 'train_times_adjusted'
-  | 'train_ticket_needed'
-  | 'train_late_return'
-  | 'trains_unavailable';
+export const PLAN_WARNINGS = [
+  'forecast_unreliable',
+  'forecast_unavailable',
+  'opening_hours_unknown',
+  'place_lookup_limit_reached',
+  'fallback_used',
+  'food_skipped',
+  'over_budget',
+  'required_skipped',
+  'chosen_time_moved',
+  'chosen_closed',
+  'places_daily_limit',
+  'train_times_adjusted',
+  'train_ticket_needed',
+  'train_late_return',
+  'trains_unavailable',
+  'way_home_not_planned',
+] as const;
+export type PlanWarning = (typeof PLAN_WARNINGS)[number];
 
 export type Plan = {
   format: PlanFormat;

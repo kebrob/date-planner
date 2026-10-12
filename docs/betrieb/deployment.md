@@ -29,7 +29,7 @@ Ziel: App unter `https://dates.robertkebinger.com`, gehostet auf Vercel (Hobby),
 | `GOOGLE_PLACES_API_KEY` | eigener Prod-Key, beschränkt auf Places API (New)                                                  |
 | `DB_CLIENT_ID`          | Client ID der Anwendung im DB API Marketplace (Abos: Timetables, StaDa – je Free)                  |
 | `DB_API_KEY`            | API Key derselben Anwendung                                                                        |
-| `PLACES_DAILY_LIMIT`    | z. B. `35` (siehe Runbook)                                                                         |
+| `PLACES_DAILY_LIMIT`    | Default `25` genügt; höchstens unter dem Google-Kontingent (30/Tag) wählen (siehe Runbook)         |
 | weitere Limits          | nur falls abweichend von den Defaults (`.env.example`)                                             |
 
 4. **Keine Zahlungsmethode** bei Vercel hinterlegen (Hobby-Plan).
@@ -54,7 +54,7 @@ Optional: Für Experimente einen Neon-**Branch** als Entwicklungsdatenbank anleg
 ## 5. Erster Login in Production
 
 1. `https://dates.robertkebinger.com` öffnen → mit dem Notfall-Passwort anmelden.
-2. **Admin → Security & passkeys** → auf jedem Gerät einen Passkey hinzufügen. Lokale Passkeys (`localhost`) gelten in Production nicht.
+2. **Admin → Security & passkeys** → auf jedem Gerät einen Passkey hinzufügen. Lokale Passkeys (`localhost`) gelten in Production nicht. Passkeys lassen sich nur innerhalb von 10 Minuten nach der Anmeldung hinzufügen oder entfernen; danach ab- und wieder anmelden.
 
 ## 6. Prüfen nach dem Deploy
 
@@ -65,6 +65,6 @@ Optional: Für Experimente einen Neon-**Branch** als Entwicklungsdatenbank anleg
 
 ## Hinweise
 
-- **Laufzeiten:** Chat und Ideen dürfen bis 120 s, Ausflüge bis 300 s laufen (Route-Segment-Config `maxDuration`, Grenze des Hobby-Plans).
+- **Laufzeiten:** Chat und Ideen dürfen bis 120 s, Ausflüge bis 300 s laufen (Route-Segment-Config `maxDuration`, Grenze des Hobby-Plans). Die Claude-Aufrufe haben eigene Fristen knapp darunter (105 s bzw. 260 s, in `chat/service.ts`, `admin/service.ts`, `trips/service.ts`); bei Änderung von `maxDuration` mit anpassen.
 - **`$` in `.env`-Dateien:** Next.js expandiert `$` in Env-Dateien, daher lokal als `\$` schreiben; das Hash-Skript zeigt beide Varianten an.
 - **Rollback:** Vercel → Deployments → älteres Deployment → „Promote to Production“.

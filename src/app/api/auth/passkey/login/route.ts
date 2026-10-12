@@ -1,15 +1,25 @@
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
-import { createSession, loginBlocked, recordLoginAttempt } from '@/auth/session';
+import { tooManyAttempts } from '@/auth/responses';
+import {
+  beginLoginAttempt,
+  cancelLoginAttempt,
+  confirmLoginAttempt,
+  createSession,
+} from '@/auth/session';
 import { verifyAuthentication } from '@/auth/webauthn';
 
 export async function POST(request: Request) {
-  if (await loginBlocked()) {
-    return Response.json({ error: 'Too many attempts. Try again in 15 minutes.' }, { status: 429 });
-  }
+  const attempt = await beginLoginAttempt('passkey');
+  if (!attempt) return tooManyAttempts();
   const response = (await request.json().catch(() => null)) as AuthenticationResponseJSON | null;
-  const ok = Boolean(response && (await verifyAuthentication(response).catch(() => false)));
-  await recordLoginAttempt(ok);
-  if (!ok) return Response.json({ error: 'Passkey not recognized' }, { status: 401 });
-  await createSession();
+  const result = response ? await verifyAuthentication(response).catch(() => null) : null;
+  if (result === 'no_challenge') {
+    // Nothing was guessed; counting it would let anyone lock a victim out by flooding challenges.
+    await cancelLoginAttempt(attempt);
+    return Response.json({ error: 'Passkey sign-in expired. Please try again.' }, { status: 401 });
+  }
+  if (!result) return Response.json({ error: 'Passkey not recognized' }, { status: 401 });
+  await confirmLoginAttempt(attempt);
+  await createSession(result);
   return Response.json({ ok: true });
 }

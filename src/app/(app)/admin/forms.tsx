@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { formatDuration } from '@/lib/duration';
+import { TRANSPORTS } from '../transports';
 import { deleteRoutineAction, saveRoutineAction, saveSettingsAction } from './actions';
 
 export const field = 'rounded-lg border border-line bg-transparent px-3 py-2 text-sm';
@@ -11,11 +12,6 @@ export const primary =
 export const secondary =
   'rounded-xl border border-line px-3 py-2 text-sm disabled:opacity-50 hover:bg-cream';
 
-export const TRANSPORTS = [
-  { value: 'deutschlandticket', label: 'Deutschlandticket' },
-  { value: 'car', label: 'Car' },
-  { value: 'walk', label: 'Walk' },
-] as const;
 // Stored values may still contain 'bike'; it is just no longer offered.
 type Transport = 'deutschlandticket' | 'car' | 'walk' | 'bike';
 
@@ -23,16 +19,17 @@ export function useAction() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  /** `success` returns the message to show, or null for none (e.g. after navigating away). */
   const run = <T,>(
     action: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>,
-    success: (data: T) => string,
+    success: (data: T) => string | null,
   ) =>
     startTransition(async () => {
       const result = await action();
-      setMessage(
-        result.ok ? { ok: true, text: success(result.data) } : { ok: false, text: result.error },
-      );
-      if (result.ok) router.refresh();
+      if (!result.ok) return setMessage({ ok: false, text: result.error });
+      const text = success(result.data);
+      setMessage(text === null ? null : { ok: true, text });
+      router.refresh();
     });
   return { pending, message, run };
 }

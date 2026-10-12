@@ -7,9 +7,9 @@ import type { CostGuard } from '@/guard/guard';
 import { PLACE_TYPES } from '@/ports/place-types';
 import { actualCostUsd, estimateMaxCostUsd } from './pricing';
 
-export const IDEA_TAGS = MOOD_TAGS;
+const IDEA_TAGS = MOOD_TAGS;
 
-export const MAX_IDEAS = 20;
+const MAX_IDEAS = 20;
 
 const ideaSchema = z.object({
   title: z.string().min(2).max(80),
@@ -30,11 +30,11 @@ const ideaSchema = z.object({
   preparation: z.string().max(200).nullable(),
 });
 
-export const ideasSchema = z.object({ ideas: z.array(ideaSchema).max(MAX_IDEAS) });
+const ideasSchema = z.object({ ideas: z.array(ideaSchema).max(MAX_IDEAS) });
 
 export type Idea = z.infer<typeof ideaSchema>;
 
-export type IdeasContext = {
+type IdeasContext = {
   /** Town name only – never a street address. */
   homeName: string;
   existingTitles: string[];

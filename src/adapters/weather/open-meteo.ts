@@ -1,4 +1,5 @@
 import type { LatLng } from '@/ports/places';
+import { fetchJson } from '../http';
 import type { WeatherHour, WeatherProvider } from '@/ports/weather';
 
 const ENDPOINT = 'https://api.open-meteo.com/v1/forecast';
@@ -43,11 +44,14 @@ export class OpenMeteoProvider implements WeatherProvider {
       start_date: utcDate(from < earliest ? earliest : from),
       end_date: utcDate(to > horizon ? horizon : to),
     });
-    const res = await this.fetchFn(`${ENDPOINT}?${params}`, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`Open-Meteo responded ${res.status}`);
-    const { hourly } = (await res.json()) as Response;
+    const { hourly } = await fetchJson<Response>(
+      this.fetchFn,
+      `${ENDPOINT}?${params}`,
+      'Open-Meteo',
+      {
+        timeoutMs: TIMEOUT_MS,
+      },
+    );
     if (!hourly) return [];
     return hourly.time.flatMap((time, i): WeatherHour[] => {
       const temperatureC = hourly.temperature_2m[i];

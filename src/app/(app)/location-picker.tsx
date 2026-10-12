@@ -1,9 +1,9 @@
 'use client';
 
 import 'leaflet/dist/leaflet.css';
-import type { Circle, CircleMarker, Map as LeafletMap } from 'leaflet';
 import { useEffect, useRef, useState } from 'react';
 import { findTownAction } from './actions';
+import { useLeafletMap } from './leaflet-map';
 import { SearchField } from './search-field';
 
 export type Point = { name: string; lat: number; lng: number };
@@ -30,37 +30,16 @@ export function LocationPicker({
   autoRadiusKm,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
-  const map = useRef<{
-    map: LeafletMap;
-    circle: Circle;
-    dot: CircleMarker;
-    observer: ResizeObserver;
-  } | null>(null);
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [ready, setReady] = useState(false);
   const current = center ?? home;
   const effectiveKm = radiusKm ?? autoRadiusKm;
 
-  // Leaflet needs `window`, so it is loaded only in the browser.
-  useEffect(() => {
-    let disposed = false;
-    void import('leaflet').then((L) => {
-      if (disposed || !container.current || map.current) return;
-      // A view must exist before layers can compute their bounds.
-      const m = L.map(container.current, {
-        center: [current.lat, current.lng],
-        zoom: 10,
-        zoomControl: true,
-        attributionControl: true,
-      });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '© OpenStreetMap contributors',
-        // OSM's tile usage policy requires a Referer; the app-wide policy would strip it.
-        referrerPolicy: 'strict-origin-when-cross-origin',
-      }).addTo(m);
+  const { map, ready } = useLeafletMap(
+    container,
+    { center: current, zoom: 10, maxZoom: 18 },
+    (L, m) => {
       const circle = L.circle([current.lat, current.lng], {
         radius: effectiveKm * 1000,
         color: '#1d1d1f',
@@ -74,29 +53,10 @@ export function LocationPicker({
         fillColor: '#1d1d1f',
         fillOpacity: 1,
       }).addTo(m);
-      // Re-fit whenever the container changes size (initial layout, rotation, CSS loading late).
-      // Without animation: a zoom still running when the map is removed breaks Leaflet.
-      const observer = new ResizeObserver(() => {
-        m.invalidateSize({ animate: false });
-        m.fitBounds(circle.getBounds(), { padding: [12, 12], animate: false });
-      });
-      observer.observe(container.current);
-      map.current = { map: m, circle, dot, observer };
-      setReady(true);
-    });
-    return () => {
-      disposed = true;
-      const current = map.current;
-      if (current) {
-        current.observer.disconnect();
-        current.map.stop();
-        current.map.remove();
-      }
-      map.current = null;
-    };
-    // Initialise once; updates are handled by the effect below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      const onResize = () => m.fitBounds(circle.getBounds(), { padding: [12, 12], animate: false });
+      return { circle, dot, onResize };
+    },
+  );
 
   useEffect(() => {
     const m = map.current?.map;
@@ -111,7 +71,7 @@ export function LocationPicker({
     return () => {
       m.off('click', onClick);
     };
-  }, [ready, onCenterChange]);
+  }, [map, ready, onCenterChange]);
 
   useEffect(() => {
     const m = map.current;
@@ -120,18 +80,24 @@ export function LocationPicker({
     m.dot.setLatLng([current.lat, current.lng]);
     // The container may have been laid out after Leaflet measured it.
     m.map.invalidateSize({ animate: false });
-    m.map.fitBounds(m.circle.getBounds(), { padding: [12, 12] });
-  }, [ready, current.lat, current.lng, effectiveKm]);
+    // Without animation: leaving the step mid-zoom would break Leaflet.
+    m.map.fitBounds(m.circle.getBounds(), { padding: [12, 12], animate: false });
+  }, [map, ready, current.lat, current.lng, effectiveKm]);
 
   const search = async () => {
     const q = query.trim();
-    if (q.length < 2) return;
+    if (q.length < 2 || searching) return;
     setSearching(true);
     setNotFound(false);
-    const found = await findTownAction(q);
-    setSearching(false);
-    if (found) onCenterChange(found);
-    else setNotFound(true);
+    try {
+      const found = await findTownAction(q);
+      if (found) onCenterChange(found);
+      else setNotFound(true);
+    } catch {
+      setNotFound(true);
+    } finally {
+      setSearching(false);
+    }
   };
 
   return (

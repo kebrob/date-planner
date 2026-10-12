@@ -2,8 +2,15 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { CUISINES, MOOD_TAGS } from '@/core/planner/types';
 import type { CostGuard } from '@/guard/guard';
+import { logError } from '@/lib/result';
 import { PLACE_TYPES } from '@/ports/place-types';
-import { runToolLoop, type ClientTool, type CreateMessage } from './tool-loop';
+import {
+  runToolLoop,
+  UNTRUSTED_CONTENT_RULE,
+  type ClientTool,
+  type CreateMessage,
+  type ToolLoopResult,
+} from './tool-loop';
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
@@ -15,7 +22,7 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^\d{2}:\d{2}$/);
 const transport = z.enum(['deutschlandticket', 'car', 'walk']);
 
-export const planDateInput = z.object({
+const planDateInput = z.object({
   date,
   start_time: time,
   end_time: time,
@@ -40,12 +47,12 @@ export const planDateInput = z.object({
     .max(3),
 });
 
-export const weatherInput = z.object({ date, town: z.string().max(100).nullable() });
-export const findIdeasInput = z.object({
+const weatherInput = z.object({ date, town: z.string().max(100).nullable() });
+const findIdeasInput = z.object({
   query: z.string().max(80).nullable(),
   kind: z.enum(['activity', 'meal', 'snack', 'home']).nullable(),
 });
-export const saveIdeaInput = z.object({
+const saveIdeaInput = z.object({
   title: z.string().min(2).max(80),
   description: z.string().max(300),
   kind: z.enum(['activity', 'meal', 'snack']),
@@ -101,7 +108,7 @@ function tool(
       } catch (error) {
         if (error instanceof ToolUserError) throw error;
         // Internal details (SQL, hosts, stack) stay in our logs and are never sent to the model.
-        console.error(`chat tool ${name} failed`, error instanceof Error ? error.message : error);
+        logError(`chat tool ${name} failed`, error);
         throw new Error('The app had an internal error running this tool. Do not retry it now.');
       }
     },
@@ -218,12 +225,13 @@ export function systemPrompt(ctx: {
     'If plan_date reports warnings (fallback, limits, skipped stops), say honestly what went wrong and how to fix it (e.g. higher budget, other day, smaller distance).',
     'Use web search only for current events or facts you cannot know (max. a few searches) and mention sources.',
     'Never book or buy anything; you can only suggest and link.',
+    UNTRUSTED_CONTENT_RULE,
   ].join('\n');
 }
 
-export type ChatResult = {
+type ChatResult = {
   text: string;
-  status: 'done' | 'iteration_limit' | 'refusal' | 'max_tokens';
+  status: ToolLoopResult['status'];
 };
 
 export async function runChat(
@@ -237,6 +245,7 @@ export async function runChat(
     system: string;
     maxIterations: number;
     maxWebSearches: number;
+    deadline?: number;
   },
 ): Promise<ChatResult> {
   const messages: Anthropic.MessageParam[] = [
@@ -253,6 +262,7 @@ export async function runChat(
     tools: deps.tools,
     maxIterations: deps.maxIterations,
     maxWebSearches: deps.maxWebSearches,
+    deadline: deps.deadline,
     effort: 'low',
   });
   const fallbackText: Record<ChatResult['status'], string> = {
@@ -260,6 +270,12 @@ export async function runChat(
     iteration_limit: 'That took too many steps – please ask a bit more specifically.',
     refusal: 'Sorry, I cannot help with that.',
     max_tokens: '',
+    interrupted: 'I had to stop early (time or usage limit) – here is what I have so far.',
   };
-  return { text: result.text || fallbackText[result.status], status: result.status };
+  // An interrupted answer may end mid-thought, so the note is always added.
+  const text =
+    result.status === 'interrupted'
+      ? [result.text, fallbackText.interrupted].filter(Boolean).join('\n\n')
+      : result.text || fallbackText[result.status];
+  return { text, status: result.status };
 }

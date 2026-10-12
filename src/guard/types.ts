@@ -13,7 +13,7 @@ export type UsageSnapshot = {
   recentStatuses: { status: CallStatus; at: Date }[];
 };
 
-export type ProviderLimits = {
+type ProviderLimits = {
   dailyCostUsd?: number;
   monthlyCostUsd?: number;
   dailyRequests: number;

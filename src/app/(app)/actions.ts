@@ -2,30 +2,18 @@
 
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { getGeocoder } from '@/adapters';
-import { requireSession } from '@/auth/session';
+import { SIGN_IN_AGAIN } from '@/auth/responses';
+import { destroyAllSessions, hasFreshSession, requireSession } from '@/auth/session';
+import type { Result } from '@/lib/result';
 import { getDb } from '@/db/client';
-import { passkey, settings } from '@/db/schema';
-import {
-  deletePlan,
-  editPlan,
-  planAgain,
-  PlanNotEditableError,
-  PlanNotFoundError,
-  savePlan,
-  StopNotAddedError,
-  updatePlanMeta,
-  type PlanEdit,
-  type Window,
-} from '@/planner/saved';
-import {
-  AreaNotFoundError,
-  generatePlan,
-  homePoint,
-  savedInput,
-  type PlanInput,
-} from '@/planner/service';
+import { loadSettings } from '@/db/settings';
+import { passkey } from '@/db/schema';
+import { editPlan, planAgain, type PlanEdit } from '@/planner/edit';
+import { deletePlan, savePlan, updatePlanMeta, type Window } from '@/planner/saved';
+import { generatePlan, homePoint, savedInput, type PlanInput } from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
 import {
   addIdea,
@@ -36,36 +24,16 @@ import {
   type placeSearchSchema,
 } from '@/planner/chosen';
 import type { Place } from '@/ports/places';
-import { nextTrain, type LiveTrain } from '@/rail/live';
+import { nextTrain, type LiveTrain } from '@/planner/live';
 import {
   dismissRatingPrompt,
-  PlanNotRatableError,
   rateDate,
   rateItem,
   ratingSchema,
   setNotHappened,
   type Rating,
 } from '@/ratings/service';
-
-type Result<T> = { ok: true; data: T } | { ok: false; error: string };
-
-function failure(error: unknown, fallback: string): { ok: false; error: string } {
-  if (error instanceof AreaNotFoundError) {
-    return { ok: false, error: `Couldn't find "${error.query}". Try a town or city name.` };
-  }
-  if (error instanceof PlanNotFoundError) return { ok: false, error: 'Plan not found.' };
-  if (error instanceof PlanNotEditableError) {
-    return { ok: false, error: 'This plan can no longer be changed.' };
-  }
-  if (error instanceof StopNotAddedError) {
-    return { ok: false, error: 'Nothing fits into that gap. Try another idea.' };
-  }
-  if (error instanceof PlanNotRatableError) {
-    return { ok: false, error: 'This date cannot be rated (yet).' };
-  }
-  console.error(fallback, error instanceof Error ? error.message : error);
-  return { ok: false, error: fallback };
-}
+import { failure } from './action-failure';
 
 function revalidatePlans(id?: string) {
   revalidatePath('/');
@@ -77,8 +45,7 @@ export async function generatePlanAction(input: PlanInput): Promise<Result<PlanV
   await requireSession();
   try {
     const { plan, area } = await generatePlan(input);
-    const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-    return { ok: true, data: toPlanView(plan, homePoint(home!), area) };
+    return { ok: true, data: toPlanView(plan, homePoint(await loadSettings()), area) };
   } catch (error) {
     return failure(error, 'Could not create a plan. Check your inputs and try again.');
   }
@@ -125,7 +92,10 @@ export async function updatePlanMetaAction(
   try {
     const note =
       changes.note === undefined ? undefined : changes.note?.trim().slice(0, 500) || null;
-    await updatePlanMeta(id, { isFavorite: changes.isFavorite, note });
+    await updatePlanMeta(id, {
+      isFavorite: z.boolean().optional().parse(changes.isFavorite),
+      note,
+    });
     revalidatePlans(id);
     return { ok: true, data: null };
   } catch (error) {
@@ -156,16 +126,35 @@ export async function findTownAction(
   return area ? { name: area.name, lat: area.location.lat, lng: area.location.lng } : null;
 }
 
-export async function deletePasskeyAction(id: string): Promise<void> {
+/** Sessions signed in with the passkey end with it (cascade). */
+export async function deletePasskeyAction(id: string): Promise<Result<null>> {
   await requireSession();
-  await getDb().delete(passkey).where(eq(passkey.id, id));
-  revalidatePath('/settings/security');
+  if (!(await hasFreshSession())) return { ok: false, error: SIGN_IN_AGAIN };
+  try {
+    await getDb()
+      .delete(passkey)
+      .where(eq(passkey.id, z.string().min(1).max(1000).parse(id)));
+    revalidatePath('/settings/security');
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not remove the passkey.');
+  }
 }
 
-/** Polled by the live train card on the home screen. */
-export async function liveTrainAction(): Promise<LiveTrain | null> {
+export async function signOutEverywhereAction(): Promise<void> {
   await requireSession();
-  return nextTrain().catch(() => null);
+  await destroyAllSessions();
+  redirect('/login');
+}
+
+/** Polled by the live train card on the home screen; data null = no train coming up. */
+export async function liveTrainAction(): Promise<Result<LiveTrain | null>> {
+  await requireSession();
+  try {
+    return { ok: true, data: await nextTrain() };
+  } catch (error) {
+    return failure(error, 'Live train data unavailable.');
+  }
 }
 
 export async function rateDateAction(id: string, rating: Rating): Promise<Result<null>> {

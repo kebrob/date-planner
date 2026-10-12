@@ -21,6 +21,16 @@ describe('pricing', () => {
     expect(estimate).toBeCloseTo(0.132, 5);
   });
 
+  it('reserves the cache write price when the request is cached', () => {
+    const plain = estimateMaxCostUsd({ model: 'claude-sonnet-5-5', max_tokens: 0 }, 3_000_000, 0);
+    const cached = estimateMaxCostUsd(
+      { model: 'claude-sonnet-5-5', max_tokens: 0, cache_control: { type: 'ephemeral' } },
+      3_000_000,
+      0,
+    );
+    expect(cached).toBeCloseTo(plain * 1.25, 5);
+  });
+
   it('bills unknown (fallback) models at the highest rate', () => {
     const usage = { input_tokens: 1_000_000, output_tokens: 0 } as unknown as Anthropic.Usage;
     expect(actualCostUsd('claude-unknown', usage)).toBe(10);

@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fromLocal } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
-import { buildPlan, FALLBACK_ACTIVITY, firstStopRadiusKm } from './build-plan';
+import {
+  buildPlan,
+  FALLBACK_ACTIVITY,
+  FALLBACK_AWAY_ACTIVITY,
+  firstStopRadiusKm,
+} from './build-plan';
 import { estimateTravel } from './geo';
 import { firstOpenStart, isOpenDuring } from './opening-hours';
 import { seededRandom } from './random';
@@ -820,6 +825,67 @@ describe('route planning', () => {
     expect(plan.travelHome!.distanceKm).toBeGreaterThan(30);
   });
 
+  it('measures walking range from the destination when already there', async () => {
+    const town = north(10);
+    const plan = await buildPlan(
+      request({
+        format: 'single',
+        food: 'none',
+        transport: 'walk',
+        area: { name: 'Town', location: town },
+        startInArea: true,
+        endInArea: true,
+      }),
+      context({
+        activities: [cinema],
+        findPlaces: async (a, center) => [placeAt(center, 0.3, a.id)],
+      }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual(['cinema']);
+    expect(plan.warnings).not.toContain('fallback_used');
+  });
+
+  it('leaves out a way home that is too far to walk when already in the destination', async () => {
+    const walk = (area: LatLng) =>
+      buildPlan(
+        request({
+          format: 'single',
+          food: 'none',
+          transport: 'walk',
+          area: { name: 'Town', location: area },
+          startInArea: true,
+        }),
+        context({
+          activities: [cinema, boardGames],
+          findPlaces: async (a, center) => [placeAt(center, 0.3, a.id)],
+        }),
+      );
+    const far = await walk(north(10));
+    expect(far.items.map((i) => i.activity.id)).toEqual(['cinema']);
+    expect(far.travelHome).toBeNull();
+    expect(far.warnings).toContain('way_home_not_planned');
+
+    const near = await walk(north(1));
+    expect(near.travelHome).not.toBeNull();
+    expect(near.warnings).not.toContain('way_home_not_planned');
+  });
+
+  it('falls back to exploring the destination, not a night at home, when staying there', async () => {
+    const plan = await buildPlan(
+      request({
+        format: 'single',
+        food: 'none',
+        area: { name: 'Town', location: north(30) },
+        startInArea: true,
+        endInArea: true,
+      }),
+      context({ activities: [cinema], findPlaces: async () => [] }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual([FALLBACK_AWAY_ACTIVITY.id]);
+    expect(plan.items[0]!.activity.atHome).toBe(false);
+    expect(plan.warnings).toContain('fallback_used');
+  });
+
   it('plans no way home when staying in the destination', async () => {
     const munich = { lat: 48.14, lng: 11.58 };
     const plan = await buildPlan(
@@ -985,6 +1051,20 @@ describe('isOpenDuring', () => {
       isOpenDuring(late, fromLocal('2026-10-11', '00:30'), fromLocal('2026-10-11', '01:30')),
     ).toBe(true);
   });
+
+  it('compares wall-clock times on the nights the clocks change', () => {
+    // Saturday 20:00 – Sunday 04:00
+    const bar = {
+      alwaysOpen: false as const,
+      periods: [{ start: 6 * 1440 + 20 * 60, end: 7 * 1440 + 4 * 60 }],
+    };
+    // 2026-03-29: 01:30 + 120 real minutes is 04:30 summer time.
+    const spring = fromLocal('2026-03-29', '01:30');
+    expect(isOpenDuring(bar, spring, new Date(spring.getTime() + 120 * 60_000))).toBe(false);
+    // 2026-10-25: 01:30 + 180 real minutes is 03:30 winter time.
+    const autumn = fromLocal('2026-10-25', '01:30');
+    expect(isOpenDuring(bar, autumn, new Date(autumn.getTime() + 180 * 60_000))).toBe(true);
+  });
 });
 
 describe('summarizeWeather', () => {
@@ -1131,6 +1211,63 @@ describe('chosen stops', () => {
     const skatingItem = plan.items.find((i) => i.activity.id === 'skating')!;
     expect(skatingItem.start).toEqual(day('19:00'));
     expect(skatingItem.place).toBe(far);
+  });
+
+  it('keeps every fixed-time stop when the day has more slots than fit', async () => {
+    const meal = (id: string, time: string) => ({
+      activity: { ...dinner, id },
+      place: place(id, 2),
+      start: day(time),
+    });
+    const plan = await buildPlan(
+      request({
+        start: day('08:00'),
+        end: day('22:30'),
+        slots: ['main', 'meal', 'main', 'snack', 'main'],
+        anchors: [meal('breakfast', '08:30'), meal('lunch', '12:30'), meal('supper', '19:00')],
+      }),
+      context(),
+    );
+    const ids = plan.items.map((i) => i.activity.id);
+    expect(ids).toEqual(expect.arrayContaining(['breakfast', 'lunch', 'supper']));
+    expect(plan.items.length).toBeLessThanOrEqual(5);
+    expect(plan.warnings).not.toContain('required_skipped');
+  });
+
+  it('does not plan an idea again that a later stop of the plan keeps', async () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const plan = await buildPlan(
+        request({
+          start: day('18:00'),
+          end: day('23:30'),
+          slots: ['main', 'snack', 'main'],
+          keep: {
+            1: { activity: iceCream, place: place('ice', 1) },
+            2: { activity: boardGames, place: null },
+          },
+          excludeActivityIds: ['cinema'],
+        }),
+        context({ activities: [boardGames, boardGames2, iceCream], random: seededRandom(seed) }),
+      );
+      const ids = plan.items.map((i) => i.activity.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+
+  it('keeps an earlier kept stop when a later fixed-time stop comes back on an edit', async () => {
+    // The dinner lies before the middle of the window, so placing it by time alone puts it first.
+    const plan = await buildPlan(
+      request({
+        start: day('18:00'),
+        end: day('23:00'),
+        slots: ['main', 'meal'],
+        keep: { 0: { activity: minigolf, place: place('kept-minigolf', 2) } },
+        anchors: [{ activity: dinner, place: place('fixed-dinner', 2), start: day('20:15') }],
+      }),
+      context(),
+    );
+    expect(plan.items.map((i) => i.place?.id)).toEqual(['kept-minigolf', 'fixed-dinner']);
+    expect(plan.items[1]!.start).toEqual(day('20:15'));
   });
 
   it('takes the closest venue for a chosen idea without one', async () => {

@@ -36,6 +36,20 @@
       "when": 1791806460846,
       "tag": "0004_ratings_weather_trains",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791821790498,
+      "tag": "0005_session_passkey",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791823032444,
+      "tag": "0006_indexes",
+      "breakpoints": true
     }
   ]
 }

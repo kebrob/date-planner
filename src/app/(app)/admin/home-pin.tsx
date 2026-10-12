@@ -1,8 +1,8 @@
 'use client';
 
 import 'leaflet/dist/leaflet.css';
-import type { CircleMarker, Map as LeafletMap } from 'leaflet';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useLeafletMap } from '../leaflet-map';
 import { saveHomePinAction } from './actions';
 import { Message, primary, secondary, useAction } from './forms';
 
@@ -16,24 +16,15 @@ type Props = {
 /** Exact home location, set by tapping the map; no address is entered or geocoded. */
 export function HomePin({ town, pin }: Props) {
   const container = useRef<HTMLDivElement>(null);
-  const map = useRef<{ map: LeafletMap; dot: CircleMarker } | null>(null);
   const [draft, setDraft] = useState<LatLng | null>(pin);
   const { pending, message, run } = useAction();
   const changed = draft?.lat !== pin?.lat || draft?.lng !== pin?.lng;
 
-  // Leaflet needs `window`, so it is loaded only in the browser.
-  useEffect(() => {
-    let disposed = false;
-    void import('leaflet').then((L) => {
-      if (disposed || !container.current || map.current) return;
-      const start = pin ?? town;
-      const m = L.map(container.current, { center: [start.lat, start.lng], zoom: pin ? 16 : 13 });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors',
-        // OSM's tile usage policy requires a Referer; the app-wide policy would strip it.
-        referrerPolicy: 'strict-origin-when-cross-origin',
-      }).addTo(m);
+  const start = pin ?? town;
+  const { map } = useLeafletMap(
+    container,
+    { center: start, zoom: pin ? 16 : 13, maxZoom: 19 },
+    (L, m) => {
       const dot = L.circleMarker([start.lat, start.lng], {
         radius: 8,
         color: '#1d1d1f',
@@ -50,19 +41,9 @@ export function HomePin({ town, pin }: Props) {
         dot.setLatLng([next.lat, next.lng]).setStyle({ opacity: 1, fillOpacity: 1 });
         setDraft(next);
       });
-      const observer = new ResizeObserver(() => m.invalidateSize());
-      observer.observe(container.current);
-      m.on('unload', () => observer.disconnect());
-      map.current = { map: m, dot };
-    });
-    return () => {
-      disposed = true;
-      map.current?.map.remove();
-      map.current = null;
-    };
-    // Initialise once; the marker is moved imperatively on click.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      return { dot };
+    },
+  );
 
   return (
     <div className="flex flex-col gap-3 text-sm">

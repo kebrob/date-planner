@@ -1,20 +1,10 @@
 'use client';
 
+import { timeFormat, longDayFormat } from '@/lib/time';
 import { formatDuration } from '@/lib/duration';
 import { freeGaps, type PlanView } from '@/planner/view';
 import { TravelIcon } from './travel-icon';
-
-const TIME = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-const DAY = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-});
+import { CloseIcon } from './icons';
 
 const WARNINGS: Record<PlanView['warnings'][number], string> = {
   forecast_unreliable: 'Weather forecast is still uncertain this far ahead.',
@@ -22,7 +12,7 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
   opening_hours_unknown: 'Opening hours unknown for some places — check before you go.',
   place_lookup_limit_reached:
     'Searched as many places as one plan allows, so some ideas were skipped. Re-roll for others.',
-  fallback_used: 'Nothing else fit — here is a cozy fallback.',
+  fallback_used: 'Nothing else fit — here is a simple fallback.',
   over_budget: 'Slightly over budget so the day does not end early.',
   required_skipped: 'Some requested stops did not fit in time, budget or nearby places.',
   chosen_closed:
@@ -37,6 +27,8 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
     'Only a long-distance train fits – it is not covered by the Deutschlandticket.',
   train_late_return: 'The last fitting train gets you home after the planned end.',
   trains_unavailable: 'Live train times are unavailable right now – train times are estimates.',
+  way_home_not_planned:
+    'Home is too far to walk or cycle from there, so the way back is not part of this plan.',
 };
 
 type Leg = NonNullable<PlanView['travelHome']>;
@@ -60,8 +52,8 @@ type Train = NonNullable<Leg['train']>;
 function TrainLine({ train }: { train: Train }) {
   return (
     <span className="text-ink">
-      {train.line} · {TIME.format(new Date(train.plannedDeparture))} {train.from.name} →{' '}
-      {TIME.format(new Date(train.plannedArrival))} {train.to.name}
+      {train.line} · {timeFormat.format(new Date(train.plannedDeparture))} {train.from.name} →{' '}
+      {timeFormat.format(new Date(train.plannedArrival))} {train.to.name}
     </span>
   );
 }
@@ -79,7 +71,7 @@ function TrainInfo({ train, transfers = [] }: { train: Train; transfers?: Train[
         </span>
       ))}
       <span className="text-xs">
-        Leave {TIME.format(new Date(train.leaveAt))}
+        Leave {timeFormat.format(new Date(train.leaveAt))}
         {train.expected ? (
           <span> · expected times, confirmed the day before</span>
         ) : (
@@ -273,9 +265,9 @@ function StopCard({
       <div className="flex gap-4 p-5">
         <p className="flex w-12 shrink-0 flex-col tabular-nums">
           <span className="text-[17px] leading-tight font-semibold">
-            {TIME.format(new Date(item.start))}
+            {timeFormat.format(new Date(item.start))}
           </span>
-          <span className="text-sm text-mist">{TIME.format(new Date(item.end))}</span>
+          <span className="text-sm text-mist">{timeFormat.format(new Date(item.end))}</span>
         </p>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-start justify-between gap-3">
@@ -377,17 +369,7 @@ function StopCard({
               className={iconButton}
               aria-label={`Remove ${item.title}`}
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                aria-hidden
-              >
-                <path d="m3 3 6 6M9 3 3 9" />
-              </svg>
+              <CloseIcon />
             </button>
           )}
         </div>
@@ -423,7 +405,7 @@ export function PlanResult({
       <header className="flex items-baseline justify-between">
         <div>
           <h2 className="text-lg font-semibold">
-            {first ? DAY.format(new Date(first.start)) : 'Your plan'}
+            {first ? longDayFormat.format(new Date(first.start)) : 'Your plan'}
           </h2>
           {weather && <p className="text-sm text-mist">{weather}</p>}
         </div>

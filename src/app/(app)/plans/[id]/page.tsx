@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/auth/session';
-import { getSavedPlan, PlanNotFoundError } from '@/planner/saved';
+import { getSavedPlan } from '@/planner/refresh';
+import { PlanNotFoundError } from '@/planner/saved';
 import { SavedPlan } from './saved-plan';
 
 export default async function PlanPage({ params }: { params: Promise<{ id: string }> }) {

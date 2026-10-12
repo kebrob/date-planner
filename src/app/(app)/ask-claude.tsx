@@ -65,7 +65,10 @@ export function AskClaude({
     const answered = entries.slice(lastUserIndex + 1).some((e) => e.role === 'assistant');
     startTransition(async () => {
       // Failed requests were never stored, so only answered turns need a server-side undo.
-      if (answered) await undoLastChatTurnAction();
+      if (answered) {
+        const result = await undoLastChatTurnAction();
+        if (!result.ok) return setError(result.error);
+      }
       setEntries((e) => e.slice(0, lastUserIndex));
       setDraft(last.text);
       setError(null);
@@ -83,8 +86,9 @@ export function AskClaude({
               onClick={() =>
                 confirm('Clear the conversation?') &&
                 startTransition(async () => {
-                  await clearChatAction();
-                  setEntries([]);
+                  const result = await clearChatAction();
+                  if (result.ok) setEntries([]);
+                  else setError(result.error);
                 })
               }
             >

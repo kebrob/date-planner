@@ -1,5 +1,5 @@
 import { distanceKm } from '@/core/planner/geo';
-import { normalizeStationName } from '@/rail/connection';
+import { normalizeStationName } from '@/lib/station-name';
 import stations from '@/rail/stations.json';
 import type { LatLng } from '@/ports/places';
 import type { RailStation, RailStationFinder } from '@/ports/rail';

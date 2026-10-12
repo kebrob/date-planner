@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getSettings } from '@/admin/service';
-import { getAnthropic, MODEL } from '@/ai/client';
+import { createMessageUntil, MODEL } from '@/ai/client';
 import { getGeocoder, getRail } from '@/adapters';
 import { planTrip, tripInputSchema, type TripInput } from '@/ai/trip';
 import { getLimits } from '@/config/limits';
@@ -13,20 +13,24 @@ import { attachTripTrains, type StoredTripPlan } from './trains';
 export class TripsDisabledError extends Error {}
 
 const MAX_TRIP_ITERATIONS = 4;
+// Within the trips page's 300 s function limit, leaving time for trains and storing the trip.
+const TRIP_TIME_BUDGET_MS = 260_000;
 
 export async function createTrip(raw: unknown): Promise<string> {
+  const deadline = Date.now() + TRIP_TIME_BUDGET_MS;
   const input = tripInputSchema.parse(raw);
   const limits = getLimits();
   if (!limits.ai.enabled) throw new TripsDisabledError();
   const home = await getSettings();
   const plan = await planTrip(input, {
     homeName: home.homeName,
-    createMessage: (params) => getAnthropic().messages.create(params),
+    createMessage: createMessageUntil(deadline),
     guard: getCostGuard(),
     model: MODEL,
     // Usually one or two rounds; capped so the request fits into the function time limit.
     maxIterations: Math.min(limits.ai.maxToolIterations, MAX_TRIP_ITERATIONS),
     maxWebSearches: limits.ai.maxWebSearches.trip,
+    deadline,
   });
   const rail = getRail();
   const stored: StoredTripPlan = rail

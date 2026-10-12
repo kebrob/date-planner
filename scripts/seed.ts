@@ -1,9 +1,9 @@
 // Usage: npm run db:seed [-- --update]
-// Inserts missing settings/routines and seed activities (matched by title).
+// Inserts missing settings/routines and seed activities (matched by title, ignoring case).
 // With --update, existing seed activities are overwritten with the seed values.
 import { existsSync } from 'node:fs';
 import { Pool } from '@neondatabase/serverless';
-import { count, eq } from 'drizzle-orm';
+import { count, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { activity, settings, travelRoutine } from '../src/db/schema.ts';
 import { seedActivities, seedRoutines, seedSettings } from '../src/db/seed-data.ts';
@@ -22,16 +22,19 @@ try {
   if (routines?.n === 0) await db.insert(travelRoutine).values(seedRoutines);
 
   const existing = new Set(
-    (await db.select({ title: activity.title }).from(activity)).map((r) => r.title),
+    (await db.select({ title: activity.title }).from(activity)).map((r) => r.title.toLowerCase()),
   );
   let inserted = 0;
   let updated = 0;
   for (const seed of seedActivities) {
-    if (!existing.has(seed.title)) {
+    if (!existing.has(seed.title.toLowerCase())) {
       await db.insert(activity).values(seed);
       inserted++;
     } else if (update) {
-      await db.update(activity).set(seed).where(eq(activity.title, seed.title));
+      await db
+        .update(activity)
+        .set(seed)
+        .where(sql`lower(${activity.title}) = lower(${seed.title})`);
       updated++;
     }
   }

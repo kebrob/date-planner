@@ -1,3 +1,4 @@
+import { timeFormat, shortDayFormat } from '@/lib/time';
 import { notFound } from 'next/navigation';
 import { requireSession } from '@/auth/session';
 import { trainUrl } from '@/planner/view';
@@ -13,17 +14,6 @@ const SHORT_DAY = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'short',
   timeZone: 'UTC',
-});
-const TRAIN_DAY = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-});
-const TIME = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  hour: '2-digit',
-  minute: '2-digit',
 });
 
 const MODE_LABEL: Record<TripTravel['mode'], string> = {
@@ -57,7 +47,7 @@ function Ticket({ leg }: { leg: TripTravel }) {
           </span>
           <span className="text-sm text-ink/70">
             {train
-              ? `${train.line}, ${TRAIN_DAY.format(new Date(train.plannedDeparture))}`
+              ? `${train.line}, ${shortDayFormat.format(new Date(train.plannedDeparture))}`
               : MODE_LABEL[leg.mode]}
           </span>
         </div>
@@ -65,7 +55,7 @@ function Ticket({ leg }: { leg: TripTravel }) {
           <div className="min-w-0">
             {train && (
               <p className="text-[28px] leading-none font-semibold tabular-nums">
-                {TIME.format(new Date(train.plannedDeparture))}
+                {timeFormat.format(new Date(train.plannedDeparture))}
               </p>
             )}
             <p className="mt-1 truncate text-sm font-medium">{train?.from.name ?? leg.from}</p>
@@ -76,7 +66,7 @@ function Ticket({ leg }: { leg: TripTravel }) {
           <div className="min-w-0 text-right">
             {train && (
               <p className="text-[28px] leading-none font-semibold tabular-nums">
-                {TIME.format(new Date(train.plannedArrival))}
+                {timeFormat.format(new Date(train.plannedArrival))}
               </p>
             )}
             <p className="mt-1 truncate text-sm font-medium">{train?.to.name ?? leg.to}</p>

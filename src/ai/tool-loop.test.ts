@@ -161,9 +161,8 @@ describe('runToolLoop', () => {
     const createMessage = vi.fn<CreateMessage>(async () =>
       message('tool_use', [toolUse()], 0, 50_000),
     );
-    await expect(runToolLoop(options(createMessage, { guard }))).rejects.toBeInstanceOf(
-      GuardDeniedError,
-    );
+    const result = await runToolLoop(options(createMessage, { guard }));
+    expect(result.status).toBe('interrupted');
     expect(createMessage).toHaveBeenCalledTimes(1);
   });
 
@@ -172,5 +171,54 @@ describe('runToolLoop', () => {
     const result = await runToolLoop(options(createMessage));
     expect(result.status).toBe(stop);
     expect(createMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runToolLoop interruptions', () => {
+  it('keeps earlier rounds when a later call is denied by the guard', async () => {
+    let calls = 0;
+    const guard = new CostGuard({ store: new MemoryUsageStore(), limits });
+    const run = guard.run.bind(guard);
+    vi.spyOn(guard, 'run').mockImplementation((provider, estimate, call) =>
+      ++calls > 1
+        ? Promise.reject(new GuardDeniedError('anthropic', 'rate_limit'))
+        : run(provider, estimate, call),
+    );
+    const createMessage = vi.fn<CreateMessage>(async () =>
+      message('tool_use', [text('Checking the weather'), toolUse()]),
+    );
+    const result = await runToolLoop(options(createMessage, { guard }));
+    expect(result.status).toBe('interrupted');
+    expect(result.text).toBe('Checking the weather');
+    expect(weatherTool.execute).toHaveBeenCalled();
+  });
+
+  it('still fails when the very first call is denied', async () => {
+    const guard = new CostGuard({
+      store: new MemoryUsageStore(),
+      limits,
+      enabled: { anthropic: false },
+    });
+    const createMessage = vi.fn<CreateMessage>();
+    await expect(runToolLoop(options(createMessage, { guard }))).rejects.toThrow(GuardDeniedError);
+  });
+
+  it('does not reserve or call once the deadline is near, after keeping earlier rounds', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const guard = new CostGuard({ store: new MemoryUsageStore(), limits });
+      const run = vi.spyOn(guard, 'run');
+      const deadline = Date.now() + 30_000;
+      // Each round takes 25 s, so fewer than 10 s are left before the second one.
+      const createMessage = vi.fn<CreateMessage>(async () => {
+        vi.setSystemTime(Date.now() + 25_000);
+        return message('tool_use', [toolUse()]);
+      });
+      const result = await runToolLoop(options(createMessage, { guard, deadline }));
+      expect(result.status).toBe('interrupted');
+      expect(run).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

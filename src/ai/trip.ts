@@ -1,14 +1,20 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { MOOD_TAGS } from '@/core/planner/types';
 import type { CostGuard } from '@/guard/guard';
-import { runToolLoop, type ClientTool, type CreateMessage } from './tool-loop';
+import {
+  runToolLoop,
+  UNTRUSTED_CONTENT_RULE,
+  type ClientTool,
+  type CreateMessage,
+} from './tool-loop';
 
 const url = z
   .string()
   .max(500)
   .regex(/^https:\/\/[^\s]+$/, 'https link');
 
-export const tripPlanSchema = z.object({
+const tripPlanSchema = z.object({
   title: z.string().min(2).max(100),
   destination: z.string().max(100),
   summary: z.string().max(600),
@@ -106,7 +112,9 @@ export function tripPrompt(input: TripInput, homeName: string): string {
     .join('\n');
 }
 
-const MAX_TOKENS = 8_000;
+// Room for long trips plus thinking; calls are streamed, so the SDK accepts it. Reserved per call
+// at the output price, so it is not set higher than needed.
+const MAX_TOKENS = 32_000;
 
 function tripToolSchema() {
   const schema = { ...(z.toJSONSchema(tripPlanSchema) as Record<string, unknown>) };
@@ -115,6 +123,46 @@ function tripToolSchema() {
 }
 
 export class TripPlanningError extends Error {}
+
+const normalizedUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    return parsed.href.replace(/\/$/, '');
+  } catch {
+    return url;
+  }
+};
+
+/** URLs of all web search results in the conversation. */
+function searchedUrls(messages: Anthropic.MessageParam[]): Set<string> {
+  const urls = new Set<string>();
+  for (const message of messages) {
+    if (message.role !== 'assistant' || typeof message.content === 'string') continue;
+    for (const block of message.content) {
+      if (block.type !== 'web_search_tool_result' || !Array.isArray(block.content)) continue;
+      for (const result of block.content) urls.add(normalizedUrl(result.url));
+    }
+  }
+  return urls;
+}
+
+/**
+ * Keeps only links that came from a search result. Search results are untrusted text, so an
+ * injected instruction could otherwise make Claude add any link as a button.
+ */
+function withSearchedLinks(plan: TripPlan, urls: Set<string>): TripPlan {
+  const known = (link: string | null) => (link && urls.has(normalizedUrl(link)) ? link : null);
+  return {
+    ...plan,
+    days: plan.days.map((day) => ({
+      ...day,
+      items: day.items.map((item) => ({ ...item, link: known(item.link) })),
+    })),
+    stays: plan.stays.map((stay) => ({ ...stay, link: known(stay.link) })),
+    travel: plan.travel.map((leg) => ({ ...leg, link: known(leg.link) })),
+  };
+}
 
 export async function planTrip(
   input: TripInput,
@@ -125,6 +173,7 @@ export async function planTrip(
     model: string;
     maxIterations: number;
     maxWebSearches: number;
+    deadline?: number;
   },
 ): Promise<TripPlan> {
   let submitted: TripPlan | null = null;
@@ -153,22 +202,28 @@ export async function planTrip(
     guard: deps.guard,
     model: deps.model,
     maxTokens: MAX_TOKENS,
-    system:
+    system: [
       'You are a careful travel planner. Be concrete and realistic about times, prices and distances.',
+      UNTRUSTED_CONTENT_RULE,
+    ].join('\n'),
     messages: [{ role: 'user', content: tripPrompt(input, deps.homeName) }],
     tools: [submit],
     maxIterations: deps.maxIterations,
     maxWebSearches: deps.maxWebSearches,
+    deadline: deps.deadline,
     effort: 'medium',
     isDone: () => submitted !== null,
   });
 
   if (!submitted) {
+    const reasons: Partial<Record<typeof result.status, string>> = {
+      refusal: 'Claude declined this request.',
+      max_tokens: 'The plan got too long. Try fewer days or a shorter request.',
+    };
     throw new TripPlanningError(
-      result.status === 'refusal'
-        ? 'Claude declined this request.'
-        : 'Claude could not finish the plan within the limits. Try again or simplify the request.',
+      reasons[result.status] ??
+        'Claude could not finish the plan within the limits. Try again or simplify the request.',
     );
   }
-  return submitted;
+  return withSearchedLinks(submitted, searchedUrls(result.messages));
 }

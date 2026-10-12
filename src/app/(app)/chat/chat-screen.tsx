@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import type { ChatTurn } from '@/ai/chat';
 import { AskClaude } from '../ask-claude';
 import { SessionResult, usePlanSession } from '../plan-session';
+import { BackIcon } from '../icons';
 
 export function ChatScreen({
   history,
@@ -28,18 +29,7 @@ export function ChatScreen({
           aria-label="Back"
           className="grid h-10 w-10 place-items-center rounded-full hover:bg-cream"
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M11 3 5 9l6 6" />
-          </svg>
+          <BackIcon />
         </Link>
         <h1 className="text-[28px] font-semibold tracking-tight">Ask Claude</h1>
       </div>

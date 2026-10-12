@@ -1,19 +1,28 @@
 import { and, eq, max, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { getGeocoder, getPlacesProvider, getRail, getWeatherProvider } from '@/adapters';
+import {
+  getGeocoder,
+  getPlacesProvider,
+  getRail,
+  getWeatherProvider,
+  isGooglePlacesConfigured,
+} from '@/adapters';
 import { getLimits } from '@/config/limits';
 import { buildPlan } from '@/core/planner/build-plan';
 import {
   CUISINES,
+  MAX_ITEMS,
   type Activity,
   type History,
   type Plan,
   type PlanRequest,
   type Transport,
+  type TravelRoutine,
 } from '@/core/planner/types';
 import { summarizeWeather, weatherFactor } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import { activity, apiUsage, settings, suggestionLog, travelRoutine } from '@/db/schema';
+import { findSettings, loadSettings, type Settings } from '@/db/settings';
+import { activity, apiUsage, suggestionLog, travelRoutine } from '@/db/schema';
 import { dayKey } from '@/guard/periods';
 import { nextOuting } from './outing';
 import { attachTrains } from './trains';
@@ -21,6 +30,7 @@ import { firstOpenStart } from '@/core/planner/opening-hours';
 import { fitsWeather, foodKind, isFreeSearch, seasonOf, timeOfDay } from '@/core/planner/rules';
 import { weightedShuffle } from '@/core/planner/random';
 import { loadLearning } from '@/ratings/service';
+import { placeSchema } from './schemas';
 import { fromLocal } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
 import { TEXT_SEARCH_TYPE } from '@/ports/place-types';
@@ -35,25 +45,6 @@ export class AreaNotFoundError extends Error {
 const transport = z.enum(['deutschlandticket', 'car', 'walk', 'bike']);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^\d{2}:\d{2}$/);
-
-export const placeSchema = z.object({
-  provider: z.enum(['google', 'osm']),
-  id: z.string().max(300),
-  name: z.string().max(300),
-  location: z.object({ lat: z.number(), lng: z.number() }),
-  address: z.string().max(500).optional(),
-  rating: z.number().optional(),
-  openingHours: z
-    .union([
-      z.object({ alwaysOpen: z.literal(true) }),
-      z.object({
-        alwaysOpen: z.literal(false),
-        periods: z.array(z.object({ start: z.number(), end: z.number() })).max(50),
-      }),
-    ])
-    .nullable(),
-  mapsUrl: z.string().max(500).optional(),
-});
 
 const customStopSchema = z.object({
   title: z.string().trim().min(2).max(80),
@@ -73,7 +64,12 @@ export const chosenStopSchema = z
     /** Fixed start within the window; null = any time. */
     startTime: time.nullable(),
     /** Takes the place of the item at this position (the others are kept). */
-    index: z.number().int().min(0).max(4).nullable(),
+    index: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_ITEMS - 1)
+      .nullable(),
   })
   .refine((v) => (v.activityId === null) !== (v.custom === null), {
     message: 'Either an idea or a one-off stop',
@@ -81,7 +77,17 @@ export const chosenStopSchema = z
 
 export type ChosenStopInput = z.input<typeof chosenStopSchema>;
 
-export function customActivity(id: string, custom: z.output<typeof customStopSchema>): Activity {
+/** A stop that is not a stored idea; `query` null = no venue search (e.g. "a walk"). */
+export function customActivity(
+  id: string,
+  custom: {
+    title: string;
+    kind: 'activity' | 'meal' | 'snack';
+    durationMinutes: number;
+    costEur: number;
+    query: string | null;
+  },
+): Activity {
   return {
     id,
     title: custom.title,
@@ -95,7 +101,7 @@ export function customActivity(id: string, custom: z.output<typeof customStopSch
     transports: [],
     atHome: false,
     // Text search only: one-off stops have no provider-neutral type.
-    placeType: TEXT_SEARCH_TYPE,
+    placeType: custom.query ? TEXT_SEARCH_TYPE : null,
     placeQuery: custom.query,
     timesOfDay: [],
     seasons: [],
@@ -141,16 +147,25 @@ export const planInputSchema = z
       )
       .max(3)
       .optional(),
-    chosen: z.array(chosenStopSchema).max(5).optional(),
+    chosen: z.array(chosenStopSchema).max(MAX_ITEMS).optional(),
     /** Off after the user removed stops: free time stays free. */
     fillGaps: z.boolean().optional(),
     /** Kept stops that no longer fit are left out instead of replaced (moving a plan). */
     replaceUnfit: z.boolean().optional(),
     /** Positions of added stops that may be an activity, a snack or a meal. */
-    anyKindAt: z.array(z.number().int().min(0).max(4)).max(5).optional(),
+    anyKindAt: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_ITEMS - 1),
+      )
+      .max(MAX_ITEMS)
+      .optional(),
     slots: z
       .array(z.enum(['main', 'meal', 'snack']))
-      .max(5)
+      .max(MAX_ITEMS)
       .optional(),
     excludeActivityIds: z.array(z.string().max(100)).max(100).default([]),
     keep: z
@@ -238,10 +253,16 @@ async function loadHistory(now: Date): Promise<History> {
   return history;
 }
 
-type SettingsRow = typeof settings.$inferSelect;
+export function toRoutine(row: typeof travelRoutine.$inferSelect): TravelRoutine {
+  return {
+    transport: row.transport as Transport,
+    firstLegMinutes: row.firstLegMinutes,
+    bufferMinutes: row.bufferMinutes,
+  };
+}
 
 /** Exact home pin when set, else the rounded town; used for travel times and route links only. */
-export function homePoint(row: SettingsRow): LatLng {
+export function homePoint(row: Settings): LatLng {
   return row.homeExactLat !== null && row.homeExactLng !== null
     ? { lat: row.homeExactLat, lng: row.homeExactLng }
     : { lat: row.homeLat, lng: row.homeLng };
@@ -254,8 +275,7 @@ export const toGrid = (p: LatLng): LatLng => ({
 });
 
 export async function loadPlannerDefaults() {
-  const [row] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-  if (!row) throw new Error('Settings missing – run npm run db:seed');
+  const row = await loadSettings();
   return {
     transport: row.defaultTransport as Transport,
     budgetEur: row.defaultBudgetEur,
@@ -267,13 +287,12 @@ export async function loadPlannerDefaults() {
 }
 
 export async function placesLimitReached(now: Date): Promise<boolean> {
-  const limits = getLimits();
-  if (limits.places.provider !== 'google' || !process.env.GOOGLE_PLACES_API_KEY) return false;
+  if (!isGooglePlacesConfigured()) return false;
   const [row] = await getDb()
     .select({ n: sql<number>`count(*)` })
     .from(apiUsage)
     .where(and(eq(apiUsage.provider, 'google_places'), eq(apiUsage.day, dayKey(now))));
-  return Number(row?.n ?? 0) >= limits.places.dailyLimit;
+  return Number(row?.n ?? 0) >= getLimits().places.dailyLimit;
 }
 
 export async function generatePlan(
@@ -285,34 +304,17 @@ export async function generatePlan(
   const start = fromLocal(input.date, input.startTime);
   const end = fromLocal(input.endDate, input.endTime);
 
-  const [[home], routines, activityRows, learning, history] = await Promise.all([
-    db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+  const [home, routines, activityRows, learning, history] = await Promise.all([
+    loadSettings(),
     db.select().from(travelRoutine),
     db.select().from(activity).where(eq(activity.status, 'active')),
     loadLearning(now),
     loadHistory(now),
   ]);
-  if (!home) throw new Error('Settings missing – run npm run db:seed');
 
-  const required = (input.requiredStops ?? []).map((stop, i): Activity => ({
-    id: `adhoc-${i}`,
-    title: stop.title,
-    description: '',
-    category: stop.kind === 'activity' ? 'activity' : 'food',
-    tags: stop.kind === 'activity' ? [] : ['food', stop.kind],
-    costMinEur: stop.costEur,
-    costMaxEur: stop.costEur,
-    durationMinutes: stop.durationMinutes,
-    weather: {},
-    transports: [],
-    atHome: false,
-    // Ad-hoc stops are searched by text (Google); there is no matching OSM category.
-    placeType: stop.searchQuery ? TEXT_SEARCH_TYPE : null,
-    placeQuery: stop.searchQuery,
-    timesOfDay: [],
-    seasons: [],
-    preparation: null,
-  }));
+  const required = (input.requiredStops ?? []).map((stop, i) =>
+    customActivity(`adhoc-${i}`, { ...stop, query: stop.searchQuery }),
+  );
   const catalog = activityRows.map(toActivity);
   required.push(...catalog.filter((a) => input.requiredActivityIds?.includes(a.id)));
 
@@ -322,6 +324,8 @@ export async function generatePlan(
       : customActivity(`chosen-${i}`, c.custom!);
     return a ? [{ ...c, activity: a, place: (c.place as Place | null) ?? null }] : [];
   });
+  // An idea chosen by the user that is no longer active (deleted, blocked) cannot be planned.
+  const chosenMissing = allChosen.length < (input.chosen ?? []).length;
   // On re-rolls the chosen stops are usually kept items already; rejected ones stay out.
   const kept = new Set(Object.values(input.keep ?? {}).map((k) => k.activityId));
   // A stop picked for a position was chosen just now, so it wins over earlier rejections.
@@ -436,11 +440,7 @@ export async function generatePlan(
     {
       home: homePoint(home),
       maxRadiusKm: home.maxRadiusKm,
-      routines: routines.map((r) => ({
-        transport: r.transport as Transport,
-        firstLegMinutes: r.firstLegMinutes,
-        bufferMinutes: r.bufferMinutes,
-      })),
+      routines: routines.map(toRoutine),
       activities,
       history,
       weather: summarizeWeather(weatherHours, start, end, now),
@@ -475,11 +475,7 @@ export async function generatePlan(
         home: homePoint(home),
         homeGrid: townLocation,
         startPoint: plan.startsInArea && area ? area.location : undefined,
-        routine: routine && {
-          transport: routine.transport as Transport,
-          firstLegMinutes: routine.firstLegMinutes,
-          bufferMinutes: routine.bufferMinutes,
-        },
+        routine: routine && toRoutine(routine),
       },
       rail,
     ).catch(() => {
@@ -496,11 +492,14 @@ export async function generatePlan(
     await db.insert(suggestionLog).values(suggested.map((activityId) => ({ activityId })));
   }
   if (closedAllDay.length > 0) plan.warnings.push('chosen_closed');
+  if (chosenMissing && !plan.warnings.includes('required_skipped')) {
+    plan.warnings.push('required_skipped');
+  }
   if (await placesLimitReached(now)) plan.warnings.push('places_daily_limit');
   return { plan, input, area };
 }
 
-export type IdeaTeaser = {
+type IdeaTeaser = {
   id: string;
   title: string;
   durationMinutes: number;
@@ -515,8 +514,8 @@ export type IdeaTeaser = {
  */
 export async function ideasForNextOuting(now = new Date(), count = 3): Promise<IdeaTeaser[]> {
   const db = getDb();
-  const [[home], rows] = await Promise.all([
-    db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+  const [home, rows] = await Promise.all([
+    findSettings(),
     db.select().from(activity).where(eq(activity.status, 'active')),
   ]);
   if (!home) return [];

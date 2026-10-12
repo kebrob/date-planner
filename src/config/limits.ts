@@ -14,7 +14,6 @@ const limitsSchema = z.object({
   AI_DAILY_BUDGET_USD: positiveNumber(2),
   AI_MAX_TOOL_ITERATIONS: positiveInt(8),
   AI_MAX_WEB_SEARCHES_CHAT: positiveInt(3),
-  AI_MAX_WEB_SEARCHES_GENERATE: positiveInt(5),
   AI_MAX_WEB_SEARCHES_TRIP: positiveInt(15),
   AI_MAX_API_CALLS_PER_DAY: positiveInt(200),
   AI_REQUEST_TIMEOUT_MS: positiveInt(90_000),
@@ -31,7 +30,7 @@ export type Limits = {
     monthlyBudgetUsd: number;
     dailyBudgetUsd: number;
     maxToolIterations: number;
-    maxWebSearches: { chat: number; generate: number; trip: number };
+    maxWebSearches: { chat: number; trip: number };
     maxApiCallsPerDay: number;
     requestTimeoutMs: number;
   };
@@ -55,7 +54,6 @@ export function parseLimits(env: Record<string, string | undefined>): Limits {
       maxToolIterations: e.AI_MAX_TOOL_ITERATIONS,
       maxWebSearches: {
         chat: e.AI_MAX_WEB_SEARCHES_CHAT,
-        generate: e.AI_MAX_WEB_SEARCHES_GENERATE,
         trip: e.AI_MAX_WEB_SEARCHES_TRIP,
       },
       maxApiCallsPerDay: e.AI_MAX_API_CALLS_PER_DAY,

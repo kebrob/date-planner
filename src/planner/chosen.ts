@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { getPlacesProvider } from '@/adapters';
 import { toActivityInsert } from '@/ai/ideas';
 import { getDb } from '@/db/client';
-import { activity, settings } from '@/db/schema';
+import { loadSettings } from '@/db/settings';
+import { activity } from '@/db/schema';
 import { TEXT_SEARCH_TYPE } from '@/ports/place-types';
 import type { LatLng, Place } from '@/ports/places';
 import { placesLimitReached, toGrid } from './service';
@@ -60,8 +61,7 @@ export async function searchPlaces(
   const { query, near } = placeSearchSchema.parse(raw);
   let center: LatLng | null = near;
   if (!center) {
-    const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-    if (!home) throw new Error('Settings missing');
+    const home = await loadSettings();
     center = { lat: home.homeLat, lng: home.homeLng };
   }
   const places = await getPlacesProvider()
@@ -86,17 +86,23 @@ export const newIdeaSchema = z.object({
 
 /**
  * Saves a stop found by search as an active idea (the user chose it, so no review as draft).
- * An idea with the same title is reused instead of duplicated.
+ * An idea with the same title is reused instead of duplicated, and activated: the planner only
+ * uses active ideas, so a draft or blocked one would silently drop the chosen stop.
  */
-export async function addIdea(raw: z.input<typeof newIdeaSchema>): Promise<string> {
+export async function addIdea(raw: z.input<typeof newIdeaSchema>, retry = true): Promise<string> {
   const idea = newIdeaSchema.parse(raw);
   const db = getDb();
   const [existing] = await db
-    .select({ id: activity.id })
+    .select({ id: activity.id, status: activity.status })
     .from(activity)
     .where(sql`lower(${activity.title}) = lower(${idea.title})`)
     .limit(1);
-  if (existing) return existing.id;
+  if (existing) {
+    if (existing.status !== 'active') {
+      await db.update(activity).set({ status: 'active' }).where(eq(activity.id, existing.id));
+    }
+    return existing.id;
+  }
   const [row] = await db
     .insert(activity)
     .values({
@@ -123,6 +129,10 @@ export async function addIdea(raw: z.input<typeof newIdeaSchema>): Promise<strin
       ),
       status: 'active',
     })
+    .onConflictDoNothing()
     .returning({ id: activity.id });
-  return row!.id;
+  if (row) return row.id;
+  // Saved under the same title meanwhile: use that one.
+  if (retry) return addIdea(raw, false);
+  throw new Error('Idea could not be saved');
 }

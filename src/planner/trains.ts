@@ -203,13 +203,21 @@ export async function attachTrains(plan: TrainPlan, ctx: TrainContext, rail: Rai
     return { travel, arriveAt };
   }
 
+  // A failing lookup (e.g. rate limit) only costs that leg its train; the others keep theirs and
+  // the warnings collected so far stay.
+  const connectLeg = (...args: Parameters<typeof connect>) =>
+    connect(...args).catch(() => {
+      warnings.add('trains_unavailable');
+      return null;
+    });
+
   let here = ctx.startPoint ?? ctx.home;
   let hereIsHome = !ctx.startPoint;
   let readyAt = ctx.start;
   for (const [index, item] of plan.items.entries()) {
     const target = item.activity.atHome ? ctx.home : item.place?.location;
     if (needsTrain(item.travelBefore, ctx.refreshOnly) && target) {
-      const result = await connect(here, hereIsHome, target, item.activity.atHome, readyAt);
+      const result = await connectLeg(here, hereIsHome, target, item.activity.atHome, readyAt);
       if (result) {
         item.travelBefore = result.travel(item.travelBefore!);
         const late = minutesBetween(item.start, result.arriveAt);
@@ -227,7 +235,7 @@ export async function attachTrains(plan: TrainPlan, ctx: TrainContext, rail: Rai
   }
 
   if (needsTrain(plan.travelHome, ctx.refreshOnly) && !hereIsHome) {
-    const result = await connect(here, false, ctx.home, true, readyAt);
+    const result = await connectLeg(here, false, ctx.home, true, readyAt);
     if (result) {
       plan.travelHome = result.travel(plan.travelHome!);
       if (minutesBetween(ctx.end, result.arriveAt) > LATE_RETURN_TOLERANCE_MIN) {

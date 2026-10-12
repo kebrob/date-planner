@@ -1,16 +1,12 @@
 'use client';
 
+import { timeFormat } from '@/lib/time';
 import { useEffect, useState } from 'react';
 import { formatDuration } from '@/lib/duration';
-import type { LiveTrain } from '@/rail/live';
+import type { LiveTrain } from '@/planner/live';
 import { liveTrainAction } from './actions';
 
 const POLL_MS = 60_000;
-const TIME = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 const minutesLate = (planned: string, actual: string) =>
   Math.round((new Date(actual).getTime() - new Date(planned).getTime()) / 60_000);
@@ -21,7 +17,13 @@ export function LiveTrainCard({ initial }: { initial: LiveTrain }) {
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
-    const poll = async () => setLive(await liveTrainAction());
+    let latest = 0;
+    // Failures keep the last known train; only the newest of overlapping polls counts.
+    const poll = async () => {
+      const request = ++latest;
+      const result = await liveTrainAction().catch(() => null);
+      if (result?.ok && request === latest) setLive(result.data);
+    };
     const start = () => {
       clearInterval(timer);
       timer = setInterval(() => {
@@ -51,7 +53,7 @@ export function LiveTrainCard({ initial }: { initial: LiveTrain }) {
         <div>
           <p className="text-xs text-white/60">Your train to {live.destination}</p>
           <p className="text-xl font-semibold">
-            {train.line} · {TIME.format(new Date(train.plannedDeparture))}
+            {train.line} · {timeFormat.format(new Date(train.plannedDeparture))}
           </p>
         </div>
         <span
@@ -67,11 +69,11 @@ export function LiveTrainCard({ initial }: { initial: LiveTrain }) {
         </span>
       </div>
       <p className="text-sm text-white/80">
-        {train.from.name} → {train.to.name}, arrives {TIME.format(new Date(train.arrival))}
+        {train.from.name} → {train.to.name}, arrives {timeFormat.format(new Date(train.arrival))}
       </p>
       <div className="flex items-center justify-between text-sm">
         <span>
-          Leave {TIME.format(new Date(train.leaveAt))}
+          Leave {timeFormat.format(new Date(train.leaveAt))}
           {train.platform && (
             <span className={platformChanged ? 'text-butter' : ''}>
               {' '}

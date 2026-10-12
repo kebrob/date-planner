@@ -1,17 +1,17 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { fromLocal, toLocalTime } from '@/lib/time';
 import type { ChosenStopInput, PlanInput } from '@/planner/service';
 import type { PlanView } from '@/planner/view';
 import { generatePlanAction, savePlanAction } from './actions';
 import { PlanResult } from './plan-result';
 import { PlanningAnimation } from './planning-animation';
-import { StopPicker } from './stop-picker';
+import { PlanEditPickers } from './plan-edit-pickers';
 import { Toast } from './toast';
 
-export type CurrentPlan = { input: PlanInput; view: PlanView };
+type CurrentPlan = { input: PlanInput; view: PlanView };
 
 function keepAll(view: PlanView) {
   return Object.fromEntries(
@@ -33,14 +33,22 @@ export function usePlanSession() {
   const [pending, startTransition] = useTransition();
   // A completely new plan is coming (not just one item), so the old one is hidden meanwhile.
   const [whole, setWhole] = useState(false);
+  // Only the latest request may set the plan; an older one can still be on its way.
+  const latest = useRef(0);
 
   /** `note` may explain the new plan, e.g. which kept stops no longer fit. */
   function run(input: PlanInput, newPlan = false, note?: (view: PlanView) => string | null) {
+    const request = ++latest.current;
     setMessage(null);
     setNotice(null);
     setWhole(newPlan);
     startTransition(async () => {
-      const result = await generatePlanAction(input);
+      // A dropped connection keeps the current plan instead of ending in the error page.
+      const result = await generatePlanAction(input).catch(() => ({
+        ok: false as const,
+        error: 'Connection problem. Please try again.',
+      }));
+      if (request !== latest.current) return;
       if (!result.ok) return setMessage(result.error);
       // Only for this run: later re-rolls treat that stop like any other.
       setCurrent({ input: { ...input, anyKindAt: undefined }, view: result.data });
@@ -60,6 +68,7 @@ export function usePlanSession() {
       run(input, true);
     },
     show(plan: CurrentPlan) {
+      latest.current++;
       setExcluded([]);
       setMessage(null);
       setCurrent(plan);
@@ -195,7 +204,7 @@ export function usePlanSession() {
   };
 }
 
-export type PlanSession = ReturnType<typeof usePlanSession>;
+type PlanSession = ReturnType<typeof usePlanSession>;
 
 // Plans ready sooner than this skip the animation, so it never just flashes.
 const ANIMATION_DELAY_MS = 400;
@@ -222,9 +231,6 @@ export function SessionResult({ session }: { session: PlanSession }) {
   }
   if (session.planning || !session.current) return null;
   const { view, input } = session.current;
-  const near = (index: number) => view.items[index]?.place?.location ?? input.areaPoint ?? null;
-  // Around the stop before the gap, or the one after it.
-  const nearGap = (position: number) => view.items[position - 1]?.place?.location ?? near(position);
   return (
     <>
       <Toast message={session.notice} onDone={session.clearNotice} />
@@ -240,33 +246,18 @@ export function SessionResult({ session }: { session: PlanSession }) {
           end: fromLocal(input.endDate, input.endTime),
         }}
       >
-        {adding !== null && (
-          <StopPicker
-            heading="Add a stop"
-            near={nearGap(adding)}
-            onClose={() => setAdding(null)}
-            onSurprise={() => {
-              session.addStop(adding, null);
-              setAdding(null);
-            }}
-            onPick={(picked) => {
-              session.addStop(adding, picked.stop);
-              setAdding(null);
-            }}
-          />
-        )}
-        {choosing !== null && (
-          <StopPicker
-            heading={`Instead of ${view.items[choosing]?.title.toLowerCase() ?? 'this'}`}
-            near={near(choosing)}
-            askMode
-            onClose={() => setChoosing(null)}
-            onPick={(picked, mode) => {
-              session.replace(choosing, picked.stop, mode);
-              setChoosing(null);
-            }}
-          />
-        )}
+        <PlanEditPickers
+          items={view.items}
+          area={input.areaPoint ?? null}
+          adding={adding}
+          choosing={choosing}
+          onClose={() => {
+            setAdding(null);
+            setChoosing(null);
+          }}
+          onAdd={session.addStop}
+          onReplace={session.replace}
+        />
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
