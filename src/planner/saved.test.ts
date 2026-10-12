@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Place } from '@/ports/places';
-import { archivedPlace, isFullPlace, oneOffStop, rowsToView } from './saved';
+import { isFullPlace, oneOffStop, rowsToView } from './saved';
 import { chosenStopSchema, customActivity } from './service';
 import { freeGaps, type PlanView } from './view';
 
@@ -14,22 +14,14 @@ const googlePlace: Place = {
   openingHours: { alwaysOpen: true },
   mapsUrl: 'https://maps.google.com/?cid=1',
 };
-const osmPlace: Place = { ...googlePlace, provider: 'osm', id: 'node/1' };
 
-describe('archivedPlace', () => {
-  it('keeps only id and name of Google places', () => {
-    const archived = archivedPlace(googlePlace);
-    expect(archived).toEqual({
-      provider: 'google',
-      id: 'g1',
-      name: 'Ruff’s Burger',
-      archived: true,
-    });
+// What is left of a Google place after the date.
+const archived = { provider: 'google', id: 'g1', name: 'Ruff’s Burger', archived: true };
+
+describe('isFullPlace', () => {
+  it('tells full places from archived ones', () => {
+    expect(isFullPlace(googlePlace)).toBe(true);
     expect(isFullPlace(archived)).toBe(false);
-  });
-
-  it('keeps OpenStreetMap places as they are', () => {
-    expect(archivedPlace(osmPlace)).toBe(osmPlace);
   });
 });
 
@@ -71,7 +63,7 @@ describe('rowsToView', () => {
     placeProvider: 'google',
     placeId: 'g1',
     placeName: 'Ruff’s Burger',
-    place: archivedPlace(googlePlace),
+    place: archived,
     alternatives: [],
     costEur: 30,
     travel: null,
@@ -155,7 +147,7 @@ describe('chosen stops', () => {
     });
     // Stored ideas are kept as ideas; archived places can't be pinned.
     expect(oneOffStop({ ...row, activityId: 'a1' }, 1)).toBeNull();
-    expect(oneOffStop({ ...row, place: archivedPlace(googlePlace) }, 1)).toBeNull();
+    expect(oneOffStop({ ...row, place: archived }, 1)).toBeNull();
   });
 
   it('turns a one-off stop into a text-search idea of its kind', () => {

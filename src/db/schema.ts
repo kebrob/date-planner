@@ -133,7 +133,7 @@ export const planItem = pgTable(
     atHome: boolean('at_home').notNull().default(false),
     openingHoursUnknown: boolean('opening_hours_unknown').notNull().default(false),
     // Provider id and display name are kept permanently; full place data only until the date has
-    // passed (provider terms restrict long-term storage), see archivedPlace().
+    // passed (provider terms restrict long-term storage).
     placeProvider: text('place_provider'),
     placeId: text('place_id'),
     placeName: text('place_name'),

@@ -29,21 +29,8 @@ export class StopNotAddedError extends Error {}
 type ItemRow = typeof planItem.$inferSelect;
 type PlanRow = typeof datePlan.$inferSelect;
 
-/** Stored place data: either a full place or the minimal reference kept after the date. */
-type StoredPlace =
-  Place | { provider: Place['provider']; id: string; name: string; archived: true };
-
 export function isFullPlace(value: unknown): value is Place {
   return typeof value === 'object' && value !== null && 'location' in value;
-}
-
-/**
- * Google terms restrict long-term storage of place content; after the date only id and name are
- * kept. OpenStreetMap data (ODbL) may be stored as is.
- */
-export function archivedPlace(place: Place): StoredPlace {
-  if (place.provider !== 'google') return place;
-  return { provider: place.provider, id: place.id, name: place.name, archived: true };
 }
 
 export type Window = { date: string; startTime: string; endDate: string; endTime: string };
@@ -96,36 +83,27 @@ function baseInput(plan: PlanRow): PlanInput {
   return savedInput(plan.parameters as PlanInput);
 }
 
-function stripLeg(leg: Leg | null): Leg | null {
-  return leg ? { ...leg, directionsUrl: null } : null;
-}
-
-export async function archiveExpiredPlaces(now = new Date()): Promise<void> {
+/**
+ * Google terms restrict long-term storage of place content; after the date only provider, id and
+ * name are kept. OpenStreetMap data (ODbL) may be stored as is. Route links embed coordinates of
+ * the previous stop, so they go for every leg of past plans.
+ */
+async function archiveExpiredPlaces(now = new Date()): Promise<void> {
   const db = getDb();
-  const expired = await db
-    .select({ id: planItem.id, place: planItem.place, travel: planItem.travel })
-    .from(planItem)
-    .innerJoin(datePlan, eq(planItem.planId, datePlan.id))
+  const past = db.select({ id: datePlan.id }).from(datePlan).where(lt(datePlan.endsAt, now));
+  await db
+    .update(planItem)
+    .set({
+      place: sql`jsonb_build_object('provider', ${planItem.place}->'provider', 'id', ${planItem.place}->'id', 'name', ${planItem.place}->'name', 'archived', true)`,
+      alternatives: [],
+    })
     .where(
       and(
-        lt(datePlan.endsAt, now),
+        inArray(planItem.planId, past),
         sql`${planItem.place}->>'provider' = 'google'`,
         sql`${planItem.place} ? 'location'`,
       ),
     );
-  for (const row of expired) {
-    if (!isFullPlace(row.place)) continue;
-    await db
-      .update(planItem)
-      .set({
-        place: archivedPlace(row.place),
-        alternatives: [],
-        travel: stripLeg(row.travel as Leg | null),
-      })
-      .where(eq(planItem.id, row.id));
-  }
-  // Route links embed coordinates of the previous stop, so they go for every leg of past plans.
-  const past = db.select({ id: datePlan.id }).from(datePlan).where(lt(datePlan.endsAt, now));
   await db
     .update(planItem)
     .set({ travel: sql`${planItem.travel} - 'directionsUrl'` })
