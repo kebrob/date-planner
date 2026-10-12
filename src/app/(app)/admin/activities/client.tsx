@@ -9,6 +9,7 @@ import {
   importIdeasAction,
   setActivityStatusAction,
 } from '../actions';
+import { formatDuration } from '@/lib/duration';
 import { field, Message, primary, secondary, useAction } from '../forms';
 
 type Row = {
@@ -50,7 +51,7 @@ export function ActivityRow({ activity: a }: { activity: Row }) {
         <Link href={`/admin/activities/${a.id}`} className="flex flex-col hover:text-ink">
           <span className="font-medium">{a.title}</span>
           <span className="text-xs text-mist">
-            {a.category} · {a.costMinEur}–{a.costMaxEur} € · {a.durationMinutes} min
+            {a.category} · {a.costMinEur}–{a.costMaxEur} € · {formatDuration(a.durationMinutes)}
             {a.atHome ? ' · at home' : a.placeQuery ? ` · “${a.placeQuery}”` : ''}
             {SOURCE[a.source]}
           </span>

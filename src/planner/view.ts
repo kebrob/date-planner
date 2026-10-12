@@ -157,3 +157,31 @@ export function toPlanView(
     warnings: plan.warnings,
   };
 }
+
+// A new stop needs time for itself and for getting there.
+const MIN_GAP_MINUTES = 60;
+// Same cap as the planner's.
+const MAX_STOPS = 5;
+
+export type FreeGap = {
+  /** Where a new stop would go: before the item at this index (or at the end). */
+  position: number;
+  minutes: number;
+};
+
+/** Free time between stops (and before the first / after the last) that could take another stop. */
+export function freeGaps(plan: PlanView, start: Date, end: Date): FreeGap[] {
+  if (plan.items.length >= MAX_STOPS) return [];
+  const gaps: FreeGap[] = [];
+  let free = start;
+  const add = (position: number, until: Date, travelMinutes: number) => {
+    const minutes = Math.round((until.getTime() - free.getTime()) / 60_000) - travelMinutes;
+    if (minutes >= MIN_GAP_MINUTES) gaps.push({ position, minutes });
+  };
+  plan.items.forEach((item, i) => {
+    add(i, new Date(item.start), item.travelBefore?.minutes ?? 0);
+    free = new Date(item.end);
+  });
+  add(plan.items.length, end, plan.travelHome?.minutes ?? 0);
+  return gaps;
+}

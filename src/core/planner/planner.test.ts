@@ -69,6 +69,12 @@ const boardGames = activity({
   atHome: true,
   durationMinutes: 120,
 });
+const boardGames2 = activity({
+  id: 'board-games-2',
+  tags: ['indoor', 'home'],
+  atHome: true,
+  durationMinutes: 30,
+});
 const dinner = activity({
   id: 'dinner',
   category: 'food',
@@ -442,6 +448,71 @@ describe('budget and long days', () => {
     );
     const arrival = plan.items.at(-1)!.end.getTime() + (plan.travelHome?.minutes ?? 0) * 60_000;
     expect(arrival).toBeLessThanOrEqual(req.end.getTime());
+  });
+
+  it('fills an added stop with a snack when no activity fits the gap', async () => {
+    const plan = await buildPlan(
+      request({
+        start: fromLocal('2026-10-10', '20:00'),
+        end: fromLocal('2026-10-10', '21:30'),
+        slots: ['main'],
+        anyKindAt: [0],
+      }),
+      context({ activities: [cinema, iceCream] }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual(['ice-cream']);
+  });
+
+  it('leaves kept stops out instead of replacing them when moving a plan', async () => {
+    const plan = await buildPlan(
+      request({
+        start: fromLocal('2026-10-10', '18:00'),
+        end: fromLocal('2026-10-10', '20:00'),
+        slots: ['main', 'main'],
+        keep: {
+          0: { activity: boardGames, place: null, at: fromLocal('2026-10-10', '18:00') },
+          1: { activity: minigolf, place: place('golf', 2) },
+        },
+        replaceUnfit: false,
+        fillGaps: false,
+      }),
+      context(),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual(['board-games']);
+  });
+
+  it('keeps a kept stop even when no time is left for the later slots', async () => {
+    const plan = await buildPlan(
+      request({
+        start: fromLocal('2026-10-10', '18:00'),
+        end: fromLocal('2026-10-10', '20:00'),
+        slots: ['main', 'main', 'main'],
+        keep: {
+          0: { activity: boardGames, place: null },
+          2: { activity: boardGames2, place: null, at: fromLocal('2026-10-10', '20:00') },
+        },
+        replaceUnfit: false,
+        fillGaps: false,
+      }),
+      // Nothing else to suggest: the stop can only come from the kept one.
+      context({ activities: [] }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toContain('board-games');
+  });
+
+  it('leaves free time free once the user removed stops', async () => {
+    const plan = await buildPlan(
+      request({
+        food: 'none',
+        start: fromLocal('2026-10-10', '10:00'),
+        end: fromLocal('2026-10-10', '20:00'),
+        budgetEur: 40,
+        slots: ['main'],
+        fillGaps: false,
+      }),
+      context({ activities: [cheapCinema, freeWalk, library, boardGames] }),
+    );
+    expect(plan.items).toHaveLength(1);
   });
 
   it('does not send you home for a filler while out', async () => {

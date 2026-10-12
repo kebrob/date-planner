@@ -1,6 +1,7 @@
 'use client';
 
-import type { PlanView } from '@/planner/view';
+import { formatDuration } from '@/lib/duration';
+import { freeGaps, type PlanView } from '@/planner/view';
 import { TravelIcon } from './travel-icon';
 
 const TIME = new Intl.DateTimeFormat('en-GB', {
@@ -82,7 +83,7 @@ function TrainInfo({ train, transfers = [] }: { train: Train; transfers?: Train[
         ) : (
           train.platform && ` · Platform ${train.platform}`
         )}
-        {delay > 0 && <span className="text-amber-700"> · +{delay} min</span>}
+        {delay > 0 && <span className="text-amber-700"> · +{formatDuration(delay)}</span>}
         {longDistance && (
           <span className="text-amber-700"> · not covered by the Deutschlandticket</span>
         )}
@@ -103,7 +104,7 @@ function LegRow({ leg }: { leg: Leg }) {
         <TrainInfo train={leg.train} transfers={leg.transfers} />
       ) : (
         <span>
-          {leg.minutes} min {MODE[leg.mode]}
+          {formatDuration(leg.minutes)} {MODE[leg.mode]}
           {suffix}
         </span>
       )}
@@ -155,6 +156,10 @@ type Props = {
   onSwap?: (index: number, placeId: string) => void;
   /** Replace an item with something the user picks. */
   onChooseItem?: (index: number) => void;
+  /** Offers to add a stop wherever the window still has room. */
+  onAddStop?: (position: number) => void;
+  /** The date's time window, to find free gaps. */
+  window?: { start: Date; end: Date };
   /** Extra content inside an item card, e.g. a rating or a weather hint. */
   renderItemExtra?: (index: number) => React.ReactNode;
   /** Action buttons below the plan. */
@@ -165,6 +170,33 @@ const linkPill =
   'inline-flex min-h-10 items-center rounded-full bg-white px-3.5 text-sm text-ink ring-1 ring-line hover:bg-cream';
 
 type Item = PlanView['items'][number];
+
+/** Quiet invitation in a free gap of the plan. */
+function AddStopRow({
+  minutes,
+  pending,
+  onClick,
+}: {
+  minutes: number;
+  pending: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line px-4 text-sm text-mist hover:border-butter-deep hover:text-ink disabled:opacity-50"
+    >
+      <span aria-hidden className="text-lg leading-none text-ink">
+        +
+      </span>
+      <span>
+        <span className="font-medium text-ink">Add a stop</span> · {formatDuration(minutes)} free
+      </span>
+    </button>
+  );
+}
 
 const iconButton =
   'grid h-11 w-11 place-items-center rounded-full bg-cream text-ink hover:bg-butter disabled:opacity-50';
@@ -263,17 +295,6 @@ function StopCard({
                 <span>{venue}</span>
               )}
               {item.place?.rating && <span className="text-mist">★ {item.place.rating}</span>}
-              {item.place?.website && (
-                // Extra padding keeps a finger-sized target without adding height.
-                <a
-                  href={item.place.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="-my-3 py-3 text-sm text-mist underline underline-offset-4 hover:text-ink"
-                >
-                  Website
-                </a>
-              )}
             </p>
           )}
           {where && <p className="text-[15px] text-mist">{where}</p>}
@@ -380,10 +401,19 @@ export function PlanResult({
   onRemoveItem,
   onSwap,
   onChooseItem,
+  onAddStop,
+  window,
   renderItemExtra,
   children,
 }: Props) {
   const first = plan.items[0];
+  const gaps = onAddStop && window ? freeGaps(plan, window.start, window.end) : [];
+  const addRow = (position: number) => {
+    const gap = gaps.find((g) => g.position === position);
+    return gap && onAddStop ? (
+      <AddStopRow minutes={gap.minutes} pending={pending} onClick={() => onAddStop(position)} />
+    ) : null;
+  };
   const weather = weatherLine(plan.weather);
 
   return (
@@ -406,6 +436,7 @@ export function PlanResult({
       <ol className="flex flex-col gap-3">
         {plan.items.map((item, index) => (
           <li key={`${item.activityId}-${index}`} className="flex flex-col gap-3">
+            {addRow(index)}
             {item.travelBefore && <LegRow leg={item.travelBefore} />}
             <StopCard
               item={item}
@@ -422,6 +453,7 @@ export function PlanResult({
         ))}
       </ol>
 
+      {addRow(plan.items.length)}
       {plan.travelHome && <LegRow leg={plan.travelHome} />}
 
       {plan.warnings.length > 0 && (

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Place } from '@/ports/places';
 import { archivedPlace, isFullPlace, oneOffStop, rowsToView } from './saved';
 import { chosenStopSchema, customActivity } from './service';
+import { freeGaps, type PlanView } from './view';
 
 const googlePlace: Place = {
   provider: 'google',
@@ -180,5 +181,33 @@ describe('chosen stops', () => {
         custom: null,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('freeGaps', () => {
+  const at = (time: string) => new Date(`2026-10-17T${time}:00Z`);
+  const item = (start: string, end: string, travel: number | null) =>
+    ({
+      start: at(start).toISOString(),
+      end: at(end).toISOString(),
+      travelBefore: travel === null ? null : { minutes: travel },
+    }) as PlanView['items'][number];
+  const plan = (items: PlanView['items'], home: number | null) =>
+    ({ items, travelHome: home === null ? null : { minutes: home } }) as PlanView;
+
+  it('finds room before, between and after stops, net of the way there', () => {
+    const view = plan(
+      [item('13:30', '15:00', 20), item('17:00', '18:00', 30), item('18:10', '19:00', 0)],
+      30,
+    );
+    expect(freeGaps(view, at('13:00'), at('22:00'))).toEqual([
+      { position: 1, minutes: 90 },
+      { position: 3, minutes: 150 },
+    ]);
+  });
+
+  it('offers nothing once the plan has the maximum number of stops', () => {
+    const five = Array.from({ length: 5 }, (_, i) => item(`1${i}:00`, `1${i}:30`, 0));
+    expect(freeGaps(plan(five, 0), at('09:00'), at('23:00'))).toEqual([]);
   });
 });

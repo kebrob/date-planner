@@ -141,6 +141,12 @@ export const planInputSchema = z
       .max(3)
       .optional(),
     chosen: z.array(chosenStopSchema).max(5).optional(),
+    /** Off after the user removed stops: free time stays free. */
+    fillGaps: z.boolean().optional(),
+    /** Kept stops that no longer fit are left out instead of replaced (moving a plan). */
+    replaceUnfit: z.boolean().optional(),
+    /** Positions of added stops that may be an activity, a snack or a meal. */
+    anyKindAt: z.array(z.number().int().min(0).max(4)).max(5).optional(),
     slots: z
       .array(z.enum(['main', 'meal', 'snack']))
       .max(5)
@@ -153,6 +159,8 @@ export const planInputSchema = z
           activityId: z.string(),
           place: placeSchema.nullable(),
           alternatives: z.array(placeSchema).max(2).optional(),
+          /** Stays at this start, e.g. the stop after a gap a new stop is added to. */
+          startTime: time.optional(),
         }),
       )
       .optional(),
@@ -177,6 +185,8 @@ export function savedInput(input: PlanInput): PlanInput {
   const base: PlanInput = { ...input, excludeActivityIds: [] };
   delete base.keep;
   delete base.slots;
+  delete base.anyKindAt;
+  delete base.replaceUnfit;
   const fixed = input.chosen?.filter((c) => c.startTime && c.index === null);
   if (fixed?.length) base.chosen = fixed;
   else delete base.chosen;
@@ -364,7 +374,8 @@ export async function generatePlan(
     if (kept) {
       // Chosen for a set time: stays at that time when the rest changes.
       const fixed = allChosen.find((c) => c.activity.id === kept.id && c.index === null);
-      const at = fixed?.startTime ? startOf(fixed.startTime) : undefined;
+      const startTime = k.startTime ?? fixed?.startTime;
+      const at = startTime ? startOf(startTime) : undefined;
       keep[Number(index)] = {
         activity: kept,
         place: k.place as Place | null,
@@ -390,6 +401,9 @@ export async function generatePlan(
       endInArea: input.endInArea,
       // Always allowed; the planner still tries to stay within budget first.
       allowOverBudget: true,
+      fillGaps: input.fillGaps,
+      replaceUnfit: input.replaceUnfit,
+      anyKindAt: input.anyKindAt,
       maxDistanceKm: input.maxDistanceKm ?? null,
       required,
       anchors,

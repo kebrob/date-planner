@@ -106,6 +106,12 @@ export type PlanRequest = {
   startInArea?: boolean;
   /** With an area: stay there afterwards instead of going home (e.g. a hotel). */
   endInArea?: boolean;
+  /** Positions of added stops where any kind fits: an activity, else a snack, else a meal. */
+  anyKindAt?: number[];
+  /** A kept item that no longer fits gets a new suggestion (default); off = it is left out. */
+  replaceUnfit?: boolean;
+  /** Fill long free gaps with extra items (default); off once the user removed stops. */
+  fillGaps?: boolean;
   /** Allows going up to 50 % over budget if nothing else fits; flagged in the plan. */
   allowOverBudget?: boolean;
   /** Slot layout of a previous plan; used when re-rolling a single item so `keep` indices match. */

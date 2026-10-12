@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { formatDuration } from '@/lib/duration';
 import { deleteRoutineAction, saveRoutineAction, saveSettingsAction } from './actions';
 
 export const field = 'rounded-lg border border-line bg-transparent px-3 py-2 text-sm';
@@ -266,7 +267,7 @@ export function RoutinesEditor({ routines }: { routines: Routine[] }) {
               <span className="font-medium">
                 {TRANSPORTS.find((t) => t.value === r.transport)?.label}:
               </span>{' '}
-              {r.description} (+{r.firstLegMinutes + r.bufferMinutes} min)
+              {r.description} (+{formatDuration(r.firstLegMinutes + r.bufferMinutes)})
             </span>
             <span className="flex gap-2">
               <button type="button" className={secondary} onClick={() => setEditing(r.id)}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { formatDuration } from '@/lib/duration';
 import type { LiveTrain } from '@/rail/live';
 import { liveTrainAction } from './actions';
 
@@ -62,7 +63,7 @@ export function LiveTrainCard({ initial }: { initial: LiveTrain }) {
                 : 'bg-white/15 text-white'
           }`}
         >
-          {live.cancelled ? 'Cancelled' : late > 0 ? `+${late} min` : 'On time'}
+          {live.cancelled ? 'Cancelled' : late > 0 ? `+${formatDuration(late)}` : 'On time'}
         </span>
       </div>
       <p className="text-sm text-white/80">

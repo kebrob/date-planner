@@ -14,6 +14,7 @@ import {
   PlanNotEditableError,
   PlanNotFoundError,
   savePlan,
+  StopNotAddedError,
   updatePlanMeta,
   type PlanEdit,
   type Window,
@@ -56,6 +57,9 @@ function failure(error: unknown, fallback: string): { ok: false; error: string }
   if (error instanceof PlanNotEditableError) {
     return { ok: false, error: 'This plan can no longer be changed.' };
   }
+  if (error instanceof StopNotAddedError) {
+    return { ok: false, error: 'Nothing fits into that gap. Try another idea.' };
+  }
   if (error instanceof PlanNotRatableError) {
     return { ok: false, error: 'This date cannot be rated (yet).' };
   }
@@ -91,7 +95,7 @@ export async function savePlanAction(input: PlanInput, view: PlanView): Promise<
   }
 }
 
-export async function editPlanAction(id: string, edit: PlanEdit): Promise<Result<number>> {
+export async function editPlanAction(id: string, edit: PlanEdit): Promise<Result<string[]>> {
   await requireSession();
   try {
     const dropped = await editPlan(id, edit);

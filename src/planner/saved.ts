@@ -6,7 +6,7 @@ import type { PlanWarning, Transport } from '@/core/planner/types';
 import { summarizeWeather, weatherConcern, windowWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
 import { activity, datePlan, planItem, settings, suggestionLog, travelRoutine } from '@/db/schema';
-import { fromLocal, minutesBetween, toLocalDate, toLocalTime } from '@/lib/time';
+import { addMinutes, fromLocal, minutesBetween, toLocalDate, toLocalTime } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
 import {
   generatePlan,
@@ -21,6 +21,8 @@ import { toPlanView, trainUrl, type Leg, type PlanView } from './view';
 
 export class PlanNotFoundError extends Error {}
 export class PlanNotEditableError extends Error {}
+/** Nothing fitted into the gap a stop was added to. */
+export class StopNotAddedError extends Error {}
 
 type ItemRow = typeof planItem.$inferSelect;
 type PlanRow = typeof datePlan.$inferSelect;
@@ -51,6 +53,7 @@ export type SavedPlanView = PlanView & {
   isFavorite: boolean;
   note: string | null;
   isPast: boolean;
+  transport: PlanInput['transport'];
   /** The date has started, so it can be rated. */
   canRate: boolean;
   rating: RatingValue | null;
@@ -304,6 +307,7 @@ export function rowsToView(plan: PlanRow, items: ItemRow[], now: Date): SavedPla
     itemRatings: items.map((i) => ({ rating: i.rating, placeBlamed: i.placeBlamed })),
     weatherConcerns: items.map(() => null),
     window: windowOf(plan, plan.parameters as PlanInput),
+    transport: (plan.parameters as PlanInput).transport,
     format: (items.length <= 1
       ? 'single'
       : items.length === 2
@@ -537,11 +541,20 @@ export type PlanEdit =
   | { type: 'reroll'; index: number }
   | { type: 'remove'; index: number }
   | { type: 'swap'; index: number; placeId: string }
-  | { type: 'reschedule'; window: Window }
+  /** New date/time and, optionally, a new transport; stops and venues stay where possible. */
+  | { type: 'reschedule'; window: Window; transport?: PlanInput['transport'] }
   /** `keep`: other stops stay, times move; `around`: re-plan the rest around the chosen stop. */
-  | { type: 'replace'; index: number; stop: ChosenStopInput; mode: 'keep' | 'around' };
+  | { type: 'replace'; index: number; stop: ChosenStopInput; mode: 'keep' | 'around' }
+  /** New stop before the item at `position` (or at the end); `stop` null = planner's pick. */
+  | { type: 'add'; position: number; stop: ChosenStopInput | null };
 
-type KeepEntry = { activityId: string; place: Place | null; alternatives: Place[] };
+type KeepEntry = {
+  activityId: string;
+  place: Place | null;
+  alternatives: Place[];
+  /** Stays at this start ("HH:MM"). */
+  startTime?: string;
+};
 
 function keepOf(item: ItemRow): KeepEntry | null {
   if (!item.activityId) return null;
@@ -587,11 +600,12 @@ async function homeLocation() {
   return homePoint(home);
 }
 
-/** Re-plans a saved, upcoming plan; returns how many items had to be dropped. */
-export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Promise<number> {
+/** Re-plans a saved, upcoming plan; returns the titles of kept stops that no longer fit. */
+export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Promise<string[]> {
   const { plan, items } = await loadPlan(id);
   if (plan.endsAt < now) throw new PlanNotEditableError();
   const base = baseInput(plan);
+  if (edit.type === 'add') return addStop(id, plan, items, base, edit.position, edit.stop);
   if (edit.type !== 'reschedule' && !items[edit.index]) throw new PlanNotEditableError();
   // A re-rolled, removed or replaced stop that was chosen for a set time is no longer fixed.
   if (edit.type !== 'reschedule' && edit.type !== 'swap') {
@@ -609,6 +623,8 @@ export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Pr
   let window = windowOf(plan, base);
   const exclude: string[] = [];
   let chosen: ChosenStopInput[] | undefined;
+  // Moving a plan leaves stops out that no longer fit instead of suggesting others.
+  let leaveOut = false;
 
   switch (edit.type) {
     case 'reroll': {
@@ -617,11 +633,16 @@ export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Pr
       entries[edit.index] = null;
       break;
     }
-    case 'remove':
+    case 'remove': {
       if (items.length <= 1) throw new PlanNotEditableError();
+      const removed = items[edit.index]!;
+      if (removed.activityId) exclude.push(removed.activityId);
       rows = items.filter((_, i) => i !== edit.index);
       entries = rows.map(keepOf);
+      // The user wants less: free time stays free, now and in later edits.
+      base.fillGaps = false;
       break;
+    }
     case 'swap': {
       const entry = entries[edit.index];
       const alternative = entry?.alternatives.find((p) => p.id === edit.placeId);
@@ -636,9 +657,26 @@ export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Pr
       };
       break;
     }
-    case 'reschedule':
+    case 'reschedule': {
       window = edit.window;
+      if (edit.transport) base.transport = edit.transport;
+      // Stops keep their time of day where the new window allows it; extra time stays free.
+      const start = fromLocal(window.date, window.startTime);
+      const end = fromLocal(window.endDate, window.endTime);
+      items.forEach((item, i) => {
+        const entry = entries[i];
+        if (!entry) return;
+        const time = toLocalTime(item.startsAt);
+        const sameDay = fromLocal(window.date, time);
+        const at = sameDay < start ? fromLocal(window.endDate, time) : sameDay;
+        const minutes = minutesBetween(item.startsAt, item.endsAt);
+        if (at >= start && addMinutes(at, minutes) <= end)
+          entries[i] = { ...entry, startTime: time };
+      });
+      base.fillGaps = false;
+      leaveOut = true;
       break;
+    }
     case 'replace':
       if (edit.mode === 'around') {
         // Only the chosen stop is fixed, at the time the replaced one started.
@@ -654,7 +692,7 @@ export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Pr
         const result = await generatePlan(input);
         const view = toPlanView(result.plan, await homeLocation(), result.area);
         await replacePlan(id, savedInput(input), view);
-        return 0;
+        return [];
       }
       entries[edit.index] = null;
       chosen = [{ ...edit.stop, startTime: null, index: edit.index }];
@@ -680,15 +718,77 @@ export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Pr
     keep: keepRecord(entries),
     chosen: [...(base.chosen ?? []), ...(chosen ?? []), ...oneOffs],
     excludeActivityIds: exclude,
+    replaceUnfit: leaveOut ? false : undefined,
   };
   const result = await generatePlan(input);
   const view = toPlanView(result.plan, await homeLocation(), result.area);
   await replacePlan(id, savedInput(input), view);
-  // Kept items that could not stay as they were (e.g. venue closed on the new date).
-  return entries.filter(
-    (e) =>
-      e && !view.items.some((i) => i.activityId === e.activityId && i.place?.id === e.place?.id),
-  ).length;
+  return unfitTitles(rows, entries, view);
+}
+
+/** Kept stops that could not stay as they were (e.g. no time left, venue closed then). */
+function unfitTitles(rows: ItemRow[], entries: (KeepEntry | null)[], view: PlanView): string[] {
+  return rows.flatMap((row, i) => {
+    const e = entries[i];
+    const stays = view.items.some(
+      (item) => item.activityId === e?.activityId && item.place?.id === e?.place?.id,
+    );
+    return e && !stays ? [row.title] : [];
+  });
+}
+
+// Same cap as the planner's.
+const MAX_STOPS = 5;
+
+/**
+ * Adds a stop at a position: the stops stay, the one after the gap keeps its start so the new
+ * one fills the gap. Throws when nothing fits there.
+ */
+async function addStop(
+  id: string,
+  plan: PlanRow,
+  items: ItemRow[],
+  base: PlanInput,
+  position: number,
+  stop: ChosenStopInput | null,
+): Promise<string[]> {
+  if (position < 0 || position > items.length || items.length >= MAX_STOPS) {
+    throw new PlanNotEditableError();
+  }
+  const entries = items.map(keepOf);
+  const fixedTitles = new Set(
+    (base.chosen ?? []).flatMap((c) => (c.custom ? [c.custom.title] : [])),
+  );
+  const shift = (i: number) => (i >= position ? i + 1 : i);
+  const oneOffs = items.flatMap((row, i) => {
+    const pinned = entries[i] || fixedTitles.has(row.title) ? null : oneOffStop(row, shift(i));
+    return pinned ? [pinned] : [];
+  });
+  entries.splice(position, 0, null);
+  const keep = keepRecord(entries);
+  const next = keep[String(position + 1)];
+  if (next) next.startTime = toLocalTime(items[position]!.startsAt);
+  const slots = items.map((r) => r.slot as 'main' | 'meal' | 'snack');
+  slots.splice(position, 0, 'main');
+
+  const input: PlanInput = {
+    ...base,
+    ...windowOf(plan, base),
+    slots,
+    keep,
+    anyKindAt: stop ? undefined : [position],
+    chosen: [
+      ...(base.chosen ?? []),
+      ...(stop ? [{ ...stop, startTime: null, index: position }] : []),
+      ...oneOffs,
+    ],
+    excludeActivityIds: [],
+  };
+  const result = await generatePlan(input);
+  if (result.plan.items.length <= items.length) throw new StopNotAddedError();
+  const view = toPlanView(result.plan, await homeLocation(), result.area);
+  await replacePlan(id, savedInput(input), view);
+  return unfitTitles(items, items.map(keepOf), view);
 }
 
 /** Creates a new upcoming plan from an existing one (e.g. a favourite) for another date. */

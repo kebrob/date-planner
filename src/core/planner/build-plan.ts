@@ -740,6 +740,7 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
   /** Long gaps (before a fixed stop or the way home): extra items, preferring free ideas nearby. */
   const fillGap = async () => {
     while (
+      request.fillGaps !== false &&
       (items.length > 0 || state.nextStop) &&
       items.length + anchorsLeft < MAX_ITEMS &&
       freeMinutes(state, request, ctx) >= MIN_FILL_MINUTES
@@ -788,26 +789,29 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
       .slice(index + 1, nextAnchor === -1 ? undefined : nextAnchor)
       .map((e) => e.slot);
     const kept = request.keep?.[index];
+    const keepPass = (laterSlots: Slot[]) =>
+      makePass(state, request, laterSlots, request.allowOverBudget ?? false);
+    // A stop the user already has is kept even without room held back for later slots.
     const keptItem =
       kept &&
-      schedule(
-        entry.slot,
-        kept.activity,
-        kept.place,
-        state,
-        request,
-        ctx,
-        makePass(state, request, later, request.allowOverBudget ?? false),
-      );
+      (schedule(entry.slot, kept.activity, kept.place, state, request, ctx, keepPass(later)) ||
+        schedule(entry.slot, kept.activity, kept.place, state, request, ctx, keepPass([])));
     if (keptItem) keptItem.alternatives = kept.alternatives ?? [];
     const pinned = request.pins?.[index];
     const pinnedItem =
       !keptItem && pinned ? await placeChosen(entry.slot, pinned, state, request, ctx) : null;
     if (pinned && !pinnedItem) state.warnings.add('required_skipped');
-    const item =
+    const leaveOut = kept && !keptItem && request.replaceUnfit === false;
+    let item =
       keptItem ||
       pinnedItem ||
-      (await fillWithStretch(entry.slot, later, state, request, ctx, format));
+      (leaveOut ? null : await fillWithStretch(entry.slot, later, state, request, ctx, format));
+    if (!item && !pinned && request.anyKindAt?.includes(index)) {
+      for (const kind of ['snack', 'meal'] as const) {
+        item = await fillWithStretch(kind, later, state, request, ctx, format);
+        if (item) break;
+      }
+    }
     if (item) add(item);
   }
 

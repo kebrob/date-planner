@@ -1,14 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
-import { toLocalTime } from '@/lib/time';
+import { useCallback, useState, useTransition } from 'react';
+import { fromLocal, toLocalTime } from '@/lib/time';
 import type { ChosenStopInput, PlanInput } from '@/planner/service';
 import type { PlanView } from '@/planner/view';
 import { generatePlanAction, savePlanAction } from './actions';
 import { PlanResult } from './plan-result';
 import { PlanningAnimation } from './planning-animation';
 import { StopPicker } from './stop-picker';
+import { Toast } from './toast';
 
 export type CurrentPlan = { input: PlanInput; view: PlanView };
 
@@ -28,6 +29,7 @@ export function usePlanSession() {
   const [excluded, setExcluded] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
   const [pending, startTransition] = useTransition();
   // A completely new plan is coming (not just one item), so the old one is hidden meanwhile.
   const [whole, setWhole] = useState(false);
@@ -40,7 +42,8 @@ export function usePlanSession() {
     startTransition(async () => {
       const result = await generatePlanAction(input);
       if (!result.ok) return setMessage(result.error);
-      setCurrent({ input, view: result.data });
+      // Only for this run: later re-rolls treat that stop like any other.
+      setCurrent({ input: { ...input, anyKindAt: undefined }, view: result.data });
       setNotice(note?.(result.data) ?? null);
     });
   }
@@ -51,6 +54,7 @@ export function usePlanSession() {
     planning: pending && whole,
     message,
     notice,
+    clearNotice,
     start(input: PlanInput) {
       setExcluded([]);
       run(input, true);
@@ -99,6 +103,40 @@ export function usePlanSession() {
         keep,
         slots: current.view.items.map((i) => i.slot),
       });
+    },
+    /**
+     * Adds a stop before the item at `position` (or at the end); `stop` null lets the planner
+     * pick. The stop after the gap keeps its start, so the new one fills the gap.
+     */
+    addStop(position: number, stop: ChosenStopInput | null) {
+      if (!current) return;
+      const items = current.view.items;
+      const shifted = Object.fromEntries(
+        Object.entries(keepAll(current.view)).map(([i, k]) => {
+          const index = Number(i) >= position ? Number(i) + 1 : Number(i);
+          const startTime =
+            Number(i) === position ? toLocalTime(new Date(items[position]!.start)) : undefined;
+          return [String(index), startTime ? { ...k, startTime } : k];
+        }),
+      );
+      const slots = items.map((i) => i.slot);
+      slots.splice(position, 0, 'main');
+      const chosen = (current.input.chosen ?? []).map((c) =>
+        c.index !== null && c.index >= position ? { ...c, index: c.index + 1 } : c,
+      );
+      run(
+        {
+          ...current.input,
+          excludeActivityIds: excluded,
+          keep: shifted,
+          slots,
+          anyKindAt: stop ? undefined : [position],
+          chosen: stop ? [...chosen, { ...stop, startTime: null, index: position }] : chosen,
+        },
+        false,
+        (view) =>
+          view.items.length > items.length ? null : 'Nothing fits into that gap. Try another idea.',
+      );
     },
     /** `keep`: other stops stay, times move; `around`: re-plan everything around the new stop. */
     replace(index: number, stop: ChosenStopInput, mode: 'keep' | 'around') {
@@ -162,21 +200,43 @@ export type PlanSession = ReturnType<typeof usePlanSession>;
 /** The plan on screen with re-roll and save actions. */
 export function SessionResult({ session }: { session: PlanSession }) {
   const [choosing, setChoosing] = useState<number | null>(null);
+  const [adding, setAdding] = useState<number | null>(null);
   if (session.planning) return <PlanningAnimation />;
   if (!session.current) return null;
-  const view = session.current.view;
-  const near = (index: number) =>
-    view.items[index]?.place?.location ?? session.current?.input.areaPoint ?? null;
+  const { view, input } = session.current;
+  const near = (index: number) => view.items[index]?.place?.location ?? input.areaPoint ?? null;
+  // Around the stop before the gap, or the one after it.
+  const nearGap = (position: number) => view.items[position - 1]?.place?.location ?? near(position);
   return (
     <>
-      {session.notice && <p className="text-sm text-amber-700">{session.notice}</p>}
+      <Toast message={session.notice} onDone={session.clearNotice} />
       <PlanResult
         plan={view}
         pending={session.pending}
         onRerollItem={session.rerollItem}
         onSwap={session.swap}
         onChooseItem={setChoosing}
+        onAddStop={setAdding}
+        window={{
+          start: fromLocal(input.date, input.startTime),
+          end: fromLocal(input.endDate, input.endTime),
+        }}
       >
+        {adding !== null && (
+          <StopPicker
+            heading="Add a stop"
+            near={nearGap(adding)}
+            onClose={() => setAdding(null)}
+            onSurprise={() => {
+              session.addStop(adding, null);
+              setAdding(null);
+            }}
+            onPick={(picked) => {
+              session.addStop(adding, picked.stop);
+              setAdding(null);
+            }}
+          />
+        )}
         {choosing !== null && (
           <StopPicker
             heading={`Instead of ${view.items[choosing]?.title.toLowerCase() ?? 'this'}`}

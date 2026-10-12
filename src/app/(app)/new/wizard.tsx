@@ -460,8 +460,8 @@ export function Wizard({
                   Anything set already?
                 </h1>
                 <p className="-mt-3 text-sm text-mist">
-                  Add what you want to do for sure, at a set time if you like. We plan the rest
-                  around it.
+                  Add what you want to do for sure, at a set time if you like. The planner fits the
+                  rest around it.
                 </p>
                 {picks.length > 0 && (
                   <ul className="flex flex-col gap-2">

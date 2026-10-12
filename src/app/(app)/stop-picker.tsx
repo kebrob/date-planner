@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDuration } from '@/lib/duration';
 import type { IdeaOption } from '@/planner/chosen';
 import type { ChosenStopInput } from '@/planner/service';
 import type { LatLng, Place } from '@/ports/places';
 import { addIdeaAction, listIdeaOptionsAction, searchPlacesAction } from './actions';
+import { SearchField } from './search-field';
 
 export type PickedStop = {
   stop: ChosenStopInput;
@@ -24,6 +26,8 @@ type Props = {
   timeWindow?: { start: string; end: string };
   /** Replacing a stop: ask whether the other stops stay. */
   askMode?: boolean;
+  /** Offers to let the planner pick instead (adding a stop to a gap). */
+  onSurprise?: () => void;
   onPick: (picked: PickedStop, mode: Mode) => void;
   onClose: () => void;
 };
@@ -49,7 +53,15 @@ const cost = (min: number, max: number) => (max === 0 ? 'free' : `${min}–${max
 const capitalized = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Bottom sheet to pick one of your ideas, or – on request – a place found on Google. */
-export function StopPicker({ heading, near, timeWindow, askMode, onPick, onClose }: Props) {
+export function StopPicker({
+  heading,
+  near,
+  timeWindow,
+  askMode,
+  onSurprise,
+  onPick,
+  onClose,
+}: Props) {
   const [ideas, setIdeas] = useState<IdeaOption[] | null>(ideasCache);
   const [query, setQuery] = useState('');
   const [stage, setStage] = useState<'search' | 'places' | 'details' | 'confirm'>('search');
@@ -204,18 +216,32 @@ export function StopPicker({ heading, near, timeWindow, askMode, onPick, onClose
           </button>
         </div>
 
-        <div className="flex flex-col gap-3 overflow-y-auto px-5 pb-2">
+        <div className="flex flex-col gap-3 overflow-y-auto px-5 pt-1 pb-2">
           {stage === 'search' && (
             <>
-              <input
-                ref={searchField}
-                type="search"
-                className={input}
-                placeholder="e.g. ice skating, sushi, bowling"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                aria-label="Search your ideas"
-              />
+              {onSurprise && (
+                <button
+                  type="button"
+                  onClick={onSurprise}
+                  className="flex min-h-14 w-full flex-col justify-center rounded-2xl bg-butter px-4 py-3 text-left hover:bg-butter-deep"
+                >
+                  <span className="font-medium">Surprise us</span>
+                  <span className="text-sm text-ink/70">
+                    Let the planner pick something for this time
+                  </span>
+                </button>
+              )}
+              {/* Stays in view while the list scrolls; the padding keeps the focus ring visible. */}
+              <div className="sticky top-0 z-10 -mx-5 -mt-1 bg-paper px-5 pt-1 pb-2">
+                <SearchField
+                  inputRef={searchField}
+                  value={query}
+                  onChange={setQuery}
+                  maxLength={80}
+                  placeholder="e.g. ice skating, sushi, bowling"
+                  ariaLabel="Search your ideas"
+                />
+              </div>
               {ideas === null && !message && (
                 <p className="text-sm text-mist">Loading your ideas…</p>
               )}
@@ -240,7 +266,8 @@ export function StopPicker({ heading, near, timeWindow, askMode, onPick, onClose
                     >
                       <span className="font-medium">{idea.title}</span>
                       <span className="shrink-0 text-sm text-mist">
-                        {idea.durationMinutes} min · {cost(idea.costMinEur, idea.costMaxEur)}
+                        {formatDuration(idea.durationMinutes)} ·{' '}
+                        {cost(idea.costMinEur, idea.costMaxEur)}
                       </span>
                     </button>
                   </li>
@@ -332,7 +359,7 @@ export function StopPicker({ heading, near, timeWindow, askMode, onPick, onClose
                       className={chip(details.durationMinutes === d)}
                       onClick={() => setDetails({ ...details, durationMinutes: d })}
                     >
-                      {d < 120 ? `${d} min` : `${d / 60} h`}
+                      {formatDuration(d)}
                     </button>
                   ))}
                 </div>

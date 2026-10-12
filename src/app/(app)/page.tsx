@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireSession } from '@/auth/session';
+import { formatDuration } from '@/lib/duration';
 import { listUpcoming } from '@/planner/saved';
 import { nextOuting } from '@/planner/outing';
 import { ideasForNextOuting } from '@/planner/service';
@@ -143,7 +144,7 @@ export default async function HomePage() {
               <span className="flex flex-col gap-2">
                 <span className="font-medium">{idea.title}</span>
                 <span className="flex flex-wrap gap-1.5">
-                  <Pill>{idea.durationMinutes} min</Pill>
+                  <Pill>{formatDuration(idea.durationMinutes)}</Pill>
                   <Pill>
                     {idea.costMaxEur === 0 ? 'free' : `${idea.costMinEur}–${idea.costMaxEur} €`}
                   </Pill>
