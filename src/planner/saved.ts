@@ -444,7 +444,10 @@ async function refreshTrains(
         travelHome: withUrl(trainPlan.travelHome as Leg | null),
         startsAt: trainPlan.items[0]?.start ?? plan.startsAt,
         endsAt: trainPlan.items.at(-1)?.end ?? plan.endsAt,
-        trainsCheckedAt: now,
+        // After a failed lookup, try again on the next view instead of hours later.
+        trainsCheckedAt: trainPlan.warnings.includes('trains_unavailable')
+          ? plan.trainsCheckedAt
+          : now,
       })
       .where(eq(datePlan.id, plan.id));
   });

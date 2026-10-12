@@ -99,10 +99,7 @@ export async function addIdea(raw: z.input<typeof newIdeaSchema>): Promise<strin
     .limit(1);
   if (existing) {
     if (existing.status !== 'active') {
-      await db
-        .update(activity)
-        .set({ status: 'active' })
-        .where(eq(activity.id, existing.id));
+      await db.update(activity).set({ status: 'active' }).where(eq(activity.id, existing.id));
     }
     return existing.id;
   }

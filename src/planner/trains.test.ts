@@ -143,6 +143,31 @@ describe('attachTrains', () => {
     expect(p.warnings).toContain('train_ticket_needed');
   });
 
+  it('keeps the trains found so far when a later lookup fails', async () => {
+    const p = plan();
+    const working = timetable({
+      '8000320': [stop('-1-x-1', 'RB', { dep: event('17:42', 0, OUT) })],
+      '8000262': [stop('-1-x-7', 'RB', { arr: event('18:30', 5) })],
+    });
+    let calls = 0;
+    await attachTrains(p, ctx, {
+      stations: {
+        ...stations,
+        // The way home looks up the home station again; that call fails.
+        near: async (point) => {
+          if (++calls > 2) throw new Error('rate limited');
+          return stations.near(point);
+        },
+      },
+      timetable: working,
+    });
+    expect(p.items[0]!.travelBefore!.train).toMatchObject({ line: 'RB 1' });
+    expect(p.travelHome).toEqual(TRAIN);
+    expect(p.warnings).toEqual(
+      expect.arrayContaining(['train_times_adjusted', 'trains_unavailable']),
+    );
+  });
+
   it('keeps the estimate when no train fits', async () => {
     const p = plan();
     await attachTrains(p, ctx, { stations, timetable: timetable({}) });
