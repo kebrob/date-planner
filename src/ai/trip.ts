@@ -106,7 +106,9 @@ export function tripPrompt(input: TripInput, homeName: string): string {
     .join('\n');
 }
 
-const MAX_TOKENS = 8_000;
+// Room for long trips plus thinking; calls are streamed, so the SDK accepts it. Reserved per call
+// at the output price, so it is not set higher than needed.
+const MAX_TOKENS = 32_000;
 
 function tripToolSchema() {
   const schema = { ...(z.toJSONSchema(tripPlanSchema) as Record<string, unknown>) };
@@ -164,10 +166,13 @@ export async function planTrip(
   });
 
   if (!submitted) {
+    const reasons: Partial<Record<typeof result.status, string>> = {
+      refusal: 'Claude declined this request.',
+      max_tokens: 'The plan got too long. Try fewer days or a shorter request.',
+    };
     throw new TripPlanningError(
-      result.status === 'refusal'
-        ? 'Claude declined this request.'
-        : 'Claude could not finish the plan within the limits. Try again or simplify the request.',
+      reasons[result.status] ??
+        'Claude could not finish the plan within the limits. Try again or simplify the request.',
     );
   }
   return submitted;

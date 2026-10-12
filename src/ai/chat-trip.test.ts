@@ -211,6 +211,11 @@ describe('planTrip', () => {
     );
   });
 
+  it('says so when the plan was cut off for length', async () => {
+    const createMessage = vi.fn<CreateMessage>(async () => message('max_tokens', [text('Day 1')]));
+    await expect(planTrip(tripInput, deps(createMessage))).rejects.toThrow('too long');
+  });
+
   it('fails cleanly when nothing is submitted within the limits', async () => {
     const createMessage = vi.fn<CreateMessage>(async () =>
       message('end_turn', [text('Here is a plan …')]),
