@@ -15,14 +15,10 @@ import { PlanResult } from '../../plan-result';
 import { DateRating, ItemRating } from '../../rating';
 import { StopPicker } from '../../stop-picker';
 import { Toast } from '../../toast';
+import { TRANSPORTS } from '../../transports';
 
 const field = 'rounded-lg border border-line bg-transparent px-3 py-2';
 
-const TRANSPORTS: { value: SavedPlanView['transport']; label: string }[] = [
-  { value: 'deutschlandticket', label: 'Deutschlandticket' },
-  { value: 'car', label: 'Car' },
-  { value: 'walk', label: 'On foot' },
-];
 const button = 'rounded-xl border border-line px-4 py-2 text-sm disabled:opacity-50 hover:bg-cream';
 // Fills the row; each button starts at its content width and the rest is shared.
 const rowButton = `${button} min-h-11 flex-auto whitespace-nowrap`;

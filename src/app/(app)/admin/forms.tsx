@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { formatDuration } from '@/lib/duration';
+import { TRANSPORTS } from '../transports';
 import { deleteRoutineAction, saveRoutineAction, saveSettingsAction } from './actions';
 
 export const field = 'rounded-lg border border-line bg-transparent px-3 py-2 text-sm';
@@ -11,11 +12,6 @@ export const primary =
 export const secondary =
   'rounded-xl border border-line px-3 py-2 text-sm disabled:opacity-50 hover:bg-cream';
 
-export const TRANSPORTS = [
-  { value: 'deutschlandticket', label: 'Deutschlandticket' },
-  { value: 'car', label: 'Car' },
-  { value: 'walk', label: 'Walk' },
-] as const;
 // Stored values may still contain 'bike'; it is just no longer offered.
 type Transport = 'deutschlandticket' | 'car' | 'walk' | 'bike';
 

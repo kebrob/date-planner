@@ -11,6 +11,7 @@ import { StopPicker, type PickedStop } from '../stop-picker';
 import { MOODS } from '../moods';
 import { Face } from './face';
 import type { TimePreset } from './presets';
+import { TRANSPORTS } from '../transports';
 
 type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
@@ -27,16 +28,6 @@ export type WizardDefaults = {
 
 const STEPS = ['when', 'where', 'plans', 'how', 'mood', 'food'] as const;
 type Step = (typeof STEPS)[number];
-
-const TRANSPORTS: { value: Transport; label: string; hint: string }[] = [
-  {
-    value: 'deutschlandticket',
-    label: 'Deutschlandticket',
-    hint: 'Public transport, regional trains',
-  },
-  { value: 'car', label: 'Car', hint: 'Drive between stops' },
-  { value: 'walk', label: 'On foot', hint: 'Everything within ~4 km' },
-];
 
 const FOODS: { value: Food; label: string; hint: string }[] = [
   { value: 'auto', label: 'Surprise us', hint: 'Maybe a meal, maybe a snack' },

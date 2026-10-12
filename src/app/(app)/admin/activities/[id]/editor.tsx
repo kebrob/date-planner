@@ -6,7 +6,8 @@ import type { ActivityForm } from '@/admin/service';
 import { CUISINES, MOOD_TAGS } from '@/core/planner/types';
 import { PLACE_TYPES, TEXT_SEARCH_TYPE } from '@/ports/place-types';
 import { saveActivityAction } from '../../actions';
-import { field, Message, primary, secondary, TRANSPORTS } from '../../forms';
+import { TRANSPORTS } from '../../../transports';
+import { field, Message, primary, secondary } from '../../forms';
 
 const TIMES = ['morning', 'afternoon', 'evening', 'night'] as const;
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
