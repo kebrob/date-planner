@@ -1133,6 +1133,22 @@ describe('chosen stops', () => {
     expect(skatingItem.place).toBe(far);
   });
 
+  it('keeps an earlier kept stop when a later fixed-time stop comes back on an edit', async () => {
+    // The dinner lies before the middle of the window, so placing it by time alone puts it first.
+    const plan = await buildPlan(
+      request({
+        start: day('18:00'),
+        end: day('23:00'),
+        slots: ['main', 'meal'],
+        keep: { 0: { activity: minigolf, place: place('kept-minigolf', 2) } },
+        anchors: [{ activity: dinner, place: place('fixed-dinner', 2), start: day('20:15') }],
+      }),
+      context(),
+    );
+    expect(plan.items.map((i) => i.place?.id)).toEqual(['kept-minigolf', 'fixed-dinner']);
+    expect(plan.items[1]!.start).toEqual(day('20:15'));
+  });
+
   it('takes the closest venue for a chosen idea without one', async () => {
     for (let seed = 1; seed <= 5; seed++) {
       const plan = await buildPlan(

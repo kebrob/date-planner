@@ -650,6 +650,7 @@ async function resolveAnchors(
  * planned slot of its kind (a fixed dinner replaces the planned meal).
  */
 function withAnchors(slots: Slot[], anchors: Anchor[], request: PlanRequest): Entry[] {
+  if (request.keep) return anchorsIntoLayout(slots, anchors, request);
   const rest = [...slots];
   for (const anchor of anchors) {
     const same = rest.indexOf(anchor.slot);
@@ -668,6 +669,31 @@ function withAnchors(slots: Slot[], anchors: Anchor[], request: PlanRequest): En
     used = before;
   }
   entries.push(...rest.slice(used).map((slot) => ({ slot })));
+  return entries;
+}
+
+/**
+ * With kept stops the layout is that of an existing plan, which already has a slot for each fixed
+ * stop; moving slots around would shift the kept indices. Each fixed stop takes the free slot (not
+ * kept, not pinned) of its kind closest to its time of day, so it never displaces a kept stop.
+ */
+function anchorsIntoLayout(slots: Slot[], anchors: Anchor[], request: PlanRequest): Entry[] {
+  const entries: Entry[] = slots.map((slot) => ({ slot }));
+  const duration = minutesBetween(request.start, request.end);
+  const isFree = (i: number) => !entries[i]!.anchor && !request.keep?.[i] && !request.pins?.[i];
+  let after = -1;
+  for (const anchor of anchors) {
+    const wanted = (minutesBetween(request.start, anchor.start) / duration) * (slots.length - 1);
+    const closest = (matches: (i: number) => boolean) =>
+      entries
+        .map((_, i) => i)
+        .filter((i) => i > after && isFree(i) && matches(i))
+        .sort((a, b) => Math.abs(a - wanted) - Math.abs(b - wanted))[0];
+    const index =
+      closest((i) => entries[i]!.slot === anchor.slot) ?? closest(() => true) ?? entries.length;
+    entries[index] = { slot: anchor.slot, anchor };
+    after = index;
+  }
   return entries;
 }
 
