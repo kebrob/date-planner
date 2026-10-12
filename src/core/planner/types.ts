@@ -1,4 +1,5 @@
 import type { LatLng, Place } from '@/ports/places';
+import type { WeatherHour } from '@/ports/weather';
 
 export type Transport = 'deutschlandticket' | 'car' | 'walk' | 'bike';
 export type PlanFormat = 'single' | 'evening' | 'day';
@@ -58,17 +59,31 @@ export type TravelRoutine = {
   bufferMinutes: number;
 };
 
+export type WeatherCondition = 'rain' | 'snow' | 'sunny' | 'hot' | 'cold' | 'windy';
+
 export type WeatherSummary = {
   reliability: 'good' | 'low' | 'none';
   dry: boolean | null;
   minTempC: number | null;
   maxTempC: number | null;
+  /** Missing in summaries stored before conditions existed. */
+  conditions?: WeatherCondition[];
 };
 
 export type History = {
   /** Days since the activity was last suggested / accepted. */
   daysSinceSuggested: Record<string, number>;
   daysSinceAccepted: Record<string, number>;
+};
+
+/** What past ratings say; derived from all ratings on every planning run. */
+export type Learning = {
+  /** Smoothed mean rating per activity, -1 (disliked) … 1 (loved); absent = never rated. */
+  activity: Record<string, number>;
+  /** Learned weight per context ('any' or a weather condition) and tag. */
+  tags: Record<string, Record<string, number>>;
+  /** Places rated as the problem of a date ("provider:id"); ranked far down. */
+  avoidPlaces: string[];
 };
 
 export type PlanRequest = {
@@ -108,9 +123,15 @@ export type PlanContext = {
   routines: TravelRoutine[];
   activities: Activity[];
   history: History;
+  /** Summary for the whole window (display, reliability). */
   weather: WeatherSummary;
-  tagWeights: Record<string, number>;
+  /** Hourly forecast for per-item weather; empty = use `weather` for every item. */
+  forecast: WeatherHour[];
+  learning: Learning;
+  /** Paid place searches per plan. */
   maxPlaceLookups: number;
+  /** Additional searches for free ideas, which go to a free provider first. */
+  maxFreePlaceLookups: number;
   findPlaces: (activity: Activity, center: LatLng, radiusKm: number) => Promise<Place[]>;
   random: () => number;
 };
@@ -135,6 +156,8 @@ export type TrainLeg = {
   arrival: string;
   platform: string | null;
   plannedPlatform: string | null;
+  /** Times derived from another day's timetable (date too far ahead); refreshed later. */
+  expected?: boolean;
 };
 
 export type Travel = {
@@ -142,7 +165,10 @@ export type Travel = {
   distanceKm: number;
   mode: TravelMode;
   costEur: number;
+  /** First train of the leg. */
   train?: TrainLeg;
+  /** Further trains after changing, in order. */
+  transfers?: TrainLeg[];
 };
 
 export type PlanItem = {
@@ -183,5 +209,7 @@ export type Plan = {
   overBudgetEur: number;
   weather: WeatherSummary;
   warnings: PlanWarning[];
+  /** Paid place searches. */
   placeLookups: number;
+  freePlaceLookups: number;
 };

@@ -20,6 +20,7 @@ const VENUE = { lat: 48.128, lng: 11.6 };
 
 const stations = {
   near: async (point: { lat: number }) => (point.lat < 48 ? [ROSENHEIM] : [OST]),
+  named: async () => null,
 };
 
 function event(time: string, delay = 0, path: string[] = []) {
@@ -81,6 +82,7 @@ function plan(): Plan {
     weather: { reliability: 'good', dry: true, minTempC: 10, maxTempC: 15 },
     warnings: [],
     placeLookups: 1,
+    freePlaceLookups: 0,
   };
 }
 
@@ -148,10 +150,89 @@ describe('attachTrains', () => {
     expect(p.items[0]!.start).toEqual(at('18:25'));
   });
 
+  it('falls back to a connection with one change', async () => {
+    const GRAFING: RailStation = {
+      eva: '8002377',
+      name: 'Grafing Bahnhof',
+      location: { lat: 48.046, lng: 11.97 },
+    };
+    const p = plan();
+    await attachTrains(p, ctx, {
+      stations: {
+        ...stations,
+        named: async (name) => (name === 'Grafing Bahnhof' ? GRAFING : null),
+      },
+      timetable: timetable({
+        '8000320': [
+          stop('-1-x-1', 'RB', { dep: event('17:42', 0, ['Grafing Bahnhof', 'Kirchseeon']) }),
+        ],
+        '8002377': [
+          stop('-1-x-4', 'RB', { arr: event('18:00') }),
+          stop('-2-x-3', 'S', { dep: event('18:08') }),
+        ],
+        '8000262': [stop('-2-x-9', 'S', { arr: event('18:30', 0, ['Grafing Bahnhof', 'Haar']) })],
+      }),
+    });
+    const travel = p.items[0]!.travelBefore!;
+    expect(travel.train).toMatchObject({
+      from: { name: 'Rosenheim' },
+      to: { name: 'Grafing Bahnhof' },
+    });
+    expect(travel.transfers).toEqual([
+      expect.objectContaining({
+        from: expect.objectContaining({ name: 'Grafing Bahnhof' }),
+        to: expect.objectContaining({ name: 'München Ost' }),
+      }),
+    ]);
+  });
+
+  it('derives expected trains from a similar day when the date is too far ahead', async () => {
+    // Monday 5 Oct for a Saturday date: the reference day's trains are moved to the date.
+    const reference = (time: string) => {
+      const e = event(time);
+      const day = (d: Date) => new Date(d.getTime() - 5 * 86_400_000);
+      return { ...e, planned: day(e.planned), actual: day(e.actual) };
+    };
+    const p = plan();
+    await attachTrains(
+      p,
+      { ...ctx, now: fromLocal('2026-10-05', '12:00') },
+      {
+        stations,
+        timetable: timetable({
+          '8000320': [stop('-1-x-1', 'RB', { dep: { ...reference('17:42'), path: OUT } })],
+          '8000262': [stop('-1-x-7', 'RB', { arr: reference('18:30') })],
+        }),
+      },
+    );
+    expect(p.items[0]!.travelBefore!.train).toMatchObject({
+      expected: true,
+      plannedDeparture: at('17:42').toISOString(),
+    });
+  });
+
+  it('only fills open legs when refreshing a saved plan', async () => {
+    const p = plan();
+    const real = { line: 'RB 9' } as NonNullable<Travel['train']>;
+    p.items[0]!.travelBefore = { ...TRAIN, train: real };
+    await attachTrains(
+      p,
+      { ...ctx, refreshOnly: true },
+      {
+        stations,
+        timetable: timetable({
+          '8000320': [stop('-1-x-1', 'RB', { dep: event('17:42', 0, OUT) })],
+          '8000262': [stop('-1-x-7', 'RB', { arr: event('18:30') })],
+        }),
+      },
+    );
+    expect(p.items[0]!.travelBefore!.train).toBe(real);
+  });
+
   it('looks up the home station by the rounded location only', async () => {
     const asked: { lat: number; lng: number }[] = [];
     await attachTrains(plan(), ctx, {
-      stations: { near: async (point) => (asked.push(point), stations.near(point)) },
+      stations: { ...stations, near: async (point) => (asked.push(point), stations.near(point)) },
       timetable: timetable({}),
     });
     expect(asked).not.toContainEqual(ctx.home);

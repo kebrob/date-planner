@@ -2,6 +2,7 @@
 
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { getGeocoder } from '@/adapters';
 import { requireSession } from '@/auth/session';
 import { getDb } from '@/db/client';
@@ -20,6 +21,15 @@ import {
 import { AreaNotFoundError, generatePlan, homePoint, type PlanInput } from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
 import { nextTrain, type LiveTrain } from '@/rail/live';
+import {
+  dismissRatingPrompt,
+  PlanNotRatableError,
+  rateDate,
+  rateItem,
+  ratingSchema,
+  setNotHappened,
+  type Rating,
+} from '@/ratings/service';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -30,6 +40,9 @@ function failure(error: unknown, fallback: string): { ok: false; error: string }
   if (error instanceof PlanNotFoundError) return { ok: false, error: 'Plan not found.' };
   if (error instanceof PlanNotEditableError) {
     return { ok: false, error: 'This plan can no longer be changed.' };
+  }
+  if (error instanceof PlanNotRatableError) {
+    return { ok: false, error: 'This date cannot be rated (yet).' };
   }
   console.error(fallback, error instanceof Error ? error.message : error);
   return { ok: false, error: fallback };
@@ -137,4 +150,61 @@ export async function deletePasskeyAction(id: string): Promise<void> {
 export async function liveTrainAction(): Promise<LiveTrain | null> {
   await requireSession();
   return nextTrain().catch(() => null);
+}
+
+export async function rateDateAction(id: string, rating: Rating): Promise<Result<null>> {
+  await requireSession();
+  try {
+    await rateDate(id, ratingSchema.parse(rating));
+    revalidatePlans(id);
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not save the rating.');
+  }
+}
+
+export async function rateItemAction(
+  id: string,
+  position: number,
+  rating: Rating,
+  placeBlamed: boolean,
+): Promise<Result<{ suggestBlock: boolean; activityId: string | null }>> {
+  await requireSession();
+  try {
+    const result = await rateItem(
+      id,
+      z.number().int().min(0).max(10).parse(position),
+      ratingSchema.parse(rating),
+      z.boolean().parse(placeBlamed),
+    );
+    revalidatePlans(id);
+    return { ok: true, data: result };
+  } catch (error) {
+    return failure(error, 'Could not save the rating.');
+  }
+}
+
+export async function setNotHappenedAction(
+  id: string,
+  notHappened: boolean,
+): Promise<Result<null>> {
+  await requireSession();
+  try {
+    await setNotHappened(id, z.boolean().parse(notHappened));
+    revalidatePlans(id);
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not update the date.');
+  }
+}
+
+export async function dismissRatingPromptAction(id: string): Promise<Result<null>> {
+  await requireSession();
+  try {
+    await dismissRatingPrompt(id);
+    revalidatePath('/');
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not skip the rating.');
+  }
 }

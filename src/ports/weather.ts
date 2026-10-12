@@ -5,9 +5,16 @@ export type WeatherHour = {
   temperatureC: number;
   precipitationProbability: number | null;
   precipitationMm: number;
+  /** Optional so that hours stored before these fields existed stay valid. */
+  cloudCoverPct?: number | null;
+  windKmh?: number | null;
+  snowfallCm?: number | null;
 };
 
 export interface WeatherProvider {
-  /** Hourly forecast covering [from, to]; empty when the range is beyond the forecast horizon. */
+  /**
+   * Hourly data covering [from, to]: forecast up to the horizon, recent past for rating context.
+   * Empty when the range is out of reach.
+   */
   hourly(location: LatLng, from: Date, to: Date): Promise<WeatherHour[]>;
 }

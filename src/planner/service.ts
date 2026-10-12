@@ -11,13 +11,15 @@ import {
   type PlanRequest,
   type Transport,
 } from '@/core/planner/types';
-import { summarizeWeather } from '@/core/planner/weather';
+import { summarizeWeather, weatherFactor } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import { activity, apiUsage, settings, suggestionLog, tagWeight, travelRoutine } from '@/db/schema';
+import { activity, apiUsage, settings, suggestionLog, travelRoutine } from '@/db/schema';
 import { dayKey } from '@/guard/periods';
 import { nextOuting } from './outing';
 import { attachTrains } from './trains';
-import { fitsWeather, seasonOf, timeOfDay } from '@/core/planner/rules';
+import { fitsWeather, isFreeSearch, seasonOf, timeOfDay } from '@/core/planner/rules';
+import { weightedShuffle } from '@/core/planner/random';
+import { loadLearning } from '@/ratings/service';
 import { fromLocal } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
 import type { LatLng, Place } from '@/ports/places';
@@ -208,11 +210,11 @@ export async function generatePlan(
   const start = fromLocal(input.date, input.startTime);
   const end = fromLocal(input.endDate, input.endTime);
 
-  const [[home], routines, activityRows, weights, history] = await Promise.all([
+  const [[home], routines, activityRows, learning, history] = await Promise.all([
     db.select().from(settings).where(eq(settings.id, 1)).limit(1),
     db.select().from(travelRoutine),
     db.select().from(activity).where(eq(activity.status, 'active')),
-    db.select().from(tagWeight).where(eq(tagWeight.context, 'any')),
+    loadLearning(now),
     loadHistory(now),
   ]);
   if (!home) throw new Error('Settings missing – run npm run db:seed');
@@ -298,8 +300,10 @@ export async function generatePlan(
       activities,
       history,
       weather: summarizeWeather(weatherHours, start, end, now),
-      tagWeights: Object.fromEntries(weights.map((w) => [w.tag, w.weight])),
+      forecast: weatherHours,
+      learning,
       maxPlaceLookups: getLimits().places.maxLookupsPerPlan,
+      maxFreePlaceLookups: getLimits().places.maxFreeLookupsPerPlan,
       findPlaces: (a, center, radiusKm) =>
         places.search({
           placeType: a.placeType ?? '',
@@ -307,7 +311,7 @@ export async function generatePlan(
           center: toGrid(center),
           radiusKm,
           maxResults: 10,
-          free: a.costMaxEur === 0 && !a.id.startsWith('adhoc-'),
+          free: isFreeSearch(a),
         }),
       random: Math.random,
     },
@@ -388,11 +392,9 @@ export async function ideasForNextOuting(now = new Date(), count = 3): Promise<I
         (a.timesOfDay.length === 0 || a.timesOfDay.includes(timeOfDay(start))) &&
         fitsWeather(a, weather),
     );
-  return fits
-    .map((a) => ({ a, key: Math.random() }))
-    .sort((x, y) => x.key - y.key)
+  return weightedShuffle(fits, (a) => weatherFactor(a, weather.conditions ?? []), Math.random)
     .slice(0, count)
-    .map(({ a }) => ({
+    .map((a) => ({
       id: a.id,
       title: a.title,
       durationMinutes: a.durationMinutes,

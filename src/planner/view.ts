@@ -72,17 +72,21 @@ export function directionsUrl(from: Point, to: Point, mode: TravelMode): string 
   return `https://www.google.com/maps/dir/?${params}`;
 }
 
-/** Opens the connection search on bahn.de (and the DB Navigator app where it handles the link). */
-export function trainUrl(train: TrainLeg): string {
+/**
+ * Opens the connection search on bahn.de (and the DB Navigator app where it handles the link),
+ * up to the final station when the leg includes a change.
+ */
+export function trainUrl(train: TrainLeg, transfers: TrainLeg[] = []): string {
   const station = (eva: string) => `A=1@L=${eva}`;
   const departure = toLocalDate(new Date(train.plannedDeparture));
   const time = toLocalTime(new Date(train.plannedDeparture));
+  const to = transfers.at(-1)?.to ?? train.to;
   const params = new URLSearchParams({
     sts: 'true',
     so: train.from.name,
-    zo: train.to.name,
+    zo: to.name,
     soid: station(train.from.eva),
-    zoid: station(train.to.eva),
+    zoid: station(to.eva),
     hd: `${departure}T${time}:00`,
     hza: 'D',
     kl: '2',
@@ -97,7 +101,7 @@ function leg(travel: Travel | null, from: Point, to: Point): Leg | null {
     from: from.name,
     to: to.name,
     directionsUrl: directionsUrl(from, to, travel.mode),
-    trainUrl: travel.train ? trainUrl(travel.train) : null,
+    trainUrl: travel.train ? trainUrl(travel.train, travel.transfers) : null,
   };
 }
 

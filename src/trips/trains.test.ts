@@ -58,6 +58,7 @@ const timetable: RailTimetable = {
 
 const stations = {
   near: async (point: { lng: number }) => (point.lng > 12.5 ? [SALZBURG] : [ROSENHEIM]),
+  named: async () => null,
 };
 const geocoder = {
   find: async () => ({ name: 'Salzburg', location: { lat: 47.8, lng: 13.04 } }),

@@ -45,7 +45,12 @@ describe('rowsToView', () => {
     isFavorite: true,
     note: 'Table at 19:00',
     areaName: 'München, Bayern',
+    weatherPoint: null,
     travelHome: null,
+    rating: null,
+    notHappened: false,
+    ratingPromptDismissed: false,
+    trainsCheckedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -68,6 +73,9 @@ describe('rowsToView', () => {
     alternatives: [],
     costEur: 30,
     travel: null,
+    rating: null,
+    placeBlamed: false,
+    weatherConditions: null,
   };
 
   it('shows the stored name for archived places and marks past plans', () => {
@@ -81,6 +89,20 @@ describe('rowsToView', () => {
       endTime: '22:00',
     });
     expect(view.weather.reliability).toBe('none');
+  });
+
+  it('offers rating once the date has started, with item ratings in order', () => {
+    const rated = rowsToView(
+      { ...plan, rating: 'love' },
+      [{ ...item, rating: 'dislike', placeBlamed: true }],
+      now,
+    );
+    expect(rated).toMatchObject({
+      canRate: true,
+      rating: 'love',
+      itemRatings: [{ rating: 'dislike', placeBlamed: true }],
+    });
+    expect(rowsToView(plan, [item], new Date('2026-10-01')).canRate).toBe(false);
   });
 
   it('returns the full place for upcoming plans', () => {

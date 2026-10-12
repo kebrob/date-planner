@@ -1,13 +1,17 @@
 import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { getPlaceDetailsProvider, getWeatherProvider } from '@/adapters';
-import { summarizeWeather } from '@/core/planner/weather';
+import { getGeocoder, getPlaceDetailsProvider, getRail, getWeatherProvider } from '@/adapters';
+import type { RatingValue } from '@/core/planner/learning';
+import type { PlanWarning, Transport } from '@/core/planner/types';
+import { summarizeWeather, weatherConcern, windowWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import { activity, datePlan, planItem, settings, suggestionLog } from '@/db/schema';
-import { toLocalDate, toLocalTime } from '@/lib/time';
-import type { Place } from '@/ports/places';
+import { activity, datePlan, planItem, settings, suggestionLog, travelRoutine } from '@/db/schema';
+import { fromLocal, toLocalDate, toLocalTime } from '@/lib/time';
+import type { LatLng, Place } from '@/ports/places';
 import { generatePlan, homePoint, type PlanInput } from './service';
-import { toPlanView, type Leg, type PlanView } from './view';
+import { REAL_TIMES_HORIZON_HOURS } from '@/rail/expected';
+import { attachTrains, hasOpenTrainLegs, type TrainPlan } from './trains';
+import { toPlanView, trainUrl, type Leg, type PlanView } from './view';
 
 export class PlanNotFoundError extends Error {}
 export class PlanNotEditableError extends Error {}
@@ -34,11 +38,20 @@ export function archivedPlace(place: Place): StoredPlace {
 
 export type Window = { date: string; startTime: string; endDate: string; endTime: string };
 
+export type WeatherConcern = NonNullable<ReturnType<typeof weatherConcern>>;
+
 export type SavedPlanView = PlanView & {
   id: string;
   isFavorite: boolean;
   note: string | null;
   isPast: boolean;
+  /** The date has started, so it can be rated. */
+  canRate: boolean;
+  rating: RatingValue | null;
+  notHappened: boolean;
+  itemRatings: { rating: RatingValue | null; placeBlamed: boolean }[];
+  /** Per item, for upcoming plans: why the forecast may not suit it any more. */
+  weatherConcerns: (WeatherConcern | null)[];
   window: Window;
 };
 
@@ -50,6 +63,8 @@ export type PlanSummary = {
   totalCostEur: number;
   isFavorite: boolean;
   areaName: string | null;
+  rating: RatingValue | null;
+  notHappened: boolean;
 };
 
 const idSchema = z.string().uuid();
@@ -133,8 +148,18 @@ function itemValues(planId: string, view: PlanView) {
   }));
 }
 
+// Coarse enough not to count as stored place data, fine enough for the weather.
+const roundTo10Km = (p: LatLng) => ({
+  lat: Math.round(p.lat * 10) / 10,
+  lng: Math.round(p.lng * 10) / 10,
+});
+
 function planValues(view: PlanView, input: PlanInput) {
+  const firstPlace = view.items.find((i) => i.place)?.place?.location;
   return {
+    weatherPoint: firstPlace ? roundTo10Km(firstPlace) : null,
+    // Changed plans may have new train legs to look up.
+    trainsCheckedAt: null,
     startsAt: new Date(view.items[0]!.start),
     endsAt: new Date(view.items.at(-1)!.end),
     parameters: input,
@@ -206,6 +231,8 @@ export async function listPlans(now = new Date()) {
     totalCostEur: p.totalCostEur,
     isFavorite: p.isFavorite,
     areaName: p.areaName,
+    rating: p.rating,
+    notHappened: p.notHappened,
     isPast: p.endsAt < now,
   }));
   return {
@@ -242,6 +269,8 @@ export async function listUpcoming(now = new Date()): Promise<PlanSummary[]> {
     totalCostEur: p.totalCostEur,
     isFavorite: p.isFavorite,
     areaName: p.areaName,
+    rating: p.rating,
+    notHappened: p.notHappened,
   }));
 }
 
@@ -264,6 +293,11 @@ export function rowsToView(plan: PlanRow, items: ItemRow[], now: Date): SavedPla
     isFavorite: plan.isFavorite,
     note: plan.note,
     isPast: plan.endsAt < now,
+    canRate: plan.startsAt <= now,
+    rating: plan.rating,
+    notHappened: plan.notHappened,
+    itemRatings: items.map((i) => ({ rating: i.rating, placeBlamed: i.placeBlamed })),
+    weatherConcerns: items.map(() => null),
     window: windowOf(plan, plan.parameters as PlanInput),
     format: (items.length <= 1
       ? 'single'
@@ -301,20 +335,178 @@ export function rowsToView(plan: PlanRow, items: ItemRow[], now: Date): SavedPla
   };
 }
 
+// Saved plans look for better trains at most this often (free API, but rate-limited).
+const TRAIN_CHECK_INTERVAL_MS = 6 * 3_600_000;
+
+/**
+ * Gives saved upcoming plans real trains once their date is within the timetable horizon, and
+ * expected trains before. Returns warnings to show, or null when nothing was checked.
+ */
+async function refreshTrains(
+  plan: PlanRow,
+  items: ItemRow[],
+  now: Date,
+): Promise<PlanWarning[] | null> {
+  if (plan.endsAt < now) return null;
+  if (
+    plan.trainsCheckedAt &&
+    now.getTime() - plan.trainsCheckedAt.getTime() < TRAIN_CHECK_INTERVAL_MS
+  ) {
+    return null;
+  }
+  const rail = getRail();
+  if (!rail) return null;
+  const trainPlan: TrainPlan = {
+    items: items.map((i) => ({
+      activity: { atHome: i.atHome },
+      place: isFullPlace(i.place) ? i.place : null,
+      travelBefore: (i.travel as Leg | null) ?? null,
+      start: i.startsAt,
+      end: i.endsAt,
+    })),
+    travelHome: (plan.travelHome as Leg | null) ?? null,
+    warnings: [],
+  };
+  if (!hasOpenTrainLegs(trainPlan)) return null;
+  // Expected trains cannot get better until the date is within the timetable horizon.
+  const legs = [...trainPlan.items.map((i) => i.travelBefore), trainPlan.travelHome];
+  const beyondHorizon =
+    plan.startsAt.getTime() - now.getTime() > REAL_TIMES_HORIZON_HOURS * 3_600_000;
+  if (beyondHorizon && legs.every((l) => l?.mode !== 'train' || l.train)) return null;
+
+  const db = getDb();
+  const input = plan.parameters as PlanInput;
+  const [[home], routines] = await Promise.all([
+    db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+    db.select().from(travelRoutine),
+  ]);
+  if (!home) return null;
+  const window = windowOf(plan, input);
+  const routine = routines.find((r) => r.transport === input.transport);
+  const area =
+    input.startInArea && input.areaPoint
+      ? { lat: input.areaPoint.lat, lng: input.areaPoint.lng }
+      : input.startInArea && input.area
+        ? ((
+            await getGeocoder()
+              .find(input.area)
+              .catch(() => null)
+          )?.location ?? undefined)
+        : undefined;
+  await attachTrains(
+    trainPlan,
+    {
+      start: fromLocal(window.date, window.startTime),
+      end: fromLocal(window.endDate, window.endTime),
+      transport: input.transport as Transport,
+      home: homePoint(home),
+      homeGrid: { lat: home.homeLat, lng: home.homeLng },
+      startPoint: area,
+      routine: routine && {
+        transport: routine.transport as Transport,
+        firstLegMinutes: routine.firstLegMinutes,
+        bufferMinutes: routine.bufferMinutes,
+      },
+      refreshOnly: true,
+      now,
+    },
+    rail,
+  ).catch(() => {
+    trainPlan.warnings.push('trains_unavailable');
+  });
+
+  const withUrl = (leg: Leg | null): Leg | null =>
+    leg?.train ? { ...leg, trainUrl: trainUrl(leg.train, leg.transfers) } : leg;
+  await db.transaction(async (tx) => {
+    for (const [index, item] of items.entries()) {
+      const updated = trainPlan.items[index]!;
+      await tx
+        .update(planItem)
+        .set({
+          travel: withUrl(updated.travelBefore as Leg | null),
+          startsAt: updated.start,
+          endsAt: updated.end,
+        })
+        .where(eq(planItem.id, item.id));
+    }
+    await tx
+      .update(datePlan)
+      .set({
+        travelHome: withUrl(trainPlan.travelHome as Leg | null),
+        startsAt: trainPlan.items[0]?.start ?? plan.startsAt,
+        endsAt: trainPlan.items.at(-1)?.end ?? plan.endsAt,
+        trainsCheckedAt: now,
+      })
+      .where(eq(datePlan.id, plan.id));
+  });
+  return trainPlan.warnings;
+}
+
+/** Looks up trains for dates starting soon, so the live card has them without opening the plan. */
+export async function refreshSoonTrains(now: Date, withinHours: number): Promise<void> {
+  const db = getDb();
+  const plans = await db
+    .select()
+    .from(datePlan)
+    .where(
+      and(
+        eq(datePlan.status, 'accepted'),
+        gte(datePlan.endsAt, now),
+        lt(datePlan.startsAt, new Date(now.getTime() + withinHours * 3_600_000)),
+      ),
+    )
+    .limit(3);
+  for (const plan of plans) {
+    const items = await db
+      .select()
+      .from(planItem)
+      .where(eq(planItem.planId, plan.id))
+      .orderBy(asc(planItem.position));
+    await refreshTrains(plan, items, now).catch(() => null);
+  }
+}
+
 export async function getSavedPlan(id: string, now = new Date()): Promise<SavedPlanView> {
   await archiveExpiredPlaces(now);
-  const { plan, items } = await loadPlan(id);
+  let { plan, items } = await loadPlan(id);
+  const trainWarnings = await refreshTrains(plan, items, now).catch(() => null);
+  if (trainWarnings) ({ plan, items } = await loadPlan(id));
   const view = rowsToView(plan, items, now);
+  view.warnings = trainWarnings ?? [];
   if (!view.isPast) {
     // Weather is free, so refresh it on every view.
-    const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
+    const db = getDb();
+    const [home] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
     const firstPlace = view.items.find((i) => i.place)?.place?.location;
     const location = firstPlace ?? (home ? { lat: home.homeLat, lng: home.homeLng } : null);
     if (location) {
       const hours = await getWeatherProvider()
         .hourly(location, plan.startsAt, plan.endsAt)
         .catch(() => []);
-      if (hours.length > 0) view.weather = summarizeWeather(hours, plan.startsAt, plan.endsAt, now);
+      if (hours.length > 0) {
+        view.weather = summarizeWeather(hours, plan.startsAt, plan.endsAt, now);
+        const ids = items.flatMap((i) => (i.activityId ? [i.activityId] : []));
+        const activities = ids.length
+          ? await db
+              .select({
+                id: activity.id,
+                tags: activity.tags,
+                weather: activity.weather,
+                atHome: activity.atHome,
+              })
+              .from(activity)
+              .where(inArray(activity.id, ids))
+          : [];
+        view.weatherConcerns = items.map((item) => {
+          const a = activities.find((x) => x.id === item.activityId);
+          return a
+            ? weatherConcern(
+                a,
+                windowWeather(hours, item.startsAt, item.endsAt, view.weather.reliability),
+              )
+            : null;
+        });
+      }
     }
   }
   return view;

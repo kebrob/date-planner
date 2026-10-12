@@ -3,6 +3,7 @@ import { getRail } from '@/adapters';
 import type { TrainLeg } from '@/core/planner/types';
 import { getDb } from '@/db/client';
 import { datePlan, planItem } from '@/db/schema';
+import { refreshSoonTrains } from '@/planner/saved';
 import { addMinutes } from '@/lib/time';
 import type { StationStop } from '@/ports/rail';
 
@@ -17,10 +18,17 @@ export type LiveTrain = {
   cancelled: boolean;
 };
 
-type StoredLeg = { train?: TrainLeg } | null;
+type StoredLeg = { train?: TrainLeg; transfers?: TrainLeg[] } | null;
+
+/** Trains of a leg that can be followed live; expected ones are not real runs yet. */
+const liveTrains = (leg: StoredLeg) =>
+  [leg?.train, ...(leg?.transfers ?? [])].filter(
+    (t): t is TrainLeg => t !== undefined && !t.expected,
+  );
 
 /** The next train of an accepted date that has not arrived yet, with realtime data if available. */
 export async function nextTrain(now = new Date()): Promise<LiveTrain | null> {
+  await refreshSoonTrains(now, LOOKAHEAD_HOURS).catch(() => undefined);
   const db = getDb();
   const plans = await db
     .select({ id: datePlan.id, travelHome: datePlan.travelHome })
@@ -50,12 +58,20 @@ export async function nextTrain(now = new Date()): Promise<LiveTrain | null> {
   const legs = plans.flatMap((p) => [
     ...items
       .filter((i) => i.planId === p.id)
-      .map((i) => ({ planId: p.id, destination: i.title, train: (i.travel as StoredLeg)?.train })),
-    { planId: p.id, destination: 'Home', train: (p.travelHome as StoredLeg)?.train },
+      .flatMap((i) =>
+        liveTrains(i.travel as StoredLeg).map((train) => ({
+          planId: p.id,
+          destination: i.title,
+          train,
+        })),
+      ),
+    ...liveTrains(p.travelHome as StoredLeg).map((train) => ({
+      planId: p.id,
+      destination: 'Home',
+      train,
+    })),
   ]);
-  const next = legs.find(
-    (l): l is typeof l & { train: TrainLeg } => !!l.train && new Date(l.train.arrival) > now,
-  );
+  const next = legs.find((l) => new Date(l.train.arrival) > now);
   if (!next) return null;
   return refreshTrain({ ...next, cancelled: false });
 }

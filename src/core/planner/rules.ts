@@ -5,11 +5,13 @@ import type {
   Activity,
   FoodPreference,
   History,
+  Learning,
   PlanFormat,
   PlanRequest,
   Season,
   Slot,
   TimeOfDay,
+  WeatherCondition,
   WeatherSummary,
 } from './types';
 
@@ -182,29 +184,58 @@ export function needsPlace(activity: Activity): boolean {
   return !activity.atHome && activity.placeType !== null;
 }
 
+/** Free ideas are searched with a free provider first; free-text stops ('custom') need a paid one. */
+export function isFreeSearch(activity: Activity): boolean {
+  return activity.costMaxEur === 0 && activity.placeType !== 'custom';
+}
+
 const PREFERENCE_BONUS = 2;
 const SUGGESTED_PENALTY = 0.8;
 const SUGGESTED_DECAY_DAYS = 7;
 const ACCEPTED_PENALTY = 1.5;
 const ACCEPTED_DECAY_DAYS = 30;
 const MIN_WEIGHT = 0.05;
+// A loved activity (mean 1) weighs 2^1.5 ≈ 2.8×, a disliked one (-1) ≈ 0.35×.
+const RATING_STRENGTH = 1.5;
+// Learned tag weights may shift the score by at most this much (one preference match = 2).
+const MAX_TAG_EFFECT = 1.5;
+// Ideas that were never done or rated get a small boost so favourites don't crowd them out.
+const NOVELTY_BONUS = 1.15;
+
+export const NO_LEARNING: Learning = { activity: {}, tags: {}, avoidPlaces: [] };
 
 export function score(
   activity: Activity,
   preferences: string[],
   history: History,
-  tagWeights: Record<string, number>,
+  learning: Learning = NO_LEARNING,
+  conditions: WeatherCondition[] = [],
 ): number {
   const preferenceMatches = activity.tags.filter((t) => preferences.includes(t)).length;
-  const learned = activity.tags.reduce((sum, t) => sum + (tagWeights[t] ?? 0), 0);
+  const contexts = ['any', ...conditions];
+  const tagEffect = activity.tags.reduce(
+    (sum, t) => sum + contexts.reduce((s, c) => s + (learning.tags[c]?.[t] ?? 0), 0),
+    0,
+  );
+  const rating = learning.activity[activity.id];
   const suggested = history.daysSinceSuggested[activity.id];
   const accepted = history.daysSinceAccepted[activity.id];
+  // Loved activities may come back sooner.
+  const acceptedPenalty = ACCEPTED_PENALTY * (1 - 0.5 * Math.max(0, rating ?? 0));
   const recency =
     (suggested === undefined
       ? 0
       : SUGGESTED_PENALTY * Math.exp(-suggested / SUGGESTED_DECAY_DAYS)) +
-    (accepted === undefined ? 0 : ACCEPTED_PENALTY * Math.exp(-accepted / ACCEPTED_DECAY_DAYS));
-  return Math.max(MIN_WEIGHT, 1 + PREFERENCE_BONUS * preferenceMatches + learned - recency);
+    (accepted === undefined ? 0 : acceptedPenalty * Math.exp(-accepted / ACCEPTED_DECAY_DAYS));
+  const base = Math.max(
+    MIN_WEIGHT,
+    1 +
+      PREFERENCE_BONUS * preferenceMatches +
+      Math.max(-MAX_TAG_EFFECT, Math.min(MAX_TAG_EFFECT, tagEffect)) -
+      recency,
+  );
+  const novelty = rating === undefined && accepted === undefined ? NOVELTY_BONUS : 1;
+  return base * 2 ** (RATING_STRENGTH * (rating ?? 0)) * novelty;
 }
 
 export function estimatedCost(activity: Activity): number {

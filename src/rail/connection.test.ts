@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { addMinutes, fromLocal } from '@/lib/time';
 import type { RailStation, RailTimetable, StationStop } from '@/ports/rail';
-import { findConnection, findConnectionTo, isRegional, normalizeStationName } from './connection';
+import {
+  findConnection,
+  findConnectionTo,
+  findTransferConnection,
+  isRegional,
+  normalizeStationName,
+} from './connection';
+import { ExpectedTimetable, referenceOffset, shiftDays } from './expected';
 
 const ROSENHEIM: RailStation = {
   eva: '8000320',
@@ -63,6 +70,7 @@ function timetable(byStation: Record<string, StationStop[]>): RailTimetable {
 
 const stations = {
   near: async (point: { lat: number }) => (point.lat < 48 ? [ROSENHEIM] : [HBF, MARIENPLATZ, OST]),
+  named: async () => null,
 };
 
 describe('normalizeStationName', () => {
@@ -143,7 +151,7 @@ describe('findConnection', () => {
   });
 
   it('returns null without a nearby station', async () => {
-    const none = { near: async () => [] };
+    const none = { near: async () => [], named: async () => null };
     expect(await findConnection(input, none, timetable({}))).toBeNull();
   });
 
@@ -159,6 +167,7 @@ describe('findConnectionTo', () => {
   const FROM_MUNICH = ['München Hbf Gl.5-10', 'München Ost', 'Grafing Bahnhof'];
   const nearMarienplatz = {
     near: async () => [MARIENPLATZ, { ...HBF, eva: '8098262', name: 'München Hbf' }, OST],
+    named: async () => null,
   };
 
   it('finds the city station with a direct train home, not just the closest halt', async () => {
@@ -192,6 +201,111 @@ describe('findConnectionTo', () => {
       MARIENPLATZ.eva,
       expect.anything(),
       expect.anything(),
+    );
+  });
+});
+
+describe('findTransferConnection', () => {
+  const HOLZKIRCHEN: RailStation = {
+    eva: '8000183',
+    name: 'Holzkirchen',
+    location: { lat: 47.885, lng: 11.7 },
+  };
+  const hubs = {
+    near: async () => [],
+    named: async (name: string) => (name === 'München Ost' ? OST : null),
+  };
+  const input = {
+    origin: ROSENHEIM,
+    destination: HOLZKIRCHEN,
+    departAfter: at('17:00'),
+    regionalOnly: true,
+  };
+
+  function network(secondDepartures: StationStop[]) {
+    return timetable({
+      [ROSENHEIM.eva]: [stop('-1-x', 1, 'RB', { dep: '17:12', path: ROUTE })],
+      [OST.eva]: [stop('-1-x', 5, 'RB', { arr: '17:55' }), ...secondDepartures],
+      [HOLZKIRCHEN.eva]: [
+        stop('-7-x', 9, 'S', { arr: '18:30', path: ['München Ost', 'Deisenhofen'] }),
+        stop('-8-x', 9, 'S', { arr: '18:50', path: ['München Ost', 'Deisenhofen'] }),
+      ],
+    });
+  }
+
+  it('changes at a station both trains pass through', async () => {
+    const trains = await findTransferConnection(
+      input,
+      hubs,
+      network([stop('-7-x', 2, 'S', { dep: '18:05' })]),
+    );
+    expect(trains).toHaveLength(2);
+    expect(trains![0]).toMatchObject({ from: ROSENHEIM, to: { name: 'München Ost' } });
+    expect(trains![1]).toMatchObject({ from: { name: 'München Ost' }, to: HOLZKIRCHEN });
+    expect(trains![1].arrival.planned).toEqual(at('18:30'));
+  });
+
+  it('leaves enough time to change trains', async () => {
+    const trains = await findTransferConnection(
+      input,
+      hubs,
+      network([stop('-7-x', 2, 'S', { dep: '17:58' }), stop('-8-x', 2, 'S', { dep: '18:25' })]),
+    );
+    // The 17:58 is only 3 minutes after arriving; the next one is taken.
+    expect(trains![1].departure.planned).toEqual(at('18:25'));
+  });
+
+  it('returns null when the trains share no station', async () => {
+    const tt = timetable({
+      [ROSENHEIM.eva]: [stop('-1-x', 1, 'RB', { dep: '17:12', path: ['Kufstein'] })],
+      [HOLZKIRCHEN.eva]: [stop('-7-x', 9, 'S', { arr: '18:30', path: ['Deisenhofen'] })],
+    });
+    expect(await findTransferConnection(input, hubs, tt)).toBeNull();
+  });
+});
+
+describe('expected trains', () => {
+  // Monday noon.
+  const now = fromLocal('2026-10-12', '12:00');
+
+  it('takes the timetable of the same kind of day', () => {
+    // Wednesday next week: a weekday, so today's (Monday) evening trains.
+    expect(referenceOffset(fromLocal('2026-10-21', '18:00'), now)).toBe(9);
+    // Next Saturday: no Saturday available, so today evening (still ahead) is used.
+    expect(referenceOffset(fromLocal('2026-10-17', '18:00'), now)).toBe(5);
+    // Morning trains of today are gone; tomorrow is used.
+    expect(referenceOffset(fromLocal('2026-10-21', '08:00'), now)).toBe(8);
+  });
+
+  it('moves the trains of the reference day to the requested day, without realtime data', async () => {
+    const reference = stop('-1-x', 1, 'RB', { dep: '18:12', delay: 7 });
+    const inner: RailTimetable = {
+      stops: vi.fn(async () => [
+        {
+          ...reference,
+          departure: {
+            ...reference.departure!,
+            planned: fromLocal('2026-10-12', '18:12'),
+            actual: fromLocal('2026-10-12', '18:19'),
+          },
+        },
+      ]),
+      stationNumber: async () => null,
+      refresh: async (_e, s) => s,
+    };
+    const [moved] = await new ExpectedTimetable(inner, 9).stops(
+      '1',
+      fromLocal('2026-10-21', '18:00'),
+      2,
+    );
+    expect(inner.stops).toHaveBeenCalledWith('1', fromLocal('2026-10-12', '18:00'), 2);
+    expect(moved!.departure!.planned).toEqual(fromLocal('2026-10-21', '18:12'));
+    expect(moved!.departure!.actual).toEqual(fromLocal('2026-10-21', '18:12'));
+  });
+
+  it('keeps the wall-clock time across a daylight saving change', () => {
+    expect(shiftDays(fromLocal('2026-10-24', '18:00'), 2)).toEqual(
+      fromLocal('2026-10-26', '18:00'),
     );
   });
 });

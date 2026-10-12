@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { PlanSummary } from '@/planner/saved';
+import { ratingEmoji } from './rating-options';
 
 const DAY = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Europe/Berlin',
@@ -25,7 +26,10 @@ export function PlanCard({ plan }: { plan: PlanSummary }) {
           {DAY.format(plan.startsAt)} · {TIME.format(plan.startsAt)}
           {plan.areaName ? ` · ${plan.areaName.split(',')[0]}` : ''}
         </span>
-        <span className="text-sm text-mist">~{plan.totalCostEur} €</span>
+        <span className="text-sm text-mist">
+          {plan.notHappened ? "didn't happen · " : ''}
+          {ratingEmoji(plan.rating) ? `${ratingEmoji(plan.rating)} · ` : ''}~{plan.totalCostEur} €
+        </span>
       </span>
       <span className="text-sm text-mist">{plan.titles.join(' → ')}</span>
     </Link>

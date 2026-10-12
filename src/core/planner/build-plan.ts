@@ -7,9 +7,11 @@ import { weightedShuffle } from './random';
 import {
   chooseSlots,
   estimatedCost,
+  fitsWeather,
   foodKind,
   formatFor,
   isCandidate,
+  isFreeSearch,
   itemCost,
   needsPlace,
   score,
@@ -25,7 +27,9 @@ import type {
   Slot,
   Transport,
   Travel,
+  WeatherSummary,
 } from './types';
+import { weatherFactor, windowWeather } from './weather';
 
 const MAX_CANDIDATES_PER_SLOT = 15;
 const MAX_ITEMS = 5;
@@ -109,7 +113,11 @@ type State = {
   reachedArea: boolean;
   spentEur: number;
   used: Set<string>;
+  /** Paid place searches, including free ones that a paid provider answered. */
   lookups: number;
+  freeLookups: number;
+  /** A free search was answered by a paid provider; further free searches need paid quota. */
+  freeFallsBack: boolean;
   /** Places found during this plan, so retries (e.g. without reserves) cost no new lookups. */
   placeCache: Map<string, Place[]>;
   warnings: Set<PlanWarning>;
@@ -209,17 +217,36 @@ function probeFor(region: Region, state: State): Place {
   };
 }
 
-function rankPlaces(places: Place[], anchors: LatLng[], radiusKm: number, random: () => number) {
+// Places rated as the problem of a past date stay possible, but only as a last resort.
+const AVOIDED_PLACE_FACTOR = 0.02;
+
+function rankPlaces(places: Place[], anchors: LatLng[], radiusKm: number, ctx: PlanContext) {
   // Distance dominates so consecutive stops stay close; rating breaks ties.
   const scale = Math.max(1, radiusKm / 3);
+  const avoided = new Set(ctx.learning.avoidPlaces);
   return weightedShuffle(
     places,
     (p) => {
       const d = Math.min(...anchors.map((a) => distanceKm(a, p.location)));
-      return (p.rating ?? 3.5) ** 2 / (1 + d / scale) ** 2;
+      const penalty = avoided.has(`${p.provider}:${p.id}`) ? AVOIDED_PLACE_FACTOR : 1;
+      return ((p.rating ?? 3.5) ** 2 / (1 + d / scale) ** 2) * penalty;
     },
-    random,
+    ctx.random,
   );
+}
+
+/** Weather during [start, end]; the whole-window summary when there is no hourly forecast. */
+function weatherAt(ctx: PlanContext, start: Date, end: Date): WeatherSummary {
+  return ctx.forecast.length > 0
+    ? windowWeather(ctx.forecast, start, end, ctx.weather.reliability)
+    : ctx.weather;
+}
+
+function lookupsLeft(activity: Activity, state: State, ctx: PlanContext): boolean {
+  const paidLeft = state.lookups < ctx.maxPlaceLookups;
+  return isFreeSearch(activity)
+    ? state.freeLookups < ctx.maxFreePlaceLookups && (!state.freeFallsBack || paidLeft)
+    : paidLeft;
 }
 
 /** Location of an item: home, its venue, or – for venue-less outdoor ideas – where we are. */
@@ -336,6 +363,13 @@ async function fillSlot(
   format: PlanFormat,
   pass: Pass,
 ): Promise<PlanItem | null> {
+  // Weather while the idea would take place, if it started now.
+  const expected = new Map(
+    ctx.activities.map((a) => [
+      a.id,
+      weatherAt(ctx, state.cursor, addMinutes(state.cursor, a.durationMinutes)),
+    ]),
+  );
   const candidates = ctx.activities.filter(
     (a) =>
       (pass.homeAllowed || !a.atHome) &&
@@ -347,9 +381,9 @@ async function fillSlot(
         remainingBudgetEur: pass.limitEur,
         used: state.used,
         request,
-        weather: ctx.weather,
+        weather: expected.get(a.id)!,
         placeLookupsLeft:
-          state.lookups < ctx.maxPlaceLookups ||
+          lookupsLeft(a, state, ctx) ||
           [...state.placeCache.keys()].some((k) => k.startsWith(`${a.id}|`)),
       }),
   );
@@ -361,10 +395,15 @@ async function fillSlot(
     ...candidates.filter((a) => required.has(a.id)),
     ...weightedShuffle(
       candidates.filter((a) => !required.has(a.id)),
-      (a) =>
-        score(a, request.preferences, ctx.history, ctx.tagWeights) *
-        affordability(a) *
-        (pass.filler && a.costMaxEur === 0 ? 3 : 1),
+      (a) => {
+        const conditions = expected.get(a.id)!.conditions ?? [];
+        return (
+          score(a, request.preferences, ctx.history, ctx.learning, conditions) *
+          weatherFactor(a, conditions) *
+          affordability(a) *
+          (pass.filler && a.costMaxEur === 0 ? 3 : 1)
+        );
+      },
       ctx.random,
     ),
   ].slice(0, MAX_CANDIDATES_PER_SLOT);
@@ -372,9 +411,15 @@ async function fillSlot(
   const region = searchRegion(state, request, ctx);
   const limitedRange = maxDistanceKm(request.transport) !== Infinity;
 
+  // The exact start may be later (travel, waiting for the sunset), so check the weather again.
+  const scheduled = (activity: Activity, place: Place | null) => {
+    const item = schedule(slot, activity, place, state, request, ctx, pass);
+    return item && fitsWeather(activity, weatherAt(ctx, item.start, item.end)) ? item : null;
+  };
+
   for (const activity of ordered) {
     if (!needsPlace(activity)) {
-      const item = schedule(slot, activity, null, state, request, ctx, pass);
+      const item = scheduled(activity, null);
       if (item) return item;
       continue;
     }
@@ -383,12 +428,19 @@ async function fillSlot(
     if (!places) {
       // Don't spend a lookup on an idea that can't fit even at the closest point of the region.
       if (!schedule(slot, activity, probeFor(region, state), state, request, ctx, pass)) continue;
-      if (state.lookups >= ctx.maxPlaceLookups) {
+      if (!lookupsLeft(activity, state, ctx)) {
         state.warnings.add('place_lookup_limit_reached');
         continue;
       }
-      state.lookups++;
+      const free = isFreeSearch(activity);
+      if (free) state.freeLookups++;
+      else state.lookups++;
       places = await ctx.findPlaces(activity, region.center, region.radiusKm).catch(() => []);
+      // A free search that fell back to a paid provider counts as paid as well.
+      if (free && places.some((p) => p.provider === 'google')) {
+        state.lookups++;
+        state.freeFallsBack = true;
+      }
       state.placeCache.set(cacheKey, places);
     }
     const reachable = places.filter(
@@ -396,9 +448,9 @@ async function fillSlot(
         region.accepts(p.location) &&
         (!limitedRange || distanceKm(ctx.home, p.location) <= maxDistanceKm(request.transport)),
     );
-    const ranked = rankPlaces(reachable, region.anchors, region.radiusKm, ctx.random);
+    const ranked = rankPlaces(reachable, region.anchors, region.radiusKm, ctx);
     for (const place of ranked) {
-      const item = schedule(slot, activity, place, state, request, ctx, pass);
+      const item = scheduled(activity, place);
       if (!item) continue;
       item.alternatives = ranked
         .filter((p) => p !== place && schedule(slot, activity, p, state, request, ctx, pass))
@@ -482,7 +534,7 @@ function apply(item: PlanItem, state: State, request: PlanRequest, ctx: PlanCont
 
 /**
  * Builds a schedule for the request. All loops are bounded: at most `MAX_ITEMS` items, 15 candidates
- * per slot and attempt, and `maxPlaceLookups` place searches in total.
+ * per slot and attempt, and `maxPlaceLookups` + `maxFreePlaceLookups` place searches in total.
  */
 export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise<Plan> {
   const duration = minutesBetween(request.start, request.end);
@@ -496,6 +548,8 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
     spentEur: 0,
     used: new Set(),
     lookups: 0,
+    freeLookups: 0,
+    freeFallsBack: false,
     placeCache: new Map(),
     warnings: new Set(),
   };
@@ -589,5 +643,6 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
     weather: ctx.weather,
     warnings: [...state.warnings],
     placeLookups: state.lookups,
+    freePlaceLookups: state.freeLookups,
   };
 }

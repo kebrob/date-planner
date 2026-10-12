@@ -1,4 +1,5 @@
 import { distanceKm } from '@/core/planner/geo';
+import { normalizeStationName } from '@/rail/connection';
 import stations from '@/rail/stations.json';
 import type { LatLng } from '@/ports/places';
 import type { RailStation, RailStationFinder } from '@/ports/rail';
@@ -13,7 +14,14 @@ const ALL: RailStation[] = (stations as Row[]).map(([eva, name, lat, lng]) => ({
 
 /** Nearest DB stations from the bundled StaDa list (npm run rail:stations); no network call. */
 export class StationListFinder implements RailStationFinder {
+  private byName: Map<string, RailStation> | undefined;
+
   constructor(private readonly list: RailStation[] = ALL) {}
+
+  async named(name: string): Promise<RailStation | null> {
+    this.byName ??= new Map(this.list.map((s) => [normalizeStationName(s.name), s]));
+    return this.byName.get(normalizeStationName(name)) ?? null;
+  }
 
   async near(point: LatLng, radiusKm: number): Promise<RailStation[]> {
     return this.list

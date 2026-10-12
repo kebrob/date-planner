@@ -248,3 +248,129 @@ export async function findConnectionTo(
   }
   return best;
 }
+
+// Time to change trains, including a platform change at a bigger station.
+const MIN_TRANSFER_MINUTES = 6;
+// Each hub costs a few timetable calls; the busiest shared stations are the likely changes.
+const MAX_HUBS = 2;
+
+type TransferInput = {
+  origin: RailStation;
+  destination: RailStation;
+  departAfter: Date;
+  regionalOnly: boolean;
+};
+
+/**
+ * Earliest connection with exactly one change between two known stations. Hubs are stations that
+ * appear on the path of a departing train at the origin and of an arriving train at the
+ * destination. Only meant for when no direct train exists, as it needs more timetable calls.
+ */
+export async function findTransferConnection(
+  input: TransferInput,
+  stations: RailStationFinder,
+  timetable: RailTimetable,
+): Promise<[TrainConnection, TrainConnection] | null> {
+  const fits = (category: string) => !input.regionalOnly || isRegional(category);
+  const departures = (
+    await timetable.stops(input.origin.eva, input.departAfter, DEPARTURE_WINDOW_HOURS)
+  ).filter(
+    (s) =>
+      s.departure &&
+      !s.departure.cancelled &&
+      s.departure.actual >= input.departAfter &&
+      fits(s.category),
+  );
+  const arrivals = (
+    await timetable.stops(input.destination.eva, input.departAfter, ARRIVAL_WINDOW_HOURS)
+  ).filter((s) => s.arrival && !s.arrival.cancelled && fits(s.category));
+  if (departures.length === 0 || arrivals.length === 0) return null;
+
+  const ends = new Set([input.origin.name, input.destination.name].map(normalizeStationName));
+  // Big stations appear under several timetable names ("München Hbf Gl.5-10"), one per number.
+  const namesOn = (paths: string[][]) => {
+    const names = new Map<string, Set<string>>();
+    for (const name of paths.flat()) {
+      const key = normalizeStationName(name);
+      if (!ends.has(key)) names.set(key, (names.get(key) ?? new Set()).add(name));
+    }
+    return names;
+  };
+  const outbound = namesOn(departures.map((s) => s.departure!.path));
+  const inbound = namesOn(arrivals.map((s) => s.arrival!.path));
+  const count = (key: string) =>
+    departures.filter((s) => s.departure!.path.some((n) => normalizeStationName(n) === key)).length;
+  const hubs = [...outbound.keys()]
+    .filter((key) => inbound.has(key))
+    .sort((a, b) => count(b) - count(a))
+    .slice(0, MAX_HUBS);
+
+  let best: [TrainConnection, TrainConnection] | null = null;
+  for (const key of hubs) {
+    const names = [...new Set([...outbound.get(key)!, ...inbound.get(key)!])].slice(0, 2);
+    const known = await stations.named(names[0]!);
+    if (!known) continue;
+    const arrivalsAt = new Map<string, { stop: StationStop; station: RailStation }>();
+    const departuresAt = new Map<string, { stop: StationStop; station: RailStation }>();
+    for (const name of names) {
+      const station: RailStation = {
+        eva: (await timetable.stationNumber(name)) ?? known.eva,
+        name,
+        location: known.location,
+      };
+      for (const stop of await timetable.stops(
+        station.eva,
+        input.departAfter,
+        ARRIVAL_WINDOW_HOURS,
+      )) {
+        if (stop.arrival && !stop.arrival.cancelled)
+          arrivalsAt.set(runOf(stop.id), { stop, station });
+        if (stop.departure && !stop.departure.cancelled) {
+          departuresAt.set(runOf(stop.id), { stop, station });
+        }
+      }
+    }
+
+    for (const dep of departures) {
+      const first = arrivalsAt.get(runOf(dep.id));
+      const firstArrival = first?.stop.arrival;
+      if (!first || !firstArrival || firstArrival.planned <= dep.departure!.planned) continue;
+      const earliestChange = firstArrival.actual.getTime() + MIN_TRANSFER_MINUTES * 60_000;
+      for (const arr of arrivals) {
+        if (runOf(arr.id) === runOf(dep.id)) continue;
+        const second = departuresAt.get(runOf(arr.id));
+        const secondDeparture = second?.stop.departure;
+        if (!second || !secondDeparture || secondDeparture.actual.getTime() < earliestChange) {
+          continue;
+        }
+        if (arr.arrival!.planned <= secondDeparture.planned) continue;
+        if (best && arr.arrival!.actual >= best[1].arrival.actual) continue;
+        best = [
+          {
+            line: dep.line,
+            category: dep.category,
+            number: dep.number,
+            regional: isRegional(dep.category),
+            from: input.origin,
+            to: first.station,
+            departureStop: dep,
+            departure: dep.departure!,
+            arrival: firstArrival,
+          },
+          {
+            line: second.stop.line,
+            category: second.stop.category,
+            number: second.stop.number,
+            regional: isRegional(second.stop.category),
+            from: second.station,
+            to: input.destination,
+            departureStop: second.stop,
+            departure: secondDeparture,
+            arrival: arr.arrival!,
+          },
+        ];
+      }
+    }
+  }
+  return best;
+}

@@ -38,4 +38,6 @@ export interface RailTimetable {
 export interface RailStationFinder {
   /** Stations within `radiusKm`, closest first. */
   near(point: LatLng, radiusKm: number): Promise<RailStation[]>;
+  /** Station for a name as used on train paths, e.g. "München Hbf"; null when unknown. */
+  named(name: string): Promise<RailStation | null>;
 }

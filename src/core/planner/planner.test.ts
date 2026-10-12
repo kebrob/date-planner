@@ -5,9 +5,10 @@ import { buildPlan, FALLBACK_ACTIVITY, firstStopRadiusKm } from './build-plan';
 import { estimateTravel } from './geo';
 import { isOpenDuring } from './opening-hours';
 import { seededRandom } from './random';
-import { formatFor, itemCost, score } from './rules';
+import { formatFor, itemCost, NO_LEARNING, score } from './rules';
 import type { Activity, PlanContext, PlanRequest } from './types';
-import { summarizeWeather } from './weather';
+import { summarizeWeather, weatherConcern, weatherFactor, windowWeather } from './weather';
+import { learn, shouldSuggestBlock, type RatedItem } from './learning';
 
 const HOME = { lat: 47.86, lng: 12.13 };
 
@@ -115,8 +116,10 @@ function context(overrides: Partial<PlanContext> = {}): PlanContext {
     activities: [minigolf, cinema, boardGames, dinner, iceCream],
     history: { daysSinceSuggested: {}, daysSinceAccepted: {} },
     weather: { reliability: 'good', dry: true, minTempC: 12, maxTempC: 18 },
-    tagWeights: {},
+    forecast: [],
+    learning: NO_LEARNING,
     maxPlaceLookups: 6,
+    maxFreePlaceLookups: 6,
     findPlaces: async (a, center) => [placeAt(center, 1, `${a.id}-place`)],
     random: seededRandom(42),
     ...overrides,
@@ -245,7 +248,7 @@ describe('buildPlan', () => {
   it('stops after maxPlaceLookups when places never match and falls back to a home activity', async () => {
     const findPlaces = vi.fn(async () => []);
     const many = Array.from({ length: 30 }, (_, i) =>
-      activity({ id: `venue-${i}`, placeType: 'venue', placeQuery: 'Venue' }),
+      activity({ id: `venue-${i}`, placeType: 'venue', placeQuery: 'Venue', costMaxEur: 10 }),
     );
     const plan = await buildPlan(
       request({ format: 'day', start: fromLocal('2026-10-10', '10:00') }),
@@ -255,6 +258,51 @@ describe('buildPlan', () => {
     expect(plan.placeLookups).toBe(6);
     expect(plan.warnings).toContain('place_lookup_limit_reached');
     expect(plan.items.map((i) => i.activity.id)).toContain('board-games');
+  });
+
+  it('bounds searches for free ideas separately from paid ones', async () => {
+    const findPlaces = vi.fn(async () => []);
+    const free = Array.from({ length: 20 }, (_, i) =>
+      activity({ id: `free-${i}`, placeType: 'park', placeQuery: 'Park' }),
+    );
+    const paid = Array.from({ length: 20 }, (_, i) =>
+      activity({ id: `paid-${i}`, placeType: 'venue', placeQuery: 'Venue', costMaxEur: 10 }),
+    );
+    const plan = await buildPlan(
+      request({ format: 'day', start: fromLocal('2026-10-10', '10:00') }),
+      context({
+        activities: [...free, ...paid, boardGames],
+        findPlaces,
+        maxPlaceLookups: 3,
+        maxFreePlaceLookups: 4,
+      }),
+    );
+    expect(findPlaces).toHaveBeenCalledTimes(7);
+    expect(plan.placeLookups).toBe(3);
+    expect(plan.freePlaceLookups).toBe(4);
+  });
+
+  it('counts free searches answered by a paid provider against the paid limit', async () => {
+    const free = Array.from({ length: 20 }, (_, i) =>
+      activity({ id: `free-${i}`, placeType: 'park', placeQuery: 'Park' }),
+    );
+    // Always closed, answered by Google as if OpenStreetMap had failed.
+    const closed = { alwaysOpen: false as const, periods: [] };
+    const findPlaces = vi.fn(async (_a: Activity, center: LatLng) => [
+      { ...placeAt(center, 1, 'g'), openingHours: closed },
+    ]);
+    const plan = await buildPlan(
+      request({ format: 'day', start: fromLocal('2026-10-10', '10:00') }),
+      context({
+        activities: [...free, boardGames],
+        findPlaces,
+        maxPlaceLookups: 2,
+        maxFreePlaceLookups: 10,
+      }),
+    );
+    // Paid quota is exhausted after the second fallback answer; no further free searches.
+    expect(findPlaces).toHaveBeenCalledTimes(2);
+    expect(plan.placeLookups).toBe(2);
   });
 
   it('uses the built-in fallback when nothing else fits', async () => {
@@ -775,10 +823,10 @@ describe('rules', () => {
 
   it('favours preferences and penalises recently done activities', () => {
     const empty = { daysSinceSuggested: {}, daysSinceAccepted: {} };
-    expect(score(cinema, ['chill'], empty, {})).toBeGreaterThan(score(cinema, [], empty, {}));
+    expect(score(cinema, ['chill'], empty)).toBeGreaterThan(score(cinema, [], empty));
     const recent = { daysSinceSuggested: {}, daysSinceAccepted: { cinema: 2 } };
-    expect(score(cinema, [], recent, {})).toBeLessThan(score(cinema, [], empty, {}));
-    expect(score(cinema, [], recent, {})).toBeGreaterThan(0);
+    expect(score(cinema, [], recent)).toBeLessThan(score(cinema, [], empty));
+    expect(score(cinema, [], recent)).toBeGreaterThan(0);
   });
 });
 
@@ -857,6 +905,163 @@ describe('summarizeWeather', () => {
     const now = new Date(start.getTime() - 9 * 86_400_000);
     expect(summarizeWeather([hour(0, 0, 0)], start, end, now).reliability).toBe('low');
     expect(summarizeWeather([], start, end, now)).toMatchObject({ reliability: 'none', dry: null });
+  });
+});
+
+describe('weather per item and preferences', () => {
+  // Dry and sunny until 14:00, then rain.
+  const forecast = Array.from({ length: 14 }, (_, h) => ({
+    time: fromLocal('2026-10-10', `${String(9 + h).padStart(2, '0')}:00`),
+    temperatureC: 18,
+    precipitationProbability: h >= 5 ? 90 : 0,
+    precipitationMm: h >= 5 ? 2 : 0,
+    cloudCoverPct: h >= 5 ? 100 : 10,
+    windKmh: 10,
+    snowfallCm: 0,
+  }));
+  const day = { reliability: 'good' as const, dry: false, minTempC: 18, maxTempC: 18 };
+
+  it('allows dry-only ideas in the dry part of a day even if it rains later', async () => {
+    const plan = await buildPlan(
+      request({
+        start: fromLocal('2026-10-10', '10:00'),
+        end: fromLocal('2026-10-10', '12:00'),
+      }),
+      context({ activities: [minigolf], weather: day, forecast }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual(['minigolf']);
+  });
+
+  it('drops dry-only ideas that would run into the rain', async () => {
+    const plan = await buildPlan(
+      request({
+        start: fromLocal('2026-10-10', '15:00'),
+        end: fromLocal('2026-10-10', '17:00'),
+      }),
+      context({ activities: [minigolf, boardGames], weather: day, forecast }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).not.toContain('minigolf');
+  });
+
+  it('prefers indoor ideas when it rains and outdoor ones when it is sunny', () => {
+    const walk = activity({ id: 'walk', tags: ['outdoor'] });
+    expect(weatherFactor(cinema, ['rain'])).toBeGreaterThan(weatherFactor(walk, ['rain']));
+    expect(weatherFactor(walk, ['sunny'])).toBeGreaterThan(weatherFactor(cinema, ['sunny']));
+    expect(weatherFactor(walk, [])).toBe(1);
+  });
+
+  it('derives conditions from the hours of the window', () => {
+    const sunny = windowWeather(
+      forecast,
+      fromLocal('2026-10-10', '10:00'),
+      fromLocal('2026-10-10', '12:00'),
+      'good',
+    );
+    expect(sunny.conditions).toEqual(['sunny']);
+    const rainy = windowWeather(
+      forecast,
+      fromLocal('2026-10-10', '16:00'),
+      fromLocal('2026-10-10', '18:00'),
+      'good',
+    );
+    expect(rainy.conditions).toEqual(['rain']);
+    const cold = windowWeather(
+      forecast.map((h) => ({ ...h, temperatureC: 2, snowfallCm: 1, windKmh: 50 })),
+      fromLocal('2026-10-10', '16:00'),
+      fromLocal('2026-10-10', '18:00'),
+      'good',
+    );
+    expect(cold.conditions).toEqual(['snow', 'cold', 'windy']);
+  });
+
+  it('flags saved outdoor items when rain is forecast', () => {
+    const rain = { reliability: 'good' as const, dry: false, minTempC: 10, maxTempC: 12 };
+    expect(weatherConcern(minigolf, rain)).toBe('rain');
+    expect(weatherConcern(cinema, rain)).toBeNull();
+    expect(weatherConcern(minigolf, { ...rain, reliability: 'none' })).toBeNull();
+  });
+});
+
+describe('learning from ratings', () => {
+  const rated = (overrides: Partial<RatedItem>): RatedItem => ({
+    activityId: 'cinema',
+    tags: ['indoor', 'chill'],
+    place: null,
+    itemRating: null,
+    planRating: null,
+    placeBlamed: false,
+    conditions: [],
+    ageDays: 0,
+    ...overrides,
+  });
+  const empty = { daysSinceSuggested: {}, daysSinceAccepted: {} };
+
+  it('favours loved and penalises disliked activities, smoothed for few ratings', () => {
+    const loved = learn([rated({ itemRating: 'love' })]);
+    const disliked = learn([rated({ itemRating: 'dislike' })]);
+    expect(loved.activity.cinema).toBeCloseTo(0.5);
+    expect(score(cinema, [], empty, loved)).toBeGreaterThan(score(cinema, [], empty, NO_LEARNING));
+    expect(score(cinema, [], empty, disliked)).toBeLessThan(score(cinema, [], empty, NO_LEARNING));
+  });
+
+  it('counts a date rating for each item at half weight', () => {
+    const inherited = learn([rated({ planRating: 'love' })]);
+    const explicit = learn([rated({ itemRating: 'love' })]);
+    expect(inherited.activity.cinema).toBeLessThan(explicit.activity.cinema!);
+    // The item rating wins over the date rating.
+    expect(
+      learn([rated({ planRating: 'love', itemRating: 'dislike' })]).activity.cinema,
+    ).toBeLessThan(0);
+  });
+
+  it('lets old ratings fade', () => {
+    const recent = learn([rated({ itemRating: 'love' })]);
+    const old = learn([rated({ itemRating: 'love', ageDays: 360 })]);
+    expect(old.activity.cinema).toBeLessThan(recent.activity.cinema!);
+  });
+
+  it('learns tag weights per weather condition', () => {
+    const learning = learn([
+      rated({ activityId: 'walk', tags: ['outdoor'], itemRating: 'love', conditions: ['sunny'] }),
+    ]);
+    const walk = activity({ id: 'other-walk', tags: ['outdoor'] });
+    expect(learning.tags.sunny?.outdoor).toBeGreaterThan(0);
+    expect(score(walk, [], empty, learning, ['sunny'])).toBeGreaterThan(
+      score(walk, [], empty, learning, ['rain']),
+    );
+  });
+
+  it('blames the venue instead of the idea when asked to', () => {
+    const learning = learn([
+      rated({ itemRating: 'dislike', placeBlamed: true, place: 'google:bad-cinema' }),
+    ]);
+    expect(learning.avoidPlaces).toEqual(['google:bad-cinema']);
+    expect(learning.activity.cinema).toBeUndefined();
+  });
+
+  it('ranks avoided venues last', async () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const plan = await buildPlan(
+        request({ end: fromLocal('2026-10-10', '20:00') }),
+        context({
+          activities: [cinema],
+          findPlaces: async (_a, center) => [placeAt(center, 1, 'bad'), placeAt(center, 1, 'ok')],
+          learning: { ...NO_LEARNING, avoidPlaces: ['google:bad'] },
+          random: seededRandom(seed),
+        }),
+      );
+      expect(plan.items[0]!.place!.id).toBe('ok');
+    }
+  });
+
+  it('suggests blocking an idea after two dislikes', () => {
+    const once = [rated({ itemRating: 'dislike' })];
+    expect(shouldSuggestBlock(once, 'cinema')).toBe(false);
+    expect(shouldSuggestBlock([...once, rated({ planRating: 'dislike' })], 'cinema')).toBe(true);
+  });
+
+  it('ignores items without any rating', () => {
+    expect(learn([rated({})])).toEqual(NO_LEARNING);
   });
 });
 

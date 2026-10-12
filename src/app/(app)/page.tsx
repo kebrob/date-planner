@@ -4,9 +4,11 @@ import { listUpcoming } from '@/planner/saved';
 import { nextOuting } from '@/planner/outing';
 import { ideasForNextOuting } from '@/planner/service';
 import { nextTrain } from '@/rail/live';
+import { listRatingPrompts } from '@/ratings/service';
 import { AskBar } from './ask-bar';
 import { LiveTrainCard } from './live-train';
 import { PlanCard } from './plan-card';
+import { RatingPromptCard } from './rating';
 
 const TODAY = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Europe/Berlin',
@@ -46,10 +48,11 @@ function Pill({ children, onDark }: { children: React.ReactNode; onDark?: boolea
 export default async function HomePage() {
   await requireSession();
   const { when } = nextOuting();
-  const [upcoming, ideas, train] = await Promise.all([
+  const [upcoming, ideas, train, prompts] = await Promise.all([
     listUpcoming(),
     ideasForNextOuting(),
     nextTrain().catch(() => null),
+    listRatingPrompts().catch(() => []),
   ]);
 
   return (
@@ -80,6 +83,10 @@ export default async function HomePage() {
       </header>
 
       {train && <LiveTrainCard initial={train} />}
+
+      {prompts.slice(0, 1).map((p) => (
+        <RatingPromptCard key={p.id} prompt={p} />
+      ))}
 
       <AskBar />
 

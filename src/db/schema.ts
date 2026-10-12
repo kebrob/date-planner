@@ -20,6 +20,7 @@ export const activitySource = pgEnum('activity_source', ['manual', 'claude', 'im
 export const planStatus = pgEnum('plan_status', ['suggested', 'accepted', 'done', 'discarded']);
 export const paidProvider = pgEnum('paid_provider', ['anthropic', 'google_places']);
 export const callStatus = pgEnum('call_status', ['reserved', 'success', 'error']);
+export const dateRating = pgEnum('date_rating', ['dislike', 'like', 'love']);
 
 /** Single-row table; the app has exactly one shared account. */
 export const settings = pgTable('settings', {
@@ -94,7 +95,14 @@ export const datePlan = pgTable('date_plan', {
   isFavorite: boolean('is_favorite').notNull().default(false),
   note: text('note'),
   areaName: text('area_name'),
+  // Rounded to ~10 km, kept after the date (unlike place data) to look up the weather it had.
+  weatherPoint: jsonb('weather_point').$type<{ lat: number; lng: number }>(),
   travelHome: jsonb('travel_home'),
+  rating: dateRating('rating'),
+  // "We didn't go": excluded from variety history and learning.
+  notHappened: boolean('not_happened').notNull().default(false),
+  ratingPromptDismissed: boolean('rating_prompt_dismissed').notNull().default(false),
+  trainsCheckedAt: timestamp('trains_checked_at', { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -122,6 +130,10 @@ export const planItem = pgTable('plan_item', {
   alternatives: jsonb('alternatives').notNull().default([]),
   costEur: integer('cost_eur').notNull().default(0),
   travel: jsonb('travel'),
+  rating: dateRating('rating'),
+  placeBlamed: boolean('place_blamed').notNull().default(false),
+  // Weather while the item took place, recorded when the date gets rated; null = not yet known.
+  weatherConditions: text('weather_conditions').array(),
 });
 
 export const suggestionLog = pgTable(
@@ -197,6 +209,7 @@ export const loginAttempt = pgTable(
   (t) => [index('login_attempt_ip_idx').on(t.ipHash, t.createdAt)],
 );
 
+// Unused; kept so deployed code keeps working until it is dropped in a later migration.
 export const tagWeight = pgTable(
   'tag_weight',
   {

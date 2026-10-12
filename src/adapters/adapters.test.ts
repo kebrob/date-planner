@@ -276,6 +276,9 @@ describe('OpenMeteoProvider', () => {
           temperature_2m: [14.2, null],
           precipitation_probability: [20, 30],
           precipitation: [0, 0.1],
+          cloud_cover: [15, 80],
+          wind_speed_10m: [12.5, 20],
+          snowfall: [0, 0],
         },
       }),
     );
@@ -290,9 +293,33 @@ describe('OpenMeteoProvider', () => {
         temperatureC: 14.2,
         precipitationProbability: 20,
         precipitationMm: 0,
+        cloudCoverPct: 15,
+        windKmh: 12.5,
+        snowfallCm: 0,
       },
     ]);
     expect(String(fetchFn.mock.calls[0]![0])).toContain('start_date=2026-10-10');
+  });
+
+  it('fetches the recent past, e.g. for the weather of a rated date', async () => {
+    const fetchFn = vi.fn<typeof fetch>(async () => json({}));
+    await new OpenMeteoProvider(fetchFn, () => now).hourly(
+      { lat: 47.86, lng: 12.13 },
+      new Date('2026-10-03T15:00:00Z'),
+      new Date('2026-10-03T21:00:00Z'),
+    );
+    expect(String(fetchFn.mock.calls[0]![0])).toContain('start_date=2026-10-03');
+  });
+
+  it('skips the request for dates too long ago', async () => {
+    const fetchFn = vi.fn();
+    const hours = await new OpenMeteoProvider(fetchFn, () => now).hourly(
+      { lat: 47.86, lng: 12.13 },
+      new Date('2026-01-01T15:00:00Z'),
+      new Date('2026-01-01T21:00:00Z'),
+    );
+    expect(hours).toEqual([]);
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it('skips the request beyond the forecast horizon', async () => {

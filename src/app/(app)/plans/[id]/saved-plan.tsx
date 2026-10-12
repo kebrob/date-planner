@@ -10,9 +10,17 @@ import {
   updatePlanMetaAction,
 } from '../../actions';
 import { PlanResult } from '../../plan-result';
+import { DateRating, ItemRating } from '../../rating';
 
 const field = 'rounded-lg border border-line bg-transparent px-3 py-2';
 const button = 'rounded-xl border border-line px-4 py-2 text-sm disabled:opacity-50 hover:bg-cream';
+
+const CONCERNS: Record<NonNullable<SavedPlanView['weatherConcerns'][number]>, string> = {
+  rain: 'Rain is now forecast for this one.',
+  snow: 'Snow is now forecast for this one.',
+  cold: 'It will be colder than this idea needs.',
+  hot: 'It will be hotter than this idea suits.',
+};
 
 function WindowFields({ value, onChange }: { value: Window; onChange: (w: Window) => void }) {
   return (
@@ -52,6 +60,8 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
   const [note, setNote] = useState(plan.note ?? '');
   const [window, setWindow] = useState<Window>(plan.window);
   const [panel, setPanel] = useState<'none' | 'reschedule' | 'again'>('none');
+  // Single stops are rated on demand, or right away when some already are.
+  const [rateItems, setRateItems] = useState(plan.itemRatings.some((r) => r.rating !== null));
 
   const run = (action: () => Promise<void>) => {
     setMessage(null);
@@ -72,6 +82,38 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
     });
 
   const editable = !plan.isPast;
+  const rating = plan.canRate && !plan.notHappened;
+
+  const itemExtra = (index: number) => {
+    const item = plan.items[index]!;
+    const concern = plan.weatherConcerns[index];
+    return (
+      <>
+        {editable && concern && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-700">
+            {CONCERNS[concern]}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => edit({ type: 'reroll', index })}
+              className="rounded-full bg-cream px-3 py-1 text-ink hover:bg-butter disabled:opacity-50"
+            >
+              Swap for something else
+            </button>
+          </p>
+        )}
+        {rating && rateItems && (
+          <ItemRating
+            planId={plan.id}
+            position={index}
+            activityId={item.activityId}
+            hasPlace={Boolean(item.place ?? item.placeName)}
+            initial={plan.itemRatings[index]!}
+          />
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,7 +144,10 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
         onRerollItem={editable ? (index) => edit({ type: 'reroll', index }) : undefined}
         onRemoveItem={editable ? (index) => edit({ type: 'remove', index }) : undefined}
         onSwap={editable ? (index, placeId) => edit({ type: 'swap', index, placeId }) : undefined}
+        renderItemExtra={itemExtra}
       />
+
+      {plan.canRate && <DateRating plan={plan} showItems={rateItems} onShowItems={setRateItems} />}
 
       <label className="flex flex-col gap-1 text-sm">
         Note

@@ -50,19 +50,38 @@ const MODE: Record<Leg['mode'], string> = {
 const delayMinutes = (planned: string, actual: string) =>
   Math.round((new Date(actual).getTime() - new Date(planned).getTime()) / 60_000);
 
-function TrainInfo({ train }: { train: NonNullable<Leg['train']> }) {
+type Train = NonNullable<Leg['train']>;
+
+function TrainLine({ train }: { train: Train }) {
+  return (
+    <span className="text-ink">
+      {train.line} · {TIME.format(new Date(train.plannedDeparture))} {train.from.name} →{' '}
+      {TIME.format(new Date(train.plannedArrival))} {train.to.name}
+    </span>
+  );
+}
+
+function TrainInfo({ train, transfers = [] }: { train: Train; transfers?: Train[] }) {
   const delay = delayMinutes(train.plannedDeparture, train.departure);
+  const longDistance = [train, ...transfers].some((t) => !t.regional);
   return (
     <span className="flex min-w-0 flex-col">
-      <span className="text-ink">
-        {train.line} · {TIME.format(new Date(train.plannedDeparture))} {train.from.name} →{' '}
-        {TIME.format(new Date(train.plannedArrival))} {train.to.name}
-      </span>
+      <TrainLine train={train} />
+      {transfers.map((t) => (
+        <span key={t.stopId} className="flex flex-col">
+          <span className="text-xs">Change at {t.from.name}</span>
+          <TrainLine train={t} />
+        </span>
+      ))}
       <span className="text-xs">
         Leave {TIME.format(new Date(train.leaveAt))}
-        {train.platform && ` · Platform ${train.platform}`}
+        {train.expected ? (
+          <span> · expected times, confirmed the day before</span>
+        ) : (
+          train.platform && ` · Platform ${train.platform}`
+        )}
         {delay > 0 && <span className="text-amber-700"> · +{delay} min</span>}
-        {!train.regional && (
+        {longDistance && (
           <span className="text-amber-700"> · not covered by the Deutschlandticket</span>
         )}
       </span>
@@ -79,7 +98,7 @@ function LegRow({ leg }: { leg: Leg }) {
         <TravelIcon kind={leg.mode} />
       </span>
       {leg.train ? (
-        <TrainInfo train={leg.train} />
+        <TrainInfo train={leg.train} transfers={leg.transfers} />
       ) : (
         <span>
           {leg.minutes} min {MODE[leg.mode]}
@@ -115,7 +134,15 @@ function shortName(name: string) {
 function weatherLine(w: PlanView['weather']) {
   if (w.reliability === 'none' || w.minTempC === null) return null;
   const temp = `${Math.round(w.minTempC)}–${Math.round(w.maxTempC ?? w.minTempC)} °C`;
-  return `${w.dry ? '☀️ Dry' : '🌧️ Rain likely'}, ${temp}`;
+  const conditions = w.conditions ?? [];
+  const sky = conditions.includes('snow')
+    ? '🌨️ Snow likely'
+    : !w.dry
+      ? '🌧️ Rain likely'
+      : conditions.includes('sunny')
+        ? '☀️ Sunny'
+        : '⛅ Dry';
+  return `${sky}, ${temp}${conditions.includes('windy') ? ', windy' : ''}`;
 }
 
 type Props = {
@@ -124,6 +151,8 @@ type Props = {
   onRerollItem?: (index: number) => void;
   onRemoveItem?: (index: number) => void;
   onSwap?: (index: number, placeId: string) => void;
+  /** Extra content inside an item card, e.g. a rating or a weather hint. */
+  renderItemExtra?: (index: number) => React.ReactNode;
   /** Action buttons below the plan. */
   children?: React.ReactNode;
 };
@@ -133,7 +162,15 @@ const smallButton = 'rounded-full bg-cream px-3 py-1 text-xs hover:bg-butter dis
 const iconButton =
   'grid h-8 w-8 place-items-center rounded-full bg-cream text-ink hover:bg-butter disabled:opacity-50';
 
-export function PlanResult({ plan, pending, onRerollItem, onRemoveItem, onSwap, children }: Props) {
+export function PlanResult({
+  plan,
+  pending,
+  onRerollItem,
+  onRemoveItem,
+  onSwap,
+  renderItemExtra,
+  children,
+}: Props) {
   const first = plan.items[0];
   const weather = weatherLine(plan.weather);
 
@@ -159,7 +196,7 @@ export function PlanResult({ plan, pending, onRerollItem, onRemoveItem, onSwap, 
           <li key={`${item.activityId}-${index}`} className="flex flex-col gap-3">
             {item.travelBefore && <LegRow leg={item.travelBefore} />}
             <div className="flex items-start justify-between gap-3 rounded-3xl bg-white p-5 ring-1 ring-line">
-              <div className="flex flex-col gap-1">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <p className="text-sm text-ink">
                   {TIME.format(new Date(item.start))} – {TIME.format(new Date(item.end))}
                 </p>
@@ -223,6 +260,7 @@ export function PlanResult({ plan, pending, onRerollItem, onRemoveItem, onSwap, 
                     )}
                   </div>
                 )}
+                {renderItemExtra?.(index)}
               </div>
               <div className="flex flex-col items-end gap-2">
                 <span className="text-sm whitespace-nowrap">~{item.costEur} €</span>

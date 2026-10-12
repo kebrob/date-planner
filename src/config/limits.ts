@@ -21,6 +21,7 @@ const limitsSchema = z.object({
   PLACES_PROVIDER: z.enum(['google', 'osm']).default('google'),
   PLACES_DAILY_LIMIT: positiveInt(25),
   PLACES_MAX_LOOKUPS_PER_PLAN: positiveInt(6),
+  PLACES_MAX_FREE_LOOKUPS_PER_PLAN: positiveInt(6),
   PAID_CALLS_PER_MINUTE: positiveInt(20),
 });
 
@@ -38,6 +39,8 @@ export type Limits = {
     provider: 'google' | 'osm';
     dailyLimit: number;
     maxLookupsPerPlan: number;
+    /** Searches for free ideas (OpenStreetMap first) on top of the paid ones. */
+    maxFreeLookupsPerPlan: number;
   };
   paidCallsPerMinute: number;
 };
@@ -62,6 +65,7 @@ export function parseLimits(env: Record<string, string | undefined>): Limits {
       provider: e.PLACES_PROVIDER,
       dailyLimit: e.PLACES_DAILY_LIMIT,
       maxLookupsPerPlan: e.PLACES_MAX_LOOKUPS_PER_PLAN,
+      maxFreeLookupsPerPlan: e.PLACES_MAX_FREE_LOOKUPS_PER_PLAN,
     },
     paidCallsPerMinute: e.PAID_CALLS_PER_MINUTE,
   };
