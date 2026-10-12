@@ -6,7 +6,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import { eq, lt } from 'drizzle-orm';
+import { count, eq, gte, lt } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { getDb } from '@/db/client';
 import { authChallenge, passkey } from '@/db/schema';
@@ -22,11 +22,22 @@ function relyingParty() {
   return { rpID, origin, rpName: 'Date Planner' };
 }
 
+// Options are public, so the number of open challenges is capped instead of growing per request.
+const MAX_OPEN_CHALLENGES = 50;
+
+export class TooManyChallengesError extends Error {}
+
 async function storeChallenge(challenge: string) {
   const db = getDb();
   const id = newToken();
-  const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
-  await db.delete(authChallenge).where(lt(authChallenge.expiresAt, new Date()));
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_MS);
+  await db.delete(authChallenge).where(lt(authChallenge.expiresAt, now));
+  const [open] = await db
+    .select({ n: count() })
+    .from(authChallenge)
+    .where(gte(authChallenge.expiresAt, now));
+  if ((open?.n ?? 0) >= MAX_OPEN_CHALLENGES) throw new TooManyChallengesError();
   await db.insert(authChallenge).values({ id, challenge, expiresAt });
   (await cookies()).set(CHALLENGE_COOKIE, id, {
     httpOnly: true,
