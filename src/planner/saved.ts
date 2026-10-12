@@ -38,6 +38,8 @@ export type SavedPlanView = PlanView & {
   /** Per item, for upcoming plans: why the forecast may not suit it any more. */
   weatherConcerns: (WeatherConcern | null)[];
   window: Window;
+  /** Centre chosen on the map, for searches near the plan's area. */
+  areaPoint: LatLng | null;
 };
 
 export type PlanSummary = {
@@ -268,6 +270,7 @@ export async function loadPlan(id: string): Promise<{ plan: PlanRow; items: Item
 }
 
 export function rowsToView(plan: PlanRow, items: ItemRow[], now: Date): SavedPlanView {
+  const input = plan.parameters as PlanInput;
   return {
     id: plan.id,
     isFavorite: plan.isFavorite,
@@ -278,8 +281,9 @@ export function rowsToView(plan: PlanRow, items: ItemRow[], now: Date): SavedPla
     notHappened: plan.notHappened,
     itemRatings: items.map((i) => ({ rating: i.rating, placeBlamed: i.placeBlamed })),
     weatherConcerns: items.map(() => null),
-    window: windowOf(plan, plan.parameters as PlanInput),
-    transport: (plan.parameters as PlanInput).transport,
+    window: windowOf(plan, input),
+    transport: input.transport,
+    areaPoint: input.areaPoint ? { lat: input.areaPoint.lat, lng: input.areaPoint.lng } : null,
     format: (items.length <= 1
       ? 'single'
       : items.length === 2

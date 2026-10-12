@@ -13,7 +13,7 @@ import {
 } from '../../actions';
 import { PlanResult } from '../../plan-result';
 import { DateRating, ItemRating } from '../../rating';
-import { StopPicker } from '../../stop-picker';
+import { PlanEditPickers } from '../../plan-edit-pickers';
 import { Toast } from '../../toast';
 import { TRANSPORTS } from '../../transports';
 import { CloseIcon } from '../../icons';
@@ -180,39 +180,18 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
         renderItemExtra={itemExtra}
       />
 
-      {adding !== null && (
-        <StopPicker
-          heading="Add a stop"
-          near={
-            plan.items[adding - 1]?.place?.location ?? plan.items[adding]?.place?.location ?? null
-          }
-          onClose={() => setAdding(null)}
-          onSurprise={() => {
-            const position = adding;
-            setAdding(null);
-            edit({ type: 'add', position, stop: null });
-          }}
-          onPick={(picked) => {
-            const position = adding;
-            setAdding(null);
-            edit({ type: 'add', position, stop: picked.stop });
-          }}
-        />
-      )}
-
-      {choosing !== null && (
-        <StopPicker
-          heading={`Instead of ${plan.items[choosing]?.title.toLowerCase() ?? 'this'}`}
-          near={plan.items[choosing]?.place?.location ?? null}
-          askMode
-          onClose={() => setChoosing(null)}
-          onPick={(picked, mode) => {
-            const index = choosing;
-            setChoosing(null);
-            edit({ type: 'replace', index, stop: picked.stop, mode });
-          }}
-        />
-      )}
+      <PlanEditPickers
+        items={plan.items}
+        area={plan.areaPoint}
+        adding={adding}
+        choosing={choosing}
+        onClose={() => {
+          setAdding(null);
+          setChoosing(null);
+        }}
+        onAdd={(position, stop) => edit({ type: 'add', position, stop })}
+        onReplace={(index, stop, mode) => edit({ type: 'replace', index, stop, mode })}
+      />
 
       {plan.canRate && <DateRating plan={plan} showItems={rateItems} onShowItems={setRateItems} />}
 

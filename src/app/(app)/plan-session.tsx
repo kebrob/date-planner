@@ -8,7 +8,7 @@ import type { PlanView } from '@/planner/view';
 import { generatePlanAction, savePlanAction } from './actions';
 import { PlanResult } from './plan-result';
 import { PlanningAnimation } from './planning-animation';
-import { StopPicker } from './stop-picker';
+import { PlanEditPickers } from './plan-edit-pickers';
 import { Toast } from './toast';
 
 export type CurrentPlan = { input: PlanInput; view: PlanView };
@@ -231,9 +231,6 @@ export function SessionResult({ session }: { session: PlanSession }) {
   }
   if (session.planning || !session.current) return null;
   const { view, input } = session.current;
-  const near = (index: number) => view.items[index]?.place?.location ?? input.areaPoint ?? null;
-  // Around the stop before the gap, or the one after it.
-  const nearGap = (position: number) => view.items[position - 1]?.place?.location ?? near(position);
   return (
     <>
       <Toast message={session.notice} onDone={session.clearNotice} />
@@ -249,33 +246,18 @@ export function SessionResult({ session }: { session: PlanSession }) {
           end: fromLocal(input.endDate, input.endTime),
         }}
       >
-        {adding !== null && (
-          <StopPicker
-            heading="Add a stop"
-            near={nearGap(adding)}
-            onClose={() => setAdding(null)}
-            onSurprise={() => {
-              session.addStop(adding, null);
-              setAdding(null);
-            }}
-            onPick={(picked) => {
-              session.addStop(adding, picked.stop);
-              setAdding(null);
-            }}
-          />
-        )}
-        {choosing !== null && (
-          <StopPicker
-            heading={`Instead of ${view.items[choosing]?.title.toLowerCase() ?? 'this'}`}
-            near={near(choosing)}
-            askMode
-            onClose={() => setChoosing(null)}
-            onPick={(picked, mode) => {
-              session.replace(choosing, picked.stop, mode);
-              setChoosing(null);
-            }}
-          />
-        )}
+        <PlanEditPickers
+          items={view.items}
+          area={input.areaPoint ?? null}
+          adding={adding}
+          choosing={choosing}
+          onClose={() => {
+            setAdding(null);
+            setChoosing(null);
+          }}
+          onAdd={session.addStop}
+          onReplace={session.replace}
+        />
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"

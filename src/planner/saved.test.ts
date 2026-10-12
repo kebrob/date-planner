@@ -86,6 +86,18 @@ describe('rowsToView', () => {
     expect(view.weather.reliability).toBe('none');
   });
 
+  it('keeps the map centre the plan was made for, so searches stay near it', () => {
+    const parameters = {
+      ...plan.parameters,
+      areaPoint: { name: 'Augsburg', lat: 48.37, lng: 10.9 },
+    };
+    expect(rowsToView({ ...plan, parameters }, [item], now).areaPoint).toEqual({
+      lat: 48.37,
+      lng: 10.9,
+    });
+    expect(rowsToView(plan, [item], now).areaPoint).toBeNull();
+  });
+
   it('offers rating once the date has started, with item ratings in order', () => {
     const rated = rowsToView(
       { ...plan, rating: 'love' },
