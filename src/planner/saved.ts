@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGeocoder, getPlaceDetailsProvider, getRail, getWeatherProvider } from '@/adapters';
+import { MAX_ITEMS } from '@/core/planner/build-plan';
 import type { RatingValue } from '@/core/planner/learning';
 import type { PlanWarning, Transport } from '@/core/planner/types';
 import { summarizeWeather, weatherConcern, windowWeather } from '@/core/planner/weather';
@@ -726,9 +727,6 @@ function unfitTitles(rows: ItemRow[], entries: (KeepEntry | null)[], view: PlanV
   });
 }
 
-// Same cap as the planner's.
-const MAX_STOPS = 5;
-
 /**
  * Adds a stop at a position: the stops stay, the one after the gap keeps its start so the new
  * one fills the gap. Throws when nothing fits there.
@@ -741,7 +739,7 @@ async function addStop(
   position: number,
   stop: ChosenStopInput | null,
 ): Promise<string[]> {
-  if (position < 0 || position > items.length || items.length >= MAX_STOPS) {
+  if (position < 0 || position > items.length || items.length >= MAX_ITEMS) {
     throw new PlanNotEditableError();
   }
   const entries = items.map(keepOf);

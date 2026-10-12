@@ -1,3 +1,4 @@
+import { MAX_ITEMS } from '@/core/planner/build-plan';
 import type {
   Plan,
   PlanWarning,
@@ -160,8 +161,6 @@ export function toPlanView(
 
 // A new stop needs time for itself and for getting there.
 const MIN_GAP_MINUTES = 60;
-// Same cap as the planner's.
-const MAX_STOPS = 5;
 
 export type FreeGap = {
   /** Where a new stop would go: before the item at this index (or at the end). */
@@ -171,7 +170,7 @@ export type FreeGap = {
 
 /** Free time between stops (and before the first / after the last) that could take another stop. */
 export function freeGaps(plan: PlanView, start: Date, end: Date): FreeGap[] {
-  if (plan.items.length >= MAX_STOPS) return [];
+  if (plan.items.length >= MAX_ITEMS) return [];
   const gaps: FreeGap[] = [];
   let free = start;
   const add = (position: number, until: Date, travelMinutes: number) => {
