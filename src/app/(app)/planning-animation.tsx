@@ -32,7 +32,12 @@ const LEG_PATHS = STOPS.slice(1).map((to, i) => {
 });
 const ROUTE = `M${STOPS[0]!.x} ${STOPS[0]!.y} ${LEG_PATHS.map((p) => p.slice(p.indexOf('C'))).join(' ')}`;
 
+// Once the plan is ready: the rest of the way to the heart, then a moment for the heart to pop.
+const FINISH_MS = 600;
+const FINISH_HOLD_MS = 350;
+
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const easeOut = (t: number) => 1 - (1 - t) ** 3;
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -74,9 +79,23 @@ function StopIcon({ index }: { index: number }) {
 // Fill of each stop once reached.
 const REACHED_FILL = ['#ffffff', '#f6d77a', '#f6d77a', '#f7c4b5'];
 
-/** Shown while a plan is put together: the two of you travelling along your date. */
-export function PlanningAnimation() {
+/**
+ * Shown while a plan is put together: the two of you travelling along your date. With `done`,
+ * it hurries to the heart and then calls `onFinished`.
+ */
+export function PlanningAnimation({
+  done = false,
+  onFinished,
+}: {
+  done?: boolean;
+  onFinished?: () => void;
+}) {
   const reduced = usePrefersReducedMotion();
+  // Read inside the animation loop, which is set up once.
+  const finish = useRef({ done, onFinished });
+  useEffect(() => {
+    finish.current = { done, onFinished };
+  }, [done, onFinished]);
   const route = useRef<SVGPathElement>(null);
   const drawn = useRef<SVGPathElement>(null);
   const legs = useRef<(SVGPathElement | null)[]>([]);
@@ -99,8 +118,35 @@ export function PlanningAnimation() {
     };
     const begin = performance.now();
     let frame = 0;
+    let lastLength = 0;
+    let finishing: { at: number; from: number } | null = null;
+    let finished = false;
 
     const tick = (now: number) => {
+      if (finish.current.done && !finishing) finishing = { at: now, from: lastLength };
+      if (finishing) {
+        const t = Math.max(0, now - finishing.at);
+        const length = reduced
+          ? total
+          : finishing.from + (total - finishing.from) * easeOut(Math.min(1, t / FINISH_MS));
+        drawn.current?.setAttribute('stroke-dashoffset', String(total - length));
+        place(lead.current, length);
+        place(follow.current, length - TRAIL);
+        setStep(STEPS.length - 1);
+        if (t >= FINISH_MS || reduced) {
+          setReached(LEGS + 1);
+          setPhase('arrived');
+        }
+        if (t >= FINISH_MS + FINISH_HOLD_MS || reduced) {
+          if (!finished) {
+            finished = true;
+            finish.current.onFinished?.();
+          }
+          return;
+        }
+        frame = requestAnimationFrame(tick);
+        return;
+      }
       // The frame timestamp can be slightly earlier than `begin`.
       const elapsed = Math.max(0, now - begin);
       const t = elapsed % LOOP_MS;
@@ -123,6 +169,7 @@ export function PlanningAnimation() {
         length = total;
         setReached(LEGS + 1);
       }
+      lastLength = length;
       drawn.current?.setAttribute('stroke-dashoffset', String(total - length));
       place(lead.current, length);
       place(follow.current, length - TRAIL);

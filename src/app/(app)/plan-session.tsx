@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import { fromLocal, toLocalTime } from '@/lib/time';
 import type { ChosenStopInput, PlanInput } from '@/planner/service';
 import type { PlanView } from '@/planner/view';
@@ -197,12 +197,30 @@ export function usePlanSession() {
 
 export type PlanSession = ReturnType<typeof usePlanSession>;
 
+// Plans ready sooner than this skip the animation, so it never just flashes.
+const ANIMATION_DELAY_MS = 400;
+
+/** Shows the animation once planning takes a moment, and keeps it until it has finished. */
+function usePlanningAnimation(planning: boolean) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!planning) return;
+    const timer = setTimeout(() => setVisible(true), ANIMATION_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [planning]);
+  const hide = useCallback(() => setVisible(false), []);
+  return { visible, hide };
+}
+
 /** The plan on screen with re-roll and save actions. */
 export function SessionResult({ session }: { session: PlanSession }) {
   const [choosing, setChoosing] = useState<number | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
-  if (session.planning) return <PlanningAnimation />;
-  if (!session.current) return null;
+  const animation = usePlanningAnimation(session.planning);
+  if (animation.visible) {
+    return <PlanningAnimation done={!session.planning} onFinished={animation.hide} />;
+  }
+  if (session.planning || !session.current) return null;
   const { view, input } = session.current;
   const near = (index: number) => view.items[index]?.place?.location ?? input.areaPoint ?? null;
   // Around the stop before the gap, or the one after it.
