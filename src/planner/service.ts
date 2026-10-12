@@ -322,6 +322,8 @@ export async function generatePlan(
       : customActivity(`chosen-${i}`, c.custom!);
     return a ? [{ ...c, activity: a, place: (c.place as Place | null) ?? null }] : [];
   });
+  // An idea chosen by the user that is no longer active (deleted, blocked) cannot be planned.
+  const chosenMissing = allChosen.length < (input.chosen ?? []).length;
   // On re-rolls the chosen stops are usually kept items already; rejected ones stay out.
   const kept = new Set(Object.values(input.keep ?? {}).map((k) => k.activityId));
   // A stop picked for a position was chosen just now, so it wins over earlier rejections.
@@ -496,6 +498,9 @@ export async function generatePlan(
     await db.insert(suggestionLog).values(suggested.map((activityId) => ({ activityId })));
   }
   if (closedAllDay.length > 0) plan.warnings.push('chosen_closed');
+  if (chosenMissing && !plan.warnings.includes('required_skipped')) {
+    plan.warnings.push('required_skipped');
+  }
   if (await placesLimitReached(now)) plan.warnings.push('places_daily_limit');
   return { plan, input, area };
 }

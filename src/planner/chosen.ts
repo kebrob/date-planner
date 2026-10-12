@@ -86,17 +86,26 @@ export const newIdeaSchema = z.object({
 
 /**
  * Saves a stop found by search as an active idea (the user chose it, so no review as draft).
- * An idea with the same title is reused instead of duplicated.
+ * An idea with the same title is reused instead of duplicated, and activated: the planner only
+ * uses active ideas, so a draft or blocked one would silently drop the chosen stop.
  */
 export async function addIdea(raw: z.input<typeof newIdeaSchema>): Promise<string> {
   const idea = newIdeaSchema.parse(raw);
   const db = getDb();
   const [existing] = await db
-    .select({ id: activity.id })
+    .select({ id: activity.id, status: activity.status })
     .from(activity)
     .where(sql`lower(${activity.title}) = lower(${idea.title})`)
     .limit(1);
-  if (existing) return existing.id;
+  if (existing) {
+    if (existing.status !== 'active') {
+      await db
+        .update(activity)
+        .set({ status: 'active' })
+        .where(eq(activity.id, existing.id));
+    }
+    return existing.id;
+  }
   const [row] = await db
     .insert(activity)
     .values({
