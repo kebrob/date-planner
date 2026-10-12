@@ -37,14 +37,13 @@ Ausgabe: Ablaufplan mit Uhrzeiten, konkreten Orten, Kosten, Wetterhinweis, Anrei
 - Preise der Lokale (Google `priceRange`), Sonnenstand-Ideen (`sunset`, `after_dark`)
 - Startseite mit Kacheln („Plan a date“, „Surprise us …“), Wizard in fünf Schritten
 
-### Phase 2
+### Phase 2 (umgesetzt, Stand 2026-10-12)
 
-| Thema                                                       | Status                                                                                                                                          |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bewertungen nach dem Date, lernendes Scoring (Tag-Gewichte) | offen – Tabelle `tag_weight` wird gelesen, aber nicht befüllt                                                                                   |
-| Aktivität sperren                                           | umgesetzt (Admin, Status `blocked`)                                                                                                             |
-| Zugverbindungen, Filter Regionalverkehr, Anreise-Routinen   | teilweise – Direktzüge über offizielle DB Timetables API inkl. Live-Status (ADR-009); offen: Umstiege, Aktualisierung vorab gespeicherter Pläne |
-| Wetterabhängige Vorlieben                                   | offen – bisher nur harte Filter (trocken, Temperatur) über das gesamte Zeitfenster                                                              |
+- Bewertungen nach dem Date (👎 / 👍 / ❤️ für das ganze Date, optional je Programmpunkt, änderbar, „We didn't go“, „It was the place“) und daraus lernendes Scoring inkl. Tag-Gewichten je Wetterlage (ADR-013, ADR-014)
+- Aktivität sperren (Admin; nach zwei 👎 schlägt die App das Sperren vor)
+- Zugverbindungen: Direktzüge und Verbindungen mit einem Umstieg, voraussichtliche Zeiten für Dates mehr als einen Tag voraus, Aktualisierung gespeicherter Pläne (ADR-009)
+- Wetterabhängige Vorlieben: Wetter je Programmpunkt, Standard-Vorlieben je Wetterlage, Hinweis mit „Tauschen“ bei gespeicherten Plänen
+- Getrennte Limits für bezahlte und kostenlose Ortssuchen
 
 ### Phase 3
 

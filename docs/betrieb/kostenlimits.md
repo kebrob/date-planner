@@ -62,21 +62,22 @@ Quellen: [Google Maps Platform Pricing](https://developers.google.com/maps/billi
 
 Gesetzt in Vercel (Production) bzw. lokal in `.env.local`. Vorlage: `.env.example`.
 
-| Variable                       | Default  | Bedeutung                                                                                        |
-| ------------------------------ | -------- | ------------------------------------------------------------------------------------------------ |
-| `AI_ENABLED`                   | `true`   | Kill-Switch: `false` deaktiviert alle Claude-Aufrufe sofort (Fallback: Prompt kopieren / Import) |
-| `AI_MONTHLY_BUDGET_USD`        | `15`     | App-Budget Claude pro Kalendermonat (unter Anthropic-Limit 20 $)                                 |
-| `AI_DAILY_BUDGET_USD`          | `2`      | App-Budget Claude pro Tag                                                                        |
-| `AI_MAX_TOOL_ITERATIONS`       | `8`      | Max. Runden im Tool-Loop pro Anfrage                                                             |
-| `AI_MAX_WEB_SEARCHES_CHAT`     | `3`      | Max. Websuchen pro Chat-Nachricht                                                                |
-| `AI_MAX_WEB_SEARCHES_GENERATE` | `5`      | Max. Websuchen pro „Ideen generieren“ (derzeit ungenutzt: Ideen werden ohne Websuche erzeugt)    |
-| `AI_MAX_WEB_SEARCHES_TRIP`     | `15`     | Max. Websuchen pro Ausflugsplanung                                                               |
-| `AI_MAX_API_CALLS_PER_DAY`     | `200`    | Max. Claude-API-Aufrufe pro Tag; jede Runde im Tool-Loop zählt einzeln                           |
-| `AI_REQUEST_TIMEOUT_MS`        | `90000`  | Timeout pro API-Request                                                                          |
-| `PLACES_PROVIDER`              | `google` | `google` oder `osm`                                                                              |
-| `PLACES_DAILY_LIMIT`           | `25`     | Max. Google-Places-Abfragen pro Tag (unter Google-Quota 30)                                      |
-| `PLACES_MAX_LOOKUPS_PER_PLAN`  | `6`      | Max. Ortsabfragen pro Plan-Generierung inkl. Neu würfeln                                         |
-| `PAID_CALLS_PER_MINUTE`        | `20`     | Notbremse: max. kostenpflichtige Aufrufe pro Minute über alle Anbieter                           |
+| Variable                           | Default  | Bedeutung                                                                                                                         |
+| ---------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `AI_ENABLED`                       | `true`   | Kill-Switch: `false` deaktiviert alle Claude-Aufrufe sofort (Fallback: Prompt kopieren / Import)                                  |
+| `AI_MONTHLY_BUDGET_USD`            | `15`     | App-Budget Claude pro Kalendermonat (unter Anthropic-Limit 20 $)                                                                  |
+| `AI_DAILY_BUDGET_USD`              | `2`      | App-Budget Claude pro Tag                                                                                                         |
+| `AI_MAX_TOOL_ITERATIONS`           | `8`      | Max. Runden im Tool-Loop pro Anfrage                                                                                              |
+| `AI_MAX_WEB_SEARCHES_CHAT`         | `3`      | Max. Websuchen pro Chat-Nachricht                                                                                                 |
+| `AI_MAX_WEB_SEARCHES_GENERATE`     | `5`      | Max. Websuchen pro „Ideen generieren“ (derzeit ungenutzt: Ideen werden ohne Websuche erzeugt)                                     |
+| `AI_MAX_WEB_SEARCHES_TRIP`         | `15`     | Max. Websuchen pro Ausflugsplanung                                                                                                |
+| `AI_MAX_API_CALLS_PER_DAY`         | `200`    | Max. Claude-API-Aufrufe pro Tag; jede Runde im Tool-Loop zählt einzeln                                                            |
+| `AI_REQUEST_TIMEOUT_MS`            | `90000`  | Timeout pro API-Request                                                                                                           |
+| `PLACES_PROVIDER`                  | `google` | `google` oder `osm`                                                                                                               |
+| `PLACES_DAILY_LIMIT`               | `25`     | Max. Google-Places-Abfragen pro Tag (unter Google-Quota 30)                                                                       |
+| `PLACES_MAX_LOOKUPS_PER_PLAN`      | `6`      | Max. Ortsabfragen pro Plan-Generierung inkl. Neu würfeln                                                                          |
+| `PLACES_MAX_FREE_LOOKUPS_PER_PLAN` | `6`      | Zusätzliche Suchen für kostenlose Ideen (zuerst OpenStreetMap); antwortet ersatzweise Google, zählt die Suche auch zum Limit oben |
+| `PAID_CALLS_PER_MINUTE`            | `20`     | Notbremse: max. kostenpflichtige Aufrufe pro Minute über alle Anbieter                                                            |
 
 Ist ein Limit erreicht, zeigt die App einen Hinweis („Tageslimit erreicht – morgen wieder verfügbar“) und fällt, wo möglich, auf kostenlose Alternativen zurück (OSM statt Google, Plan ohne Claude-Text).
 

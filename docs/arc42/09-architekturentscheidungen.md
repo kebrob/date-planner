@@ -60,6 +60,7 @@
 - **Entscheidung:** DB Timetables API (Free) für Fahrpläne und Echtzeit; Bahnhofsliste aus StaDa (Free) als Datei im Repo. Nur Direktverbindungen; Umstiege bleiben Schätzung bzw. Link auf bahn.de.
 - **Begründung:** Offiziell, kostenlos, stabil; für Rosenheim → München/Salzburg/Kufstein meist direkt.
 - **Risiko:** API im Beta-Status, Horizont ~1 Tag (→ Kapitel 11).
+- **Ergänzung (2026-10-12):** Verbindungen mit einem Umstieg über eine eigene Suche auf denselben Tafeln; für Dates jenseits des Horizonts voraussichtliche Züge aus einem Referenztag, die gespeicherte Pläne innerhalb des Horizonts durch echte ersetzen. Bundesweite GTFS-Daten mit eigenem Routing wären vollständiger (Busse, beliebig weit voraus), aber Import, Aktualisierung und Routing-Engine sind für zwei Nutzer zu aufwendig.
 
 ## ADR-010: Abhängigkeiten mit 7 Tagen Mindestalter
 
@@ -80,3 +81,19 @@
 - **Kontext:** Mit auf ~1 km gerundetem Wohnort sind Fußwege und Route-Links ungenau (z. B. 14 min zum Lokal um die Ecke).
 - **Entscheidung:** Im Admin lässt sich der Wohnort per Klick auf die Karte pinnen (ohne Adresseingabe, ohne Geocoding-Dienst). Der Pin wird nur in der eigenen DB gespeichert und für Wegzeiten (lokal berechnet) und Route-Links genutzt. Orts- und Wettersuchen bekommen weiterhin ein ~1-km-Raster. Ein Wechsel der Stadt löscht den Pin.
 - **Begründung:** Genaue Wege bei minimalem Datenabfluss; die Hausadresse verlässt die App nur, wenn der Nutzer selbst einen Route-Link öffnet.
+
+## ADR-013: Bewertung mit drei Stufen, für das Date und optional je Programmpunkt
+
+- **Status:** angenommen (2026-10-12)
+- **Kontext:** Zwei Nutzer, wenige Dates pro Monat; Bewertungen sollen schnell gehen und trotzdem zeigen, welche Idee gut war.
+- **Entscheidung:** 👎 / 👍 / ❤️ statt Sternen. Eine Bewertung für das ganze Date (ein Tipp), Programmpunkte optional; die Date-Bewertung gilt mit halbem Gewicht für alle Punkte ohne eigene Bewertung. Bewertungen sind änderbar und entfernbar; dazu „We didn't go“ und „It was the place“.
+- **Begründung:** Bei fünf Sternen landen die meisten Bewertungen bei 4–5, der Unterschied „3 vs. 4“ ist kein verlässliches Signal; drei Stufen sind eindeutig und mit einem Tipp erledigt. Nur das ganze Date zu bewerten würde nicht zeigen, welche Idee es war; nur Punkte zu bewerten kostet zu viele Tipps.
+- **Verworfen:** Sterne (1–5), nur Daumen hoch/runter (unterscheidet gut nicht von großartig).
+
+## ADR-014: Lernen über transparentes Scoring statt Machine Learning
+
+- **Status:** angenommen (2026-10-12)
+- **Kontext:** Bewertungen sollen Vorschläge verbessern. Erwartet werden < 100 Bewertungen pro Jahr von einem gemeinsamen Account.
+- **Entscheidung:** Geglättete Mittelwerte je Aktivität, je Tag und je Wetterlage, mit Zeitverfall, als Faktoren im bestehenden Score. Bei jeder Planung neu aus allen Bewertungen berechnet (reine Funktion in `core/planner`), nichts wird inkrementell gespeichert.
+- **Begründung:** Mit so wenigen Daten würde ein ML-Modell Rauschen lernen und wäre nicht nachvollziehbar. Neuberechnung macht Änderungen und Löschungen exakt und ist bei wenigen hundert Zeilen schneller als jede Synchronisation.
+- **Verworfen:** ML-Modell (z. B. Regression), inkrementelle Tag-Gewichte in `tag_weight`.

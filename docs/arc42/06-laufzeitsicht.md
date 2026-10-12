@@ -10,10 +10,11 @@ sequenceDiagram
     participant P as Planner (core)
     participant PL as PlacesProvider
     U->>A: Zeitfenster, Budget, Verkehrsmittel, Vorlieben
-    A->>W: Vorhersage für Ort + Zeitfenster
-    A->>P: Kandidaten filtern (Budget, Wetter, Zeit, Verkehrsmittel, gesperrt)
-    P->>P: Scoren + gewichteter Zufall → Reihenfolge
-    loop pro Programmpunkt, max. PLACES_MAX_LOOKUPS_PER_PLAN Ortsabfragen gesamt
+    A->>W: Stündliche Vorhersage für Ort + Zeitfenster
+    A->>A: Gelernte Werte aus allen Bewertungen
+    A->>P: Kandidaten filtern (Budget, Wetter je Punkt, Zeit, Verkehrsmittel, gesperrt)
+    P->>P: Scoren (Vorlieben, Bewertungen, Wetter) + gewichteter Zufall → Reihenfolge
+    loop pro Programmpunkt, max. PLACES_MAX_LOOKUPS_PER_PLAN (+ kostenlose) Ortsabfragen
         P->>PL: Orte vom Typ X im Umkreis (über Budget-Wächter)
         alt Treffer + geöffnet
             P->>P: Programmpunkt übernehmen

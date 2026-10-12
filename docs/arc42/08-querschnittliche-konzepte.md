@@ -15,7 +15,7 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 ### Regeln für den Code
 
 1. **Kein kostenpflichtiger Aufruf ohne Wächter.** Adapter für Claude und Google erhalten den HTTP-Client nur über den Wächter; ein direkter Aufruf ist strukturell nicht vorgesehen.
-2. **Jede Schleife hat eine feste Obergrenze.** Kein `while (true)`, keine Rekursion über externe Aufrufe. Tool-Loop: `AI_MAX_TOOL_ITERATIONS`, Ortsabfragen: `PLACES_MAX_LOOKUPS_PER_PLAN`.
+2. **Jede Schleife hat eine feste Obergrenze.** Kein `while (true)`, keine Rekursion über externe Aufrufe. Tool-Loop: `AI_MAX_TOOL_ITERATIONS`, Ortsabfragen: `PLACES_MAX_LOOKUPS_PER_PLAN` (bezahlt) + `PLACES_MAX_FREE_LOOKUPS_PER_PLAN` (kostenlose Ideen).
 3. **Jeder Claude-Request hat `max_tokens`, Timeout und bei Websuche `max_uses`.**
 4. **Retries begrenzt:** SDK-Retries max. 2; keine eigenen Retry-Schleifen um kostenpflichtige Aufrufe.
 5. **Circuit Breaker:** Nach 5 aufeinanderfolgenden Fehlern eines Anbieters 10 Minuten Pause statt weiterer Versuche.
@@ -26,18 +26,19 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 
 ### Pflicht-Tests
 
-| Test                                             | Erwartung                                                                                                        |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| Claude-Mock liefert immer einen Tool-Aufruf      | Loop endet nach `AI_MAX_TOOL_ITERATIONS`, Anzahl API-Aufrufe = Limit                                             |
-| Tagesbudget / Monatsbudget erreicht              | Kein weiterer Aufruf an den Mock, verständliche Fehlermeldung                                                    |
-| Parallele Reservierungen knapp unter Limit       | Insgesamt nie über Limit                                                                                         |
-| Jeder Claude-Request (Chat, Generieren, Ausflug) | enthält `max_tokens`; mit Websuche auch `max_uses` ≤ konfiguriertem Wert                                         |
-| Places-Mock liefert nie Treffer                  | Planner beendet mit ≤ `PLACES_MAX_LOOKUPS_PER_PLAN` Abfragen und liefert trotzdem einen Plan (Zu-Hause-Fallback) |
-| Places-Tageslimit erreicht                       | Kein `fetch` an Google, Umschalten auf Fallback                                                                  |
-| Mehr als `PAID_CALLS_PER_MINUTE` Aufrufe         | Überzählige werden abgelehnt                                                                                     |
-| 5 Fehler in Folge                                | Circuit Breaker offen, kein weiterer Aufruf für 10 Minuten                                                       |
-| `AI_ENABLED=false`                               | Kein Claude-Aufruf, UI zeigt Import-Fallback                                                                     |
-| DB nicht erreichbar beim Reservieren             | Aufruf wird abgelehnt (fail closed)                                                                              |
+| Test                                                     | Erwartung                                                                                                        |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Claude-Mock liefert immer einen Tool-Aufruf              | Loop endet nach `AI_MAX_TOOL_ITERATIONS`, Anzahl API-Aufrufe = Limit                                             |
+| Tagesbudget / Monatsbudget erreicht                      | Kein weiterer Aufruf an den Mock, verständliche Fehlermeldung                                                    |
+| Parallele Reservierungen knapp unter Limit               | Insgesamt nie über Limit                                                                                         |
+| Jeder Claude-Request (Chat, Generieren, Ausflug)         | enthält `max_tokens`; mit Websuche auch `max_uses` ≤ konfiguriertem Wert                                         |
+| Places-Mock liefert nie Treffer                          | Planner beendet mit ≤ `PLACES_MAX_LOOKUPS_PER_PLAN` Abfragen und liefert trotzdem einen Plan (Zu-Hause-Fallback) |
+| Kostenlose Ideen antworten über Google (OSM ausgefallen) | Zählen zum bezahlten Limit; danach keine weiteren kostenlosen Suchen über Google                                 |
+| Places-Tageslimit erreicht                               | Kein `fetch` an Google, Umschalten auf Fallback                                                                  |
+| Mehr als `PAID_CALLS_PER_MINUTE` Aufrufe                 | Überzählige werden abgelehnt                                                                                     |
+| 5 Fehler in Folge                                        | Circuit Breaker offen, kein weiterer Aufruf für 10 Minuten                                                       |
+| `AI_ENABLED=false`                                       | Kein Claude-Aufruf, UI zeigt Import-Fallback                                                                     |
+| DB nicht erreichbar beim Reservieren                     | Aufruf wird abgelehnt (fail closed)                                                                              |
 
 ## Sicherheit
 
@@ -63,13 +64,13 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - OpenStreetMap-Kacheln werden mit `Referrer-Policy: strict-origin-when-cross-origin` geladen (OSM verlangt einen Referer); app-weit gilt `same-origin`.
 - Für Ortstypen mit Google-Entsprechung (Park, Kino, Minigolf, Bowling, Restaurant …) sucht Google zusätzlich per `includedType` + `strictTypeFiltering` – sonst liefert z. B. „Park“ auch Skateparks. Ohne Entsprechung (Escape Room, Bouldern, Therme) entscheidet die Textsuche.
 - Google-Textsuche ist per `locationRestriction` (Rechteck um den Suchkreis) auf das Suchgebiet beschränkt, sonst liefert Google bekannte Orte weit außerhalb.
-- Kostenlose Ideen (Park, Bücherei, Kirche …) werden zuerst über OpenStreetMap gesucht, um Google-Kontingent zu sparen. Die öffentliche Overpass-API ist oft langsam (gemessen bis 18 s) oder antwortet mit 429: Zeitlimit 4 s, Suchradius max. 15 km, nach einem Fehler wird OSM 10 min übersprungen (Schutzschalter) und Google antwortet direkt.
+- Kostenlose Ideen (Park, Bücherei, Kirche …) werden zuerst über OpenStreetMap gesucht, um Google-Kontingent zu sparen; sie haben ein eigenes Limit pro Plan, damit lange Tage nicht am bezahlten Limit scheitern. Die öffentliche Overpass-API ist oft langsam (gemessen bis 18 s) oder antwortet mit 429: Zeitlimit 4 s, Suchradius max. 15 km, nach einem Fehler wird OSM 10 min übersprungen (Schutzschalter) und Google antwortet direkt.
 - Für jeden Port gibt es eine gemeinsame Contract-Test-Suite, die alle Adapter erfüllen müssen.
 
 ## Planner-Logik
 
-1. **Harte Filter:** Budget, Verkehrsmittel, Wetter-Eignung, Dauer passt ins Zeitfenster, Tageszeit/Saison, gesperrte Aktivitäten.
-2. **Score:** Basis + Übereinstimmung mit Vorlieben (je passender Stimmung +2, eine passende Idee wiegt also dreifach) − Abwechslungs-Abzug (abklingend mit Tagen seit letzter Durchführung/Vorschlag); Phase 2 zusätzlich Bewertungs-Bonus und gelernte Tag-Gewichte.
+1. **Harte Filter:** Budget, Verkehrsmittel, Wetter-Eignung (für die Stunden des jeweiligen Programmpunkts, nicht das ganze Zeitfenster), Dauer passt ins Zeitfenster, Tageszeit/Saison, gesperrte Aktivitäten.
+2. **Score:** Basis + Übereinstimmung mit Vorlieben (je passender Stimmung +2, eine passende Idee wiegt also dreifach) + gelernte Tag-Gewichte (allgemein und für die erwartete Wetterlage, zusammen max. ±1,5) − Abwechslungs-Abzug (abklingend mit Tagen seit letzter Durchführung/Vorschlag; bei geliebten Ideen schwächer). Das Ergebnis wird mit dem Bewertungsfaktor der Aktivität (geliebt bis ×2,8, abgelehnt bis ×0,35), einem kleinen Bonus für noch nie gemachte Ideen (×1,15) und dem Wetterfaktor multipliziert (→ Wetter).
 3. **Gewichteter Zufall** über die Scores (seedbar für Tests).
 4. **Planformat** aus Zeitfenster (< 3 h eine Aktivität, 3–6 h zwei Programmpunkte, > 6 h Tagesplan), manuell überschreibbar. **Essen** per Filter (Auto / kein Essen / Snack / Mahlzeit); bei „Auto“ zufällige Vorlage inkl. Reihenfolge, Mahlzeiten nur ab 40 € Budget. Passt gewünschtes Essen nicht, gibt es einen Hinweis.
 5. **Route statt Zickzack:** Erster Ort rund um Wohnort bzw. optionalen Zielort (Geocoding über Open-Meteo). Mittelpunkt und Radius über eine Karte (Leaflet + OpenStreetMap-Kacheln, kostenlos) wählbar: Zuhause, gesuchte Stadt oder Klick auf die Karte; Radius frei per Regler (1–150 km); bei „Fit to time“ darf die Anreise etwa ein Viertel des Zeitfensters dauern (15–120 min), umgerechnet über ein grobes Durchschnittstempo je Verkehrsmittel. Jeder weitere Ort liegt entweder nah am vorherigen (Auto 20 km, ÖPNV 10 km, Rad 6 km, zu Fuß 2 km) oder im Korridor Richtung Ziel (Zielort, danach Zuhause) mit max. 25 % Umweg. Mit gewähltem Zielort beginnt das Date immer dort; ohne Zielort wird meist am aktuellen Ort gesucht, in ~25 % der Fälle entlang des Wegs. **Wege** je Abschnitt mit Verkehrsmittel (zu Fuß < 1,2 km, ÖPNV < 25 km, sonst Zug bzw. Auto) und Zeit; Anreise-Routine nur ab Zuhause.
@@ -79,7 +80,25 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 9. **Budget überziehen (immer aktiv):** Jeder Punkt wird zuerst im Budget gesucht; nur wenn sonst nichts passt, darf bis 50 % über Budget geplant werden. Der Mehrbetrag wird angezeigt.
 10. **Rückfall ohne Rücklage:** Passt ein Punkt nur nicht, weil Zeit/Geld für spätere Punkte reserviert ist, wird er ohne Rücklage geplant (lieber ein Punkt als keiner). Gefundene Orte werden pro Planung zwischengespeichert, Wiederholungen kosten keine neuen Abfragen. Vor jeder Ortsabfrage wird geprüft, ob die Idee selbst am günstigsten Punkt des Suchgebiets in Zeit und Budget passt; sonst wird sie ohne Abfrage übersprungen (wichtig bei weit entfernten Zielorten).
 11. **Sonnenstand:** Ideen mit Tag `sunset` müssen den Sonnenuntergang einschließen, `after_dark` beginnen ≥ 45 min danach; dafür darf bis 90 min gewartet werden. Sonnenuntergang wird lokal astronomisch berechnet (keine API, jedes Datum).
-12. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
+12. **Abgelehnte Orte:** Orte, die bei einer Bewertung als Problem markiert wurden, bleiben möglich, rangieren aber ganz hinten (×0,02).
+13. **Neu würfeln:** ganzer Plan oder ein Programmpunkt (Aufbau des bisherigen Plans bleibt erhalten); abgelehnte Aktivitäten werden für die laufende Planung ausgeschlossen.
+
+## Wetter
+
+- **Je Programmpunkt:** Der Planner bekommt die stündliche Vorhersage und prüft jede Idee für die Stunden, in denen sie stattfände (Regen am Nachmittag sperrt Minigolf am Vormittag nicht). Ohne stündliche Daten gilt die Zusammenfassung des ganzen Zeitfensters.
+- **Wetterlagen** aus Open-Meteo (Temperatur, Niederschlag, Bewölkung, Wind, Schnee): `rain`, `snow`, `sunny` (trocken, Bewölkung < 40 %), `hot` (≥ 27 °C), `cold` (≤ 6 °C), `windy` (≥ 40 km/h).
+- **Standard-Vorlieben** (Faktor auf den Score, im Code festgelegt): Regen → indoor/zu Hause ×1,5, outdoor ×0,4; Sonne → outdoor ×1,5, indoor ×0,75, Biergarten/Aussichtspunkt/Park/See ×1,3; Hitze → Badesee/Schwimmen/Eis ×1,8, aktiv ×0,7; Kälte → Therme/Café ×1,5, outdoor ×0,6; Schnee → indoor ×1,3, outdoor ×0,7; Wind → outdoor ×0,8. Gelernte Tag-Gewichte je Wetterlage kommen hinzu (→ Bewertungen).
+- **Gespeicherte Pläne:** Beim Ansehen wird das Wetter aktualisiert; passt ein Punkt nicht mehr (Regen/Schnee bei outdoor, zu kalt/warm), erscheint ein Hinweis mit „Swap for something else“ (Neu würfeln dieses Punkts).
+
+## Bewertungen und Lernen
+
+- **Skala:** 👎 Not for us / 👍 Good / ❤️ Loved it (ADR-013). Bewertet wird das ganze Date, optional jeder Programmpunkt. Erneutes Antippen entfernt die Bewertung; nicht bewerten ist erlaubt und zählt nie negativ.
+- **Ab Beginn des Dates** bewertbar. Die Startseite zeigt 14 Tage lang einen Hinweis für das letzte unbewertete Date („Skip“ blendet ihn aus).
+- **„We didn't go“** nimmt das Date aus Abwechslung (`suggestion_log.accepted`) und Lernen heraus; rückgängig machbar.
+- **„It was the place, not the idea“** (nur bei 👎 mit Ort): Der Ort wird gemieden, die Idee selbst nicht abgewertet.
+- **Lernen** (ADR-014, `core/planner/learning.ts`): bei jeder Planung neu aus allen Bewertungen berechnet, dadurch wirken Änderungen und Löschungen sofort und ohne Reste. Werte: 👎 −1, 👍 +0,4, ❤️ +1; Punkt-Bewertung Gewicht 1, geerbte Date-Bewertung 0,5; Halbwertszeit 180 Tage. Mittelwert je Aktivität mit 1 neutralen Pseudo-Bewertung, je Tag (allgemein und je Wetterlage) mit 3, damit einzelne Bewertungen nicht dominieren.
+- **Wetterlage beim Bewerten:** Beim ersten Bewerten holt die App das tatsächliche Wetter des Dates (Open-Meteo, auf ~10 km gerundeter Punkt) und speichert die Wetterlage je Programmpunkt.
+- **Sperren vorschlagen:** Nach zwei 👎 für dieselbe Idee bietet die App „Block idea“ an; gesperrt wird nie automatisch.
 
 ## Essen
 
@@ -117,11 +136,14 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 
 ## Zugverbindungen
 
-- **Quelle:** offizielle DB Timetables API (Free-Plan) für Abfahrten/Ankünfte mit Echtzeit, Bahnhofsliste aus StaDa (einmalig per `npm run rail:stations`, im Repo). Kein Routing: nur **Direktverbindungen**.
+- **Quelle:** offizielle DB Timetables API (Free-Plan) für Abfahrten/Ankünfte mit Echtzeit, Bahnhofsliste aus StaDa (einmalig per `npm run rail:stations`, im Repo). Kein Routing der API: **Direktverbindungen**, sonst **ein Umstieg** (eigene Suche).
 - **Suche:** Hinweg ab dem Startbahnhof – Züge, deren Laufweg einen Bahnhof nahe dem Ziel enthält; Ankunft über die Fahrt-ID im Fahrplan des Zielbahnhofs. Heimweg gespiegelt ab den Ankünften am Heimatbahnhof, damit nicht die nächste S-Bahn-Station ohne Direktzug gewählt wird. Exakte Bahnhofsnummer über den Namen aus dem Laufweg (z. B. „München Hbf Gl.5-10“).
-- **Plan:** Nach der Planung werden geschätzte Zugabschnitte durch echte Züge ersetzt; spätere Punkte rücken bei Bedarf nach hinten. Losgehzeit nach planmäßiger Abfahrt minus Weg zum Bahnhof (Anreise-Routine bzw. Fußweg). Fahrpläne reichen nur ~1 Tag voraus, danach bleibt die Schätzung.
+- **Umstieg:** Nur wenn kein Direktzug fährt. Umstiegsbahnhöfe sind Bahnhöfe auf dem Laufweg eines abfahrenden Zugs am Start und eines ankommenden Zugs am Ziel (die zwei häufigsten), mind. 6 min Umsteigezeit. Große Bahnhöfe haben mehrere Namen/Nummern („München Hbf Gl.5-10“), alle werden zusammengeführt. Kostet zusätzliche Abfragen; bei Fehler oder Rate Limit bleibt die Schätzung.
+- **Plan:** Nach der Planung werden geschätzte Zugabschnitte durch echte Züge ersetzt; spätere Punkte rücken bei Bedarf nach hinten. Losgehzeit nach planmäßiger Abfahrt minus Weg zum Bahnhof (Anreise-Routine bzw. Fußweg).
+- **Voraussichtliche Zeiten:** Fahrpläne reichen nur ~1 Tag voraus. Liegt die Abfahrt mehr als 20 h entfernt, werden die Züge eines Referenztags (heute oder morgen, möglichst gleiche Tagesart Werktag/Samstag/Sonntag, Uhrzeit noch in der Zukunft) auf das Datum übertragen und als „expected“ markiert; ohne Echtzeit, kein Live-Status.
+- **Gespeicherte Pläne:** Beim Ansehen (und für die Live-Karte bei Dates in den nächsten 12 h) werden Abschnitte ohne echten Zug neu gesucht, höchstens alle 6 h pro Plan; bereits echte Züge bleiben unverändert. Voraussichtliche Züge werden erst innerhalb des Horizonts ersetzt.
 - **Deutschlandticket:** Fernverkehr (ICE, IC, EC, RJ, Flix …) ausgeschlossen; passt nur ein Fernzug, wird er mit Hinweis gezeigt.
-- **Live:** Startseite zeigt den nächsten Zug eines gespeicherten Dates (bis 12 h vorher) mit Verspätung, Gleis und Ausfall; Abfrage alle 60 s nur bei sichtbarer Seite.
+- **Live:** Startseite zeigt den nächsten Zug eines gespeicherten Dates (bis 12 h vorher, inkl. Anschlusszug) mit Verspätung, Gleis und Ausfall; Abfrage alle 60 s nur bei sichtbarer Seite.
 - **Trips:** Hin- (1. Tag ab 8 Uhr) und Rückfahrt (letzter Tag ab 14 Uhr) bekommen einen echten Direktzug, sonst bleiben Claudes Hinweise.
 - **Datenschutz/Quote:** Für den Heimatbahnhof nur das ~1-km-Raster; max. 50 Abfragen/min (API: 60), Fahrpläne 6 h, Echtzeit 30 s gecacht. Fehler → Schätzung bleibt, Hinweis im Plan.
 
@@ -130,7 +152,8 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - **Upcoming:** gespeicherte Pläne mit Datum in der Zukunft, mehrere parallel; auf der Startseite als Karten, Detailseite `/plans/[id]`.
 - **Bearbeiten** (nur kommende Pläne): Punkt neu würfeln, entfernen, Alternative wählen, Datum ändern, Notiz. Änderungen planen mit festgehaltenen Punkten neu; passt ein Ort nicht mehr (z. B. geschlossen), wird er ersetzt und ein Hinweis angezeigt.
 - **Ansehen kostet nichts:** Plan, Orte, Wege kommen aus der DB; nur das Wetter (kostenlos) wird bei kommenden Plänen aktualisiert.
-- **Past:** Status ergibt sich aus dem Datum (kein Löschen; Verlauf dient Abwechslung und späteren Bewertungen). Löschen ist manuell möglich.
+- **Past:** Status ergibt sich aus dem Datum (kein Löschen; Verlauf dient Abwechslung und Bewertungen). Löschen ist manuell möglich.
+- **Wetter-Hinweis:** kommende Pläne zeigen je Punkt, wenn die aktuelle Vorhersage nicht mehr passt (→ Wetter).
 - **Favoriten:** Stern pro Plan; **Plan again** übernimmt Punkte und Orte für ein neues Datum.
 - **Archivierung (Google-Nutzungsbedingungen):** Nach dem Datum werden bei Google-Orten nur Place-ID und Name behalten, Koordinaten/Adresse/Öffnungszeiten/Alternativen sowie alle Routen-Links (enthalten Koordinaten) entfernt. „Plan again“ lädt archivierte Google-Orte per Place Details neu (1 Abfrage pro Ort über den Budget-Wächter). OpenStreetMap-Daten bleiben vollständig erhalten.
 
