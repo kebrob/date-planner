@@ -34,6 +34,8 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
     'Only a long-distance train fits – it is not covered by the Deutschlandticket.',
   train_late_return: 'The last fitting train gets you home after the planned end.',
   trains_unavailable: 'Live train times are unavailable right now – train times are estimates.',
+  way_home_not_planned:
+    'Home is too far to walk or cycle from there, so the way back is not part of this plan.',
 };
 
 type Leg = NonNullable<PlanView['travelHome']>;

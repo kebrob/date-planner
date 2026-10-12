@@ -840,6 +840,31 @@ describe('route planning', () => {
     expect(plan.warnings).not.toContain('fallback_used');
   });
 
+  it('leaves out a way home that is too far to walk when already in the destination', async () => {
+    const walk = (area: LatLng) =>
+      buildPlan(
+        request({
+          format: 'single',
+          food: 'none',
+          transport: 'walk',
+          area: { name: 'Town', location: area },
+          startInArea: true,
+        }),
+        context({
+          activities: [cinema, boardGames],
+          findPlaces: async (a, center) => [placeAt(center, 0.3, a.id)],
+        }),
+      );
+    const far = await walk(north(10));
+    expect(far.items.map((i) => i.activity.id)).toEqual(['cinema']);
+    expect(far.travelHome).toBeNull();
+    expect(far.warnings).toContain('way_home_not_planned');
+
+    const near = await walk(north(1));
+    expect(near.travelHome).not.toBeNull();
+    expect(near.warnings).not.toContain('way_home_not_planned');
+  });
+
   it('plans no way home when staying in the destination', async () => {
     const munich = { lat: 48.14, lng: 11.58 };
     const plan = await buildPlan(

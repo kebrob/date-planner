@@ -1,6 +1,6 @@
 import { addMinutes, minutesBetween } from '@/lib/time';
 import type { Place } from '@/ports/places';
-import { distanceKm, estimateTravel } from './geo';
+import { distanceKm, estimateTravel, maxDistanceKm } from './geo';
 import { weightedShuffle } from './random';
 import {
   chooseSlots,
@@ -227,7 +227,14 @@ function apply(item: PlanItem, state: State, request: PlanRequest, ctx: PlanCont
  * Builds a schedule for the request. All loops are bounded: at most `MAX_ITEMS` items, 15 candidates
  * per slot and attempt, and `maxPlaceLookups` + `maxFreePlaceLookups` place searches in total.
  */
-export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise<Plan> {
+export async function buildPlan(planRequest: PlanRequest, ctx: PlanContext): Promise<Plan> {
+  // Already in a town out of walking or cycling range of home: they got there some other way, so
+  // the way back is not part of the date and it is planned like staying there.
+  const homeOutOfReach =
+    startsInArea(planRequest) &&
+    !endsInArea(planRequest) &&
+    distanceKm(planRequest.area!.location, ctx.home) > maxDistanceKm(planRequest.transport);
+  const request = homeOutOfReach ? { ...planRequest, endInArea: true } : planRequest;
   const duration = minutesBetween(request.start, request.end);
   const format = request.format ?? formatFor(duration);
   const state: State = {
@@ -247,6 +254,7 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
   };
   if (ctx.weather.reliability === 'none') state.warnings.add('forecast_unavailable');
   if (ctx.weather.reliability === 'low') state.warnings.add('forecast_unreliable');
+  if (homeOutOfReach) state.warnings.add('way_home_not_planned');
 
   const anchors = await resolveAnchors(request, state, ctx);
   const slots = withRequiredSlots(

@@ -227,6 +227,7 @@ export const PLAN_WARNINGS = [
   'train_ticket_needed',
   'train_late_return',
   'trains_unavailable',
+  'way_home_not_planned',
 ] as const;
 export type PlanWarning = (typeof PLAN_WARNINGS)[number];
 
