@@ -76,3 +76,18 @@ export function addMinutes(date: Date, minutes: number): Date {
 export function minutesBetween(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 60_000);
 }
+
+/** "18:30" in Europe/Berlin, for display. */
+export const timeFormat = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** "Sat 10 Oct" in Europe/Berlin, for display. */
+export const shortDayFormat = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TIME_ZONE,
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+});

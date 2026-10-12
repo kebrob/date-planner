@@ -8,6 +8,7 @@ import type { LatLng, Place } from '@/ports/places';
 import { addIdeaAction, listIdeaOptionsAction, searchPlacesAction } from './actions';
 import { useFocusTrap } from './focus-trap';
 import { SearchField } from './search-field';
+import { CloseIcon } from './icons';
 
 export type PickedStop = {
   stop: ChosenStopInput;
@@ -212,17 +213,7 @@ export function StopPicker({
             aria-label="Close"
             className="grid h-11 w-11 place-items-center rounded-full bg-cream hover:bg-butter"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <path d="m3 3 8 8M11 3 3 11" />
-            </svg>
+            <CloseIcon large />
           </button>
         </div>
 

@@ -12,6 +12,7 @@ import { MOODS } from '../moods';
 import { Face } from './face';
 import type { TimePreset } from './presets';
 import { TRANSPORTS } from '../transports';
+import { BackIcon, CloseIcon } from '../icons';
 
 type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
@@ -308,18 +309,7 @@ export function Wizard({
             aria-label="Back"
             className="grid h-10 w-10 place-items-center rounded-full hover:bg-cream"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M11 3 5 9l6 6" />
-            </svg>
+            <BackIcon />
           </button>
         )}
         <div
@@ -481,17 +471,7 @@ export function Wizard({
                           onClick={() => setPicks((cur) => cur.filter((_, j) => j !== i))}
                           className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/70 hover:bg-white"
                         >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 12 12"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            aria-hidden
-                          >
-                            <path d="m3 3 6 6M9 3 3 9" />
-                          </svg>
+                          <CloseIcon />
                         </button>
                       </li>
                     ))}

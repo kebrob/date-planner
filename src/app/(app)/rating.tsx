@@ -1,5 +1,6 @@
 'use client';
 
+import { shortDayFormat } from '@/lib/time';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { SavedPlanView } from '@/planner/saved';
@@ -18,13 +19,6 @@ type Rating = SavedPlanView['rating'];
 // At least 44 px high: these are tapped on the phone, often on the way home.
 const quietButton =
   'inline-flex min-h-11 items-center rounded-full px-3 text-sm text-mist hover:bg-white/70 hover:text-ink disabled:opacity-50';
-
-const DAY = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-});
 
 /** Three options; tapping the selected one again removes the rating. */
 export function RatingButtons({
@@ -273,7 +267,7 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
     <section className="flex flex-col gap-3 rounded-3xl bg-cream p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">How was {DAY.format(prompt.startsAt)}?</p>
+          <p className="font-medium">How was {shortDayFormat.format(prompt.startsAt)}?</p>
           <p className="text-sm text-mist">{prompt.titles.join(' → ')}</p>
         </div>
         <button

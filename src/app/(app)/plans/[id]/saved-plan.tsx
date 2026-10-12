@@ -16,6 +16,7 @@ import { DateRating, ItemRating } from '../../rating';
 import { StopPicker } from '../../stop-picker';
 import { Toast } from '../../toast';
 import { TRANSPORTS } from '../../transports';
+import { CloseIcon } from '../../icons';
 
 const field = 'rounded-lg border border-line bg-transparent px-3 py-2';
 
@@ -258,17 +259,7 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
               aria-label="Close"
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-cream"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                aria-hidden
-              >
-                <path d="m3 3 6 6M9 3 3 9" />
-              </svg>
+              <CloseIcon />
             </button>
           </div>
           <WindowFields value={window} onChange={setWindow} />
