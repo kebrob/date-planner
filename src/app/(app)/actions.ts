@@ -7,31 +7,13 @@ import { z } from 'zod';
 import { getGeocoder } from '@/adapters';
 import { SIGN_IN_AGAIN } from '@/auth/responses';
 import { destroyAllSessions, hasFreshSession, requireSession } from '@/auth/session';
-import { logError, type Result } from '@/lib/result';
+import type { Result } from '@/lib/result';
 import { getDb } from '@/db/client';
 import { loadSettings } from '@/db/settings';
 import { passkey } from '@/db/schema';
-import {
-  editPlan,
-  planAgain,
-  PlanNotEditableError,
-  StopNotAddedError,
-  type PlanEdit,
-} from '@/planner/edit';
-import {
-  deletePlan,
-  PlanNotFoundError,
-  savePlan,
-  updatePlanMeta,
-  type Window,
-} from '@/planner/saved';
-import {
-  AreaNotFoundError,
-  generatePlan,
-  homePoint,
-  savedInput,
-  type PlanInput,
-} from '@/planner/service';
+import { editPlan, planAgain, type PlanEdit } from '@/planner/edit';
+import { deletePlan, savePlan, updatePlanMeta, type Window } from '@/planner/saved';
+import { generatePlan, homePoint, savedInput, type PlanInput } from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
 import {
   addIdea,
@@ -45,31 +27,13 @@ import type { Place } from '@/ports/places';
 import { nextTrain, type LiveTrain } from '@/planner/live';
 import {
   dismissRatingPrompt,
-  PlanNotRatableError,
   rateDate,
   rateItem,
   ratingSchema,
   setNotHappened,
   type Rating,
 } from '@/ratings/service';
-
-function failure(error: unknown, fallback: string): { ok: false; error: string } {
-  if (error instanceof AreaNotFoundError) {
-    return { ok: false, error: `Couldn't find "${error.query}". Try a town or city name.` };
-  }
-  if (error instanceof PlanNotFoundError) return { ok: false, error: 'Plan not found.' };
-  if (error instanceof PlanNotEditableError) {
-    return { ok: false, error: 'This plan can no longer be changed.' };
-  }
-  if (error instanceof StopNotAddedError) {
-    return { ok: false, error: 'Nothing fits into that gap. Try another idea.' };
-  }
-  if (error instanceof PlanNotRatableError) {
-    return { ok: false, error: 'This date cannot be rated (yet).' };
-  }
-  logError(fallback, error);
-  return { ok: false, error: fallback };
-}
+import { failure } from './action-failure';
 
 function revalidatePlans(id?: string) {
   revalidatePath('/');

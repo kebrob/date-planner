@@ -1,9 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { ZodError } from 'zod';
 import {
-  AdminInputError,
   deleteActivity,
   deleteRoutine,
   exportIdeasPrompt,
@@ -15,40 +13,9 @@ import {
   saveSettings,
   setActivityStatus,
 } from '@/admin/service';
-import { IdeasGenerationError, IdeasImportError } from '@/ai/ideas';
 import { requireSession } from '@/auth/session';
-import { logError, type Result } from '@/lib/result';
-import { GuardDeniedError } from '@/guard';
-
-const GUARD_MESSAGES: Record<GuardDeniedError['reason'], string> = {
-  daily_budget: 'Daily Claude budget reached – try again tomorrow or use the prompt export.',
-  monthly_budget: 'Monthly Claude budget reached – use the prompt export instead.',
-  daily_requests: 'Daily request limit reached – try again tomorrow.',
-  rate_limit: 'Too many requests right now – wait a minute.',
-  circuit_open: 'Claude is failing repeatedly – paused for a few minutes.',
-  store_unavailable: 'Usage tracking unavailable, so the request was blocked for safety.',
-  disabled: 'Claude is disabled (AI_ENABLED=false). Use the prompt export instead.',
-};
-
-function failure(error: unknown, fallback: string): { ok: false; error: string } {
-  if (error instanceof ZodError) {
-    const issue = error.issues[0];
-    return {
-      ok: false,
-      error: issue ? `${issue.path.join('.') || 'Input'}: ${issue.message}` : fallback,
-    };
-  }
-  if (error instanceof GuardDeniedError) return { ok: false, error: GUARD_MESSAGES[error.reason] };
-  if (
-    error instanceof AdminInputError ||
-    error instanceof IdeasImportError ||
-    error instanceof IdeasGenerationError
-  ) {
-    return { ok: false, error: error.message };
-  }
-  logError(fallback, error);
-  return { ok: false, error: fallback };
-}
+import type { Result } from '@/lib/result';
+import { failure } from '../action-failure';
 
 async function guarded<T>(
   fallback: string,
