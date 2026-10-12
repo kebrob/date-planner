@@ -161,15 +161,215 @@ type Props = {
   children?: React.ReactNode;
 };
 
-// Touch targets: ~40–44 px, the plan is mostly used on the phone.
 const linkPill =
   'inline-flex min-h-10 items-center rounded-full bg-white px-3.5 text-sm text-ink ring-1 ring-line hover:bg-cream';
-const smallButton =
-  'min-h-10 rounded-full bg-cream px-3.5 text-sm hover:bg-butter disabled:opacity-50';
-const labelButton =
-  'inline-flex min-h-11 items-center gap-1.5 rounded-full bg-cream px-4 text-sm font-medium text-ink hover:bg-butter disabled:opacity-50';
+
+type Item = PlanView['items'][number];
+
 const iconButton =
   'grid h-11 w-11 place-items-center rounded-full bg-cream text-ink hover:bg-butter disabled:opacity-50';
+
+function RerollIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" />
+    </svg>
+  );
+}
+
+function ChooseIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="m10.5 10.5 3 3" />
+    </svg>
+  );
+}
+
+/**
+ * One stop: the time column carries the timeline, the venue name opens Maps, other venues are
+ * quiet rows to switch to, the edit actions round buttons at the bottom.
+ */
+function StopCard({
+  item,
+  pending,
+  onReroll,
+  onChoose,
+  onRemove,
+  onSwap,
+  extra,
+}: {
+  item: Item;
+  pending: boolean;
+  onReroll?: () => void;
+  onChoose?: () => void;
+  onRemove?: () => void;
+  onSwap?: (placeId: string) => void;
+  extra?: React.ReactNode;
+}) {
+  const venue = item.place ? shortName(item.place.name) : item.placeName;
+  const where = item.atHome
+    ? 'At home'
+    : item.locationHint
+      ? `${item.locationHint}, no fixed place`
+      : null;
+  const others = onSwap ? item.alternatives : [];
+
+  return (
+    <article className="overflow-hidden rounded-3xl bg-white ring-1 ring-line">
+      <div className="flex gap-4 p-5">
+        <p className="flex w-12 shrink-0 flex-col tabular-nums">
+          <span className="text-[17px] leading-tight font-semibold">
+            {TIME.format(new Date(item.start))}
+          </span>
+          <span className="text-sm text-mist">{TIME.format(new Date(item.end))}</span>
+        </p>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-[17px] leading-tight font-semibold">{item.title}</h3>
+            <span className="shrink-0 text-sm text-mist tabular-nums">~{item.costEur} €</span>
+          </div>
+          {venue && (
+            <p className="flex flex-wrap items-baseline gap-x-2 text-[15px]">
+              {item.place?.mapsUrl ? (
+                <a
+                  href={item.place.mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="py-1 underline decoration-line decoration-2 underline-offset-4 hover:decoration-butter-deep"
+                >
+                  {venue}
+                </a>
+              ) : (
+                <span>{venue}</span>
+              )}
+              {item.place?.rating && <span className="text-mist">★ {item.place.rating}</span>}
+              {item.place?.website && (
+                // Extra padding keeps a finger-sized target without adding height.
+                <a
+                  href={item.place.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="-my-3 py-3 text-sm text-mist underline underline-offset-4 hover:text-ink"
+                >
+                  Website
+                </a>
+              )}
+            </p>
+          )}
+          {where && <p className="text-[15px] text-mist">{where}</p>}
+          {item.openingHoursUnknown && (
+            <p className="text-sm text-mist">Hours unknown – check before you go</p>
+          )}
+          {item.preparation && <p className="text-sm text-mist">Prep: {item.preparation}</p>}
+
+          {others.length > 0 && (
+            <ul className="mt-2 flex flex-col border-t border-line" aria-label="Other places">
+              {others.map((alt) => (
+                <li key={alt.id} className="border-b border-line last:border-b-0">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => onSwap!(alt.id)}
+                    aria-label={`Go to ${alt.name} instead`}
+                    className="group flex min-h-11 w-full items-center justify-between gap-3 text-left text-sm text-mist hover:text-ink disabled:opacity-50"
+                  >
+                    <span className="flex min-w-0 gap-1.5">
+                      <span className="truncate">or {shortName(alt.name)}</span>
+                      {alt.rating && <span className="shrink-0">★ {alt.rating}</span>}
+                    </span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="shrink-0"
+                      aria-hidden
+                    >
+                      <path d="M3 5.5h9.5M10 3l2.5 2.5L10 8M13 10.5H3.5M6 8l-2.5 2.5L6 13" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      {extra && <div className="-mt-2 px-5 pb-5">{extra}</div>}
+
+      {(onReroll || onChoose || onRemove) && (
+        <div className="-mt-1 flex justify-end gap-2 px-5 pb-4">
+          {onChoose && (
+            <button
+              type="button"
+              onClick={onChoose}
+              disabled={pending}
+              className={iconButton}
+              aria-label={`Choose something instead of ${item.title}`}
+            >
+              <ChooseIcon />
+            </button>
+          )}
+          {onReroll && (
+            <button
+              type="button"
+              onClick={onReroll}
+              disabled={pending}
+              className={iconButton}
+              aria-label={`Re-roll ${item.title}`}
+            >
+              <RerollIcon />
+            </button>
+          )}
+          {onRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={pending}
+              className={iconButton}
+              aria-label={`Remove ${item.title}`}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="m3 3 6 6M9 3 3 9" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
 
 export function PlanResult({
   plan,
@@ -205,152 +405,17 @@ export function PlanResult({
         {plan.items.map((item, index) => (
           <li key={`${item.activityId}-${index}`} className="flex flex-col gap-3">
             {item.travelBefore && <LegRow leg={item.travelBefore} />}
-            <div className="rounded-3xl bg-white p-5 ring-1 ring-line">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="text-sm text-ink">
-                    {TIME.format(new Date(item.start))} – {TIME.format(new Date(item.end))}
-                  </p>
-                  <h3 className="font-medium">{item.title}</h3>
-                  {item.place ? (
-                    <p className="text-sm text-mist">
-                      {shortName(item.place.name)}
-                      {item.place.rating ? ` · ★ ${item.place.rating}` : ''}
-                      {item.openingHoursUnknown ? ' · hours unknown' : ''}
-                    </p>
-                  ) : (
-                    item.placeName && <p className="text-sm text-mist">{item.placeName}</p>
-                  )}
-                  {item.alternatives.length > 0 && (
-                    <p className="flex flex-wrap items-center gap-1 text-xs text-mist">
-                      or:
-                      {item.alternatives.map((alt) =>
-                        onSwap ? (
-                          <button
-                            key={alt.id}
-                            type="button"
-                            disabled={pending}
-                            onClick={() => onSwap(index, alt.id)}
-                            className={smallButton}
-                          >
-                            {shortName(alt.name)}
-                            {alt.rating ? ` ★ ${alt.rating}` : ''}
-                          </button>
-                        ) : (
-                          <span key={alt.id}>{shortName(alt.name)}</span>
-                        ),
-                      )}
-                    </p>
-                  )}
-                  {item.locationHint && (
-                    <p className="text-sm text-mist">{item.locationHint} · no fixed place</p>
-                  )}
-                  {item.atHome && <p className="text-sm text-mist">At home</p>}
-                  {item.preparation && (
-                    <p className="text-xs text-mist">Prep: {item.preparation}</p>
-                  )}
-                  {(item.place?.mapsUrl || item.place?.website) && (
-                    <div className="mt-1 flex gap-2">
-                      {item.place.mapsUrl && (
-                        <a
-                          href={item.place.mapsUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={linkPill}
-                        >
-                          Maps
-                        </a>
-                      )}
-                      {item.place.website && (
-                        <a
-                          href={item.place.website}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={linkPill}
-                        >
-                          Website
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <span className="text-sm whitespace-nowrap">~{item.costEur} €</span>
-              </div>
-              {(onChooseItem || onRerollItem || (onRemoveItem && plan.items.length > 1)) && (
-                <div className="mt-3 flex justify-end gap-2">
-                  {onChooseItem && (
-                    <button
-                      type="button"
-                      onClick={() => onChooseItem(index)}
-                      disabled={pending}
-                      className={labelButton}
-                      aria-label={`Choose something instead of ${item.title}`}
-                    >
-                      <svg
-                        width="15"
-                        height="15"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        aria-hidden
-                      >
-                        <circle cx="7" cy="7" r="4.5" />
-                        <path d="m10.5 10.5 3 3" />
-                      </svg>
-                      Choose
-                    </button>
-                  )}
-                  {onRerollItem && (
-                    <button
-                      type="button"
-                      onClick={() => onRerollItem(index)}
-                      disabled={pending}
-                      className={labelButton}
-                      aria-label={`Re-roll ${item.title}`}
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden
-                      >
-                        <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" />
-                      </svg>
-                      Re-roll
-                    </button>
-                  )}
-                  {onRemoveItem && plan.items.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => onRemoveItem(index)}
-                      disabled={pending}
-                      className={iconButton}
-                      aria-label={`Remove ${item.title}`}
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                        aria-hidden
-                      >
-                        <path d="m3 3 6 6M9 3 3 9" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              )}
-              {renderItemExtra?.(index)}
-            </div>
+            <StopCard
+              item={item}
+              pending={pending}
+              onReroll={onRerollItem && (() => onRerollItem(index))}
+              onChoose={onChooseItem && (() => onChooseItem(index))}
+              onRemove={
+                onRemoveItem && plan.items.length > 1 ? () => onRemoveItem(index) : undefined
+              }
+              onSwap={onSwap && ((placeId) => onSwap(index, placeId))}
+              extra={renderItemExtra?.(index)}
+            />
           </li>
         ))}
       </ol>

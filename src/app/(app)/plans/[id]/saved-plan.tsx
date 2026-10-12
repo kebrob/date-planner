@@ -89,6 +89,7 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
   const itemExtra = (index: number) => {
     const item = plan.items[index]!;
     const concern = plan.weatherConcerns[index];
+    if (!(editable && concern) && !(rating && rateItems)) return null;
     return (
       <>
         {editable && concern && (
