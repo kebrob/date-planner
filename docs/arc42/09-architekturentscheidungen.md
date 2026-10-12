@@ -105,3 +105,11 @@
 - **Entscheidung:** Feste Punkte werden als Blöcke in die Slot-Folge eingefügt; der Planner kennt pro Abschnitt den nächsten festen Stopp (Ort, Uhrzeit) als Frist und Richtung. Ein Programmpunkt ersetzen nutzt dieselben Mittel: gepinnter Punkt an einer Position (übrige behalten) bzw. fester Block (Rest neu). Google-Suche nur auf ausdrücklichen Tipp.
 - **Begründung:** Wiederverwendung von Filter, Score, Wegen und Zügen statt eines zweiten Planungsverfahrens; Kostenschutz bleibt unverändert (keine Suche ohne Nutzeraktion).
 - **Verworfen:** Zeitfenster in Teilpläne zerlegen und getrennt planen (doppelte Logik für Budget und Wege); automatische Google-Suche beim Tippen (Kosten).
+
+## ADR-016: Sessions an Passkeys gebunden, Passkey-Verwaltung nur nach frischer Anmeldung
+
+- **Status:** angenommen (2026-10-12)
+- **Kontext:** Ein verlorenes Gerät behielt nach dem Entfernen seines Passkeys bis zu 30 Tage Zugang; mit einem gestohlenen Session-Cookie ließ sich ein eigener Passkey anlegen und damit dauerhafter Zugang sichern.
+- **Entscheidung:** Eine Session merkt sich den Passkey, mit dem sie begonnen wurde (Fremdschlüssel mit `ON DELETE CASCADE`); dazu „Sign out on all devices“. Passkeys hinzufügen oder entfernen geht nur mit einer Anmeldung, die höchstens 10 Minuten alt ist.
+- **Begründung:** Entfernen eines Passkeys sperrt das Gerät sofort aus, ohne alle anderen abzumelden. Die Frist kostet im normalen Ablauf nichts, weil ein neuer Passkey direkt nach dem Login per Notfall-Passwort angelegt wird.
+- **Verworfen:** Erneute Passwort-Eingabe vor jeder Passkey-Änderung (umständlicher, gleicher Schutz); Sessions bei jeder Passkey-Änderung komplett löschen (meldet alle Geräte ab).

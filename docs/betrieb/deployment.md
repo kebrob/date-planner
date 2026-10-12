@@ -54,7 +54,7 @@ Optional: Für Experimente einen Neon-**Branch** als Entwicklungsdatenbank anleg
 ## 5. Erster Login in Production
 
 1. `https://dates.robertkebinger.com` öffnen → mit dem Notfall-Passwort anmelden.
-2. **Admin → Security & passkeys** → auf jedem Gerät einen Passkey hinzufügen. Lokale Passkeys (`localhost`) gelten in Production nicht.
+2. **Admin → Security & passkeys** → auf jedem Gerät einen Passkey hinzufügen. Lokale Passkeys (`localhost`) gelten in Production nicht. Passkeys lassen sich nur innerhalb von 10 Minuten nach der Anmeldung hinzufügen oder entfernen; danach ab- und wieder anmelden.
 
 ## 6. Prüfen nach dem Deploy
 
@@ -65,6 +65,6 @@ Optional: Für Experimente einen Neon-**Branch** als Entwicklungsdatenbank anleg
 
 ## Hinweise
 
-- **Laufzeiten:** Chat und Ideen dürfen bis 120 s, Ausflüge bis 300 s laufen (Route-Segment-Config `maxDuration`, Grenze des Hobby-Plans).
+- **Laufzeiten:** Chat und Ideen dürfen bis 120 s, Ausflüge bis 300 s laufen (Route-Segment-Config `maxDuration`, Grenze des Hobby-Plans). Die Claude-Aufrufe haben eigene Fristen knapp darunter (105 s bzw. 260 s, in `chat/service.ts`, `admin/service.ts`, `trips/service.ts`); bei Änderung von `maxDuration` mit anpassen.
 - **`$` in `.env`-Dateien:** Next.js expandiert `$` in Env-Dateien, daher lokal als `\$` schreiben; das Hash-Skript zeigt beide Varianten an.
 - **Rollback:** Vercel → Deployments → älteres Deployment → „Promote to Production“.

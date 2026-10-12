@@ -71,7 +71,7 @@ Gesetzt in Vercel (Production) bzw. lokal in `.env.local`. Vorlage: `.env.exampl
 | `AI_MAX_WEB_SEARCHES_CHAT`         | `3`      | Max. Websuchen pro Chat-Nachricht                                                                                                 |
 | `AI_MAX_WEB_SEARCHES_TRIP`         | `15`     | Max. Websuchen pro Ausflugsplanung                                                                                                |
 | `AI_MAX_API_CALLS_PER_DAY`         | `200`    | Max. Claude-API-Aufrufe pro Tag; jede Runde im Tool-Loop zählt einzeln                                                            |
-| `AI_REQUEST_TIMEOUT_MS`            | `90000`  | Timeout pro API-Request                                                                                                           |
+| `AI_REQUEST_TIMEOUT_MS`            | `90000`  | Timeout pro API-Request; zusätzlich begrenzt eine Frist unter dem Funktionslimit alle Versuche zusammen (siehe arc42 Kapitel 8)   |
 | `PLACES_PROVIDER`                  | `google` | `google` oder `osm`                                                                                                               |
 | `PLACES_DAILY_LIMIT`               | `25`     | Max. Google-Places-Abfragen pro Tag (unter Google-Quota 30)                                                                       |
 | `PLACES_MAX_LOOKUPS_PER_PLAN`      | `6`      | Max. Ortsabfragen pro Plan-Generierung inkl. Neu würfeln                                                                          |
