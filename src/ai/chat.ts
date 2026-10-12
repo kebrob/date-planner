@@ -4,7 +4,13 @@ import { CUISINES, MOOD_TAGS } from '@/core/planner/types';
 import type { CostGuard } from '@/guard/guard';
 import { logError } from '@/lib/result';
 import { PLACE_TYPES } from '@/ports/place-types';
-import { runToolLoop, type ClientTool, type CreateMessage, type ToolLoopResult } from './tool-loop';
+import {
+  runToolLoop,
+  UNTRUSTED_CONTENT_RULE,
+  type ClientTool,
+  type CreateMessage,
+  type ToolLoopResult,
+} from './tool-loop';
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
@@ -219,6 +225,7 @@ export function systemPrompt(ctx: {
     'If plan_date reports warnings (fallback, limits, skipped stops), say honestly what went wrong and how to fix it (e.g. higher budget, other day, smaller distance).',
     'Use web search only for current events or facts you cannot know (max. a few searches) and mention sources.',
     'Never book or buy anything; you can only suggest and link.',
+    UNTRUSTED_CONTENT_RULE,
   ].join('\n');
 }
 
