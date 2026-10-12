@@ -89,6 +89,9 @@ function handlers(collected: ChatPlan[]): ChatToolHandlers {
     weather: async (i) => {
       const home = await getSettings();
       const place = i.town ? await getGeocoder().find(i.town) : null;
+      if (i.town && !place) {
+        throw new ToolUserError(`Town "${i.town}" not found; ask the user for another name.`);
+      }
       const location = place?.location ?? { lat: home.homeLat, lng: home.homeLng };
       const from = fromLocal(i.date, '08:00');
       const to = fromLocal(i.date, '22:00');
