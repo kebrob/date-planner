@@ -281,43 +281,45 @@ function StopCard({
             <p className="text-sm text-mist">Hours unknown – check before you go</p>
           )}
           {item.preparation && <p className="text-sm text-mist">Prep: {item.preparation}</p>}
-
-          {others.length > 0 && (
-            <ul className="mt-2 flex flex-col border-t border-line" aria-label="Other places">
-              {others.map((alt) => (
-                <li key={alt.id} className="border-b border-line last:border-b-0">
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => onSwap!(alt.id)}
-                    aria-label={`Go to ${alt.name} instead`}
-                    className="group flex min-h-11 w-full items-center justify-between gap-3 text-left text-sm text-mist hover:text-ink disabled:opacity-50"
-                  >
-                    <span className="flex min-w-0 gap-1.5">
-                      <span className="truncate">or {shortName(alt.name)}</span>
-                      {alt.rating && <span className="shrink-0">★ {alt.rating}</span>}
-                    </span>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="shrink-0"
-                      aria-hidden
-                    >
-                      <path d="M3 5.5h9.5M10 3l2.5 2.5L10 8M13 10.5H3.5M6 8l-2.5 2.5L6 13" />
-                    </svg>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
+      {others.length > 0 && (
+        <ul
+          className="mx-5 -mt-2 mb-3 flex flex-col border-t border-line"
+          aria-label="Other places"
+        >
+          {others.map((alt) => (
+            <li key={alt.id} className="border-b border-line last:border-b-0">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => onSwap!(alt.id)}
+                aria-label={`Go to ${alt.name} instead`}
+                className="group flex min-h-11 w-full items-center justify-between gap-3 text-left text-sm text-mist hover:text-ink disabled:opacity-50"
+              >
+                <span className="min-w-0 py-2">
+                  or {shortName(alt.name)}
+                  {alt.rating && <span className="whitespace-nowrap"> ★ {alt.rating}</span>}
+                </span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="shrink-0"
+                  aria-hidden
+                >
+                  <path d="M3 5.5h9.5M10 3l2.5 2.5L10 8M13 10.5H3.5M6 8l-2.5 2.5L6 13" />
+                </svg>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {extra && <div className="-mt-2 px-5 pb-5">{extra}</div>}
 
       {(onReroll || onChoose || onRemove) && (
