@@ -109,13 +109,16 @@ export async function authenticationOptions() {
   return options;
 }
 
-/** Returns the id of the passkey used, or null when the response is not valid. */
+/**
+ * The id of the passkey used, null when the response is not valid, or 'no_challenge' when there
+ * is no open challenge (expired, or dropped because many were requested).
+ */
 export async function verifyAuthentication(
   response: AuthenticationResponseJSON,
-): Promise<string | null> {
+): Promise<string | null | 'no_challenge'> {
   const { rpID, origin } = relyingParty();
   const expectedChallenge = await consumeChallenge();
-  if (!expectedChallenge) return null;
+  if (!expectedChallenge) return 'no_challenge';
   const db = getDb();
   const [stored] = await db.select().from(passkey).where(eq(passkey.id, response.id)).limit(1);
   if (!stored) return null;

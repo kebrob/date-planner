@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { GuardDeniedError, type CostGuard } from '@/guard/guard';
-import { AiTimeUpError } from './client';
+import { AiTimeUpError, assertTimeLeft } from './client';
 import { actualCostUsd, estimateMaxCostUsd } from './pricing';
 
 /** For system prompts of loops that read search results or other external text. */
@@ -28,6 +28,8 @@ type ToolLoopOptions = {
   /** Total web searches allowed across all iterations of this loop; 0 disables web search. */
   maxWebSearches: number;
   effort?: 'low' | 'medium' | 'high';
+  /** Epoch ms; checked before each round, so running out of time is not a provider error. */
+  deadline?: number;
   /** Stops the loop early once this returns true (e.g. a final "submit" tool was called). */
   isDone?: () => boolean;
 };
@@ -122,6 +124,7 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<ToolLoopRes
 
     let message: Anthropic.Message;
     try {
+      if (options.deadline !== undefined) assertTimeLeft(options.deadline);
       message = await options.guard.run('anthropic', estimate, async () => {
         const response = await options.createMessage(params);
         return { result: response, actualCostUsd: actualCostUsd(options.model, response.usage) };

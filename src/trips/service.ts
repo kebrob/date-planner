@@ -30,6 +30,7 @@ export async function createTrip(raw: unknown): Promise<string> {
     // Usually one or two rounds; capped so the request fits into the function time limit.
     maxIterations: Math.min(limits.ai.maxToolIterations, MAX_TRIP_ITERATIONS),
     maxWebSearches: limits.ai.maxWebSearches.trip,
+    deadline,
   });
   const rail = getRail();
   const stored: StoredTripPlan = rail

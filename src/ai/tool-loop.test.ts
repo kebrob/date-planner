@@ -202,4 +202,23 @@ describe('runToolLoop interruptions', () => {
     const createMessage = vi.fn<CreateMessage>();
     await expect(runToolLoop(options(createMessage, { guard }))).rejects.toThrow(GuardDeniedError);
   });
+
+  it('does not reserve or call once the deadline is near, after keeping earlier rounds', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const guard = new CostGuard({ store: new MemoryUsageStore(), limits });
+      const run = vi.spyOn(guard, 'run');
+      const deadline = Date.now() + 30_000;
+      // Each round takes 25 s, so fewer than 10 s are left before the second one.
+      const createMessage = vi.fn<CreateMessage>(async () => {
+        vi.setSystemTime(Date.now() + 25_000);
+        return message('tool_use', [toolUse()]);
+      });
+      const result = await runToolLoop(options(createMessage, { guard, deadline }));
+      expect(result.status).toBe('interrupted');
+      expect(run).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

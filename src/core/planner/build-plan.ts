@@ -320,7 +320,8 @@ export async function buildPlan(planRequest: PlanRequest, ctx: PlanContext): Pro
     if (nextAnchor === index && anchor) {
       await fillGap();
       const item = scheduleAnchor(anchor, state, request, ctx);
-      item.alternatives = request.keep?.[index]?.alternatives ?? [];
+      // Only a kept stop brings its alternatives; a chosen one may sit at another stop's index.
+      item.alternatives = entries[index]?.anchor ? [] : (request.keep?.[index]?.alternatives ?? []);
       add(item);
       anchorsLeft--;
       continue;

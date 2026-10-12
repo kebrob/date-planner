@@ -23,6 +23,8 @@ import { trainUrl, type Leg } from './view';
 
 // Saved plans look for better trains at most this often (free API, but rate-limited).
 const TRAIN_CHECK_INTERVAL_MS = 6 * 3_600_000;
+// After a failed lookup (rate limit, outage); the live card polls every minute.
+const TRAIN_RETRY_MS = 20 * 60_000;
 
 /**
  * Gives saved upcoming plans real trains once their date is within the timetable horizon, and
@@ -105,9 +107,9 @@ async function refreshTrains(
         travelHome: withUrl(trainPlan.travelHome as Leg | null),
         startsAt: trainPlan.items[0]?.start ?? plan.startsAt,
         endsAt: trainPlan.items.at(-1)?.end ?? plan.endsAt,
-        // After a failed lookup, try again on the next view instead of hours later.
+        // After a failed lookup, try again soon instead of hours later.
         trainsCheckedAt: trainPlan.warnings.includes('trains_unavailable')
-          ? plan.trainsCheckedAt
+          ? new Date(now.getTime() - TRAIN_CHECK_INTERVAL_MS + TRAIN_RETRY_MS)
           : now,
       })
       .where(

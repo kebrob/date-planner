@@ -245,6 +245,7 @@ export async function runChat(
     system: string;
     maxIterations: number;
     maxWebSearches: number;
+    deadline?: number;
   },
 ): Promise<ChatResult> {
   const messages: Anthropic.MessageParam[] = [
@@ -261,6 +262,7 @@ export async function runChat(
     tools: deps.tools,
     maxIterations: deps.maxIterations,
     maxWebSearches: deps.maxWebSearches,
+    deadline: deps.deadline,
     effort: 'low',
   });
   const fallbackText: Record<ChatResult['status'], string> = {

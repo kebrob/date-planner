@@ -17,4 +17,3 @@ export function getCostGuard(): CostGuard {
   }
   return instance;
 }
-

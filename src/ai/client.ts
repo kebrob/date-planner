@@ -26,9 +26,13 @@ export class AiTimeUpError extends Error {}
  * timed-out requests, which would otherwise outlast the function's time limit; the platform would
  * then kill the function before the result or the guard settlement is written.
  */
+export function assertTimeLeft(deadline: number): void {
+  if (deadline - Date.now() < MIN_CALL_MS) throw new AiTimeUpError();
+}
+
 export function untilDeadline(deadline: number): Anthropic.RequestOptions {
+  assertTimeLeft(deadline);
   const remaining = deadline - Date.now();
-  if (remaining < MIN_CALL_MS) throw new AiTimeUpError();
   return {
     timeout: Math.min(getLimits().ai.requestTimeoutMs, remaining),
     signal: AbortSignal.timeout(remaining),

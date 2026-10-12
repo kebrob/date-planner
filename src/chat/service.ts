@@ -224,6 +224,7 @@ export async function sendChatMessage(raw: string): Promise<ChatReply> {
     }),
     maxIterations: limits.ai.maxToolIterations,
     maxWebSearches: limits.ai.maxWebSearches.chat,
+    deadline,
   });
 
   const text = result.text || (plans.length ? 'Here you go:' : 'Sorry, I have no answer to that.');

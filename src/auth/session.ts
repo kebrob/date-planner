@@ -123,6 +123,11 @@ export async function beginLoginAttempt(method: LoginMethod): Promise<string | n
   });
 }
 
+/** For attempts that turned out not to be a guess at all. */
+export async function cancelLoginAttempt(id: string): Promise<void> {
+  await getDb().delete(loginAttempt).where(eq(loginAttempt.id, id));
+}
+
 export async function confirmLoginAttempt(id: string): Promise<void> {
   await getDb().update(loginAttempt).set({ success: true }).where(eq(loginAttempt.id, id));
 }

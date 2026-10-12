@@ -1,5 +1,6 @@
--- Existing duplicate titles get a number, so the unique index can be created without losing ideas.
-UPDATE "activity" AS a SET "title" = a."title" || ' (' || d.n || ')'
+-- Existing duplicate titles get part of their id appended (unlike a counter, it cannot clash with
+-- another title), so the unique index can be created without losing ideas.
+UPDATE "activity" AS a SET "title" = a."title" || ' (' || left(a."id"::text, 8) || ')'
 FROM (
   SELECT "id", row_number() OVER (PARTITION BY lower("title") ORDER BY "created_at", "id") AS n
   FROM "activity"

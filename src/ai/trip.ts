@@ -173,6 +173,7 @@ export async function planTrip(
     model: string;
     maxIterations: number;
     maxWebSearches: number;
+    deadline?: number;
   },
 ): Promise<TripPlan> {
   let submitted: TripPlan | null = null;
@@ -209,6 +210,7 @@ export async function planTrip(
     tools: [submit],
     maxIterations: deps.maxIterations,
     maxWebSearches: deps.maxWebSearches,
+    deadline: deps.deadline,
     effort: 'medium',
     isDone: () => submitted !== null,
   });
