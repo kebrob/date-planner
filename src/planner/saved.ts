@@ -426,7 +426,28 @@ async function refreshTrains(
 
   const withUrl = (leg: Leg | null): Leg | null =>
     leg?.train ? { ...leg, trainUrl: trainUrl(leg.train, leg.transfers) } : leg;
-  await db.transaction(async (tx) => {
+  const written = await db.transaction(async (tx) => {
+    // Optimistic lock: an edit saved while trains were looked up wins (Postgres keeps
+    // microseconds, the loaded value only milliseconds).
+    const [current] = await tx
+      .update(datePlan)
+      .set({
+        travelHome: withUrl(trainPlan.travelHome as Leg | null),
+        startsAt: trainPlan.items[0]?.start ?? plan.startsAt,
+        endsAt: trainPlan.items.at(-1)?.end ?? plan.endsAt,
+        // After a failed lookup, try again on the next view instead of hours later.
+        trainsCheckedAt: trainPlan.warnings.includes('trains_unavailable')
+          ? plan.trainsCheckedAt
+          : now,
+      })
+      .where(
+        and(
+          eq(datePlan.id, plan.id),
+          sql`date_trunc('milliseconds', ${datePlan.updatedAt}) = ${plan.updatedAt}`,
+        ),
+      )
+      .returning({ id: datePlan.id });
+    if (!current) return false;
     for (const [index, item] of items.entries()) {
       const updated = trainPlan.items[index]!;
       await tx
@@ -438,19 +459,9 @@ async function refreshTrains(
         })
         .where(eq(planItem.id, item.id));
     }
-    await tx
-      .update(datePlan)
-      .set({
-        travelHome: withUrl(trainPlan.travelHome as Leg | null),
-        startsAt: trainPlan.items[0]?.start ?? plan.startsAt,
-        endsAt: trainPlan.items.at(-1)?.end ?? plan.endsAt,
-        // After a failed lookup, try again on the next view instead of hours later.
-        trainsCheckedAt: trainPlan.warnings.includes('trains_unavailable')
-          ? plan.trainsCheckedAt
-          : now,
-      })
-      .where(eq(datePlan.id, plan.id));
+    return true;
   });
+  if (!written) return null;
   return trainPlan.warnings;
 }
 
