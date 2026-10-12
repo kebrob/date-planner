@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#FBF1D6"/>
+  <!-- Same artwork, scaled into Android's safe zone (centred circle, 80 % diameter). -->
+  <g transform="translate(512 512) scale(0.72) translate(-512 -512)">
+    <path d="M255 248H665A136 136 0 0 1 665 520H359A136 136 0 0 0 359 792H765" fill="none" stroke="#1D1D1F" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="255" cy="248" r="101" fill="#F6D77A"/>
+    <circle cx="255" cy="248" r="40" fill="#E9BF45"/>
+    <circle cx="765" cy="792" r="101" fill="#F6D77A"/>
+    <path transform="translate(410 368) scale(12.5)" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#F7C4B5"/>
+  </g>
+</svg>

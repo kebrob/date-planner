@@ -184,6 +184,7 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - Radius „Fit to time“ statt „Auto“, damit es nicht mit dem Verkehrsmittel Auto verwechselt wird.
 - **Programmpunkt-Karte:** links Zeitleiste (Start groß, Ende grau), Ortsname öffnet Google Maps, andere Orte als volle Zeilen darunter (Namen werden nicht abgeschnitten), runde Buttons für Auswählen, Neu würfeln, Entfernen.
 - **Bedienung am Handy:** Bedienelemente mind. 44 px hoch, Suchfelder 16 px Schrift (kein Zoom unter iOS), ein gemeinsames Suchfeld (`search-field.tsx`).
+- **Installierbar (PWA):** Manifest mit Farben der Oberfläche (`paper`), Icons 192/512 und maskierbarer Variante; dazu `favicon.ico`, `icon.svg` und `apple-icon.png` (180 px). Quellen als SVG in `assets/icons/` (Anleitung dort). Alle Icon-Pfade sind ohne Login erreichbar (`src/proxy.ts`).
 - **Dauern** einheitlich kompakt: „45min“, „2h“, „1h 55min“ (`src/lib/duration.ts`).
 
 ## Tests
