@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fromLocal } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
-import { buildPlan, FALLBACK_ACTIVITY, firstStopRadiusKm } from './build-plan';
+import {
+  buildPlan,
+  FALLBACK_ACTIVITY,
+  FALLBACK_AWAY_ACTIVITY,
+  firstStopRadiusKm,
+} from './build-plan';
 import { estimateTravel } from './geo';
 import { firstOpenStart, isOpenDuring } from './opening-hours';
 import { seededRandom } from './random';
@@ -863,6 +868,22 @@ describe('route planning', () => {
     const near = await walk(north(1));
     expect(near.travelHome).not.toBeNull();
     expect(near.warnings).not.toContain('way_home_not_planned');
+  });
+
+  it('falls back to exploring the destination, not a night at home, when staying there', async () => {
+    const plan = await buildPlan(
+      request({
+        format: 'single',
+        food: 'none',
+        area: { name: 'Town', location: north(30) },
+        startInArea: true,
+        endInArea: true,
+      }),
+      context({ activities: [cinema], findPlaces: async () => [] }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual([FALLBACK_AWAY_ACTIVITY.id]);
+    expect(plan.items[0]!.activity.atHome).toBe(false);
+    expect(plan.warnings).toContain('fallback_used');
   });
 
   it('plans no way home when staying in the destination', async () => {

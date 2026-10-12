@@ -28,19 +28,19 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 
 ### Pflicht-Tests
 
-| Test                                                     | Erwartung                                                                                                        |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Claude-Mock liefert immer einen Tool-Aufruf              | Loop endet nach `AI_MAX_TOOL_ITERATIONS`, Anzahl API-Aufrufe = Limit                                             |
-| Tagesbudget / Monatsbudget erreicht                      | Kein weiterer Aufruf an den Mock, verständliche Fehlermeldung                                                    |
-| Parallele Reservierungen knapp unter Limit               | Insgesamt nie über Limit                                                                                         |
-| Jeder Claude-Request (Chat, Generieren, Ausflug)         | enthält `max_tokens`; mit Websuche auch `max_uses` ≤ konfiguriertem Wert                                         |
-| Places-Mock liefert nie Treffer                          | Planner beendet mit ≤ `PLACES_MAX_LOOKUPS_PER_PLAN` Abfragen und liefert trotzdem einen Plan (Zu-Hause-Fallback) |
-| Kostenlose Ideen antworten über Google (OSM ausgefallen) | Zählen zum bezahlten Limit; danach keine weiteren kostenlosen Suchen über Google                                 |
-| Places-Tageslimit erreicht                               | Kein `fetch` an Google, Umschalten auf Fallback                                                                  |
-| Mehr als `PAID_CALLS_PER_MINUTE` Aufrufe                 | Überzählige werden abgelehnt                                                                                     |
-| 5 Fehler in Folge                                        | Circuit Breaker offen, kein weiterer Aufruf für 10 Minuten                                                       |
-| `AI_ENABLED=false`                                       | Kein Claude-Aufruf, UI zeigt Import-Fallback                                                                     |
-| DB nicht erreichbar beim Reservieren                     | Aufruf wird abgelehnt (fail closed)                                                                              |
+| Test                                                     | Erwartung                                                                                                                                                |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude-Mock liefert immer einen Tool-Aufruf              | Loop endet nach `AI_MAX_TOOL_ITERATIONS`, Anzahl API-Aufrufe = Limit                                                                                     |
+| Tagesbudget / Monatsbudget erreicht                      | Kein weiterer Aufruf an den Mock, verständliche Fehlermeldung                                                                                            |
+| Parallele Reservierungen knapp unter Limit               | Insgesamt nie über Limit                                                                                                                                 |
+| Jeder Claude-Request (Chat, Generieren, Ausflug)         | enthält `max_tokens`; mit Websuche auch `max_uses` ≤ konfiguriertem Wert                                                                                 |
+| Places-Mock liefert nie Treffer                          | Planner beendet mit ≤ `PLACES_MAX_LOOKUPS_PER_PLAN` Abfragen und liefert trotzdem einen Plan (Fallback: zu Hause, bzw. am Zielort, wenn man dort bleibt) |
+| Kostenlose Ideen antworten über Google (OSM ausgefallen) | Zählen zum bezahlten Limit; danach keine weiteren kostenlosen Suchen über Google                                                                         |
+| Places-Tageslimit erreicht                               | Kein `fetch` an Google, Umschalten auf Fallback                                                                                                          |
+| Mehr als `PAID_CALLS_PER_MINUTE` Aufrufe                 | Überzählige werden abgelehnt                                                                                                                             |
+| 5 Fehler in Folge                                        | Circuit Breaker offen, kein weiterer Aufruf für 10 Minuten                                                                                               |
+| `AI_ENABLED=false`                                       | Kein Claude-Aufruf, UI zeigt Import-Fallback                                                                                                             |
+| DB nicht erreichbar beim Reservieren                     | Aufruf wird abgelehnt (fail closed)                                                                                                                      |
 
 ## Sicherheit
 

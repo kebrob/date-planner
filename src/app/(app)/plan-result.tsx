@@ -12,7 +12,7 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
   opening_hours_unknown: 'Opening hours unknown for some places — check before you go.',
   place_lookup_limit_reached:
     'Searched as many places as one plan allows, so some ideas were skipped. Re-roll for others.',
-  fallback_used: 'Nothing else fit — here is a cozy fallback.',
+  fallback_used: 'Nothing else fit — here is a simple fallback.',
   over_budget: 'Slightly over budget so the day does not end early.',
   required_skipped: 'Some requested stops did not fit in time, budget or nearby places.',
   chosen_closed:

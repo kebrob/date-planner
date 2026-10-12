@@ -80,7 +80,8 @@ export function LocationPicker({
     m.dot.setLatLng([current.lat, current.lng]);
     // The container may have been laid out after Leaflet measured it.
     m.map.invalidateSize({ animate: false });
-    m.map.fitBounds(m.circle.getBounds(), { padding: [12, 12] });
+    // Without animation: leaving the step mid-zoom would break Leaflet.
+    m.map.fitBounds(m.circle.getBounds(), { padding: [12, 12], animate: false });
   }, [map, ready, current.lat, current.lng, effectiveKm]);
 
   const search = async () => {

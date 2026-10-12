@@ -45,6 +45,26 @@ export const FALLBACK_ACTIVITY: Activity = {
   preparation: 'Snacks and a movie shortlist',
 };
 
+/** Fallback when the date stays away from home (nothing at home fits then). */
+export const FALLBACK_AWAY_ACTIVITY: Activity = {
+  id: 'builtin-explore',
+  title: 'Stroll and explore',
+  description: 'Wander around together and stop wherever looks inviting.',
+  category: 'activity',
+  tags: ['chill', 'outdoor'],
+  costMinEur: 0,
+  costMaxEur: 20,
+  durationMinutes: 120,
+  weather: {},
+  transports: [],
+  atHome: false,
+  placeType: null,
+  placeQuery: null,
+  timesOfDay: [],
+  seasons: [],
+  preparation: null,
+};
+
 /** Schedules a chosen stop at the current position: its own venue or the best one nearby. */
 async function placeChosen(
   slot: Slot,
@@ -370,9 +390,10 @@ export async function buildPlan(planRequest: PlanRequest, ctx: PlanContext): Pro
   }
 
   if (items.length === 0) {
+    const fallbackActivity = endsInArea(request) ? FALLBACK_AWAY_ACTIVITY : FALLBACK_ACTIVITY;
     const fallback = schedule(
       'main',
-      FALLBACK_ACTIVITY,
+      fallbackActivity,
       null,
       state,
       request,
@@ -380,12 +401,12 @@ export async function buildPlan(planRequest: PlanRequest, ctx: PlanContext): Pro
       makePass(state, request, [], false),
     ) ?? {
       slot: 'main' as const,
-      activity: FALLBACK_ACTIVITY,
+      activity: fallbackActivity,
       place: null,
       travelBefore: null,
       start: request.start,
       end: request.end,
-      costEur: estimatedCost(FALLBACK_ACTIVITY),
+      costEur: estimatedCost(fallbackActivity),
       openingHoursUnknown: false,
       alternatives: [],
     };
