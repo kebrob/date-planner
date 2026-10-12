@@ -160,7 +160,12 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 ## Gespeicherte Pläne
 
 - **Upcoming:** gespeicherte Pläne mit Datum in der Zukunft, mehrere parallel; auf der Startseite als Karten, Detailseite `/plans/[id]`.
-- **Bearbeiten** (nur kommende Pläne): Punkt neu würfeln, entfernen, Alternative wählen, Datum ändern, Notiz. Änderungen planen mit festgehaltenen Punkten neu; passt ein Ort nicht mehr (z. B. geschlossen), wird er ersetzt und ein Hinweis angezeigt.
+- **Bearbeiten** (nur kommende Pläne): Punkt neu würfeln, ersetzen („Choose“), entfernen, hinzufügen, Alternative wählen, Datum/Zeit und Verkehrsmittel ändern („Change plan“), Notiz. Änderungen planen mit festgehaltenen Punkten neu; ein festgehaltener Punkt wird notfalls auch ohne Zeitreserve für spätere Punkte eingeplant. Was nicht mehr passt, wird ersetzt und als Toast genannt.
+- **Entfernen:** der Punkt wird für diese Planung ausgeschlossen; danach bleibt freie Zeit frei (`fillGaps: false`, im Plan gespeichert) – sonst würde die Lückenfüllung den Punkt sofort wieder einsetzen.
+- **Hinzufügen:** In Lücken ≥ 60 min (inkl. Wege; vor dem ersten, zwischen, nach dem letzten Punkt; max. 5 Punkte) erscheint „Add a stop“. „Surprise us“ lässt den Planner wählen – erst eine Aktivität, sonst Snack, sonst Mahlzeit; alternativ eigene Idee bzw. Google-Suche. Der Punkt nach der Lücke behält seine Startzeit, damit der neue in die Lücke passt; passt nichts, bleibt der Plan unverändert mit Hinweis.
+- **Verschieben / Verkehrsmittel ändern:** Punkte behalten ihre Tageszeit, wenn sie im neuen Fenster liegen (haben Vorrang); andere rücken so nah wie möglich und werden – wenn kein Platz bleibt oder der Ort geschlossen ist – weggelassen statt ersetzt (Toast nennt sie). Zusätzliche Zeit bleibt frei („Add a stop“).
+- **Hinweise** (z. B. „passt nicht mehr“, „Note saved“) erscheinen als Toast über der Tab-Leiste, damit sie unabhängig von der Scrollposition sichtbar sind.
+- **Löschen** entfernt den Plan endgültig samt Bewertungen; Einträge im Vorschlagsverlauf bleiben (Abwechslung).
 - **Ansehen kostet nichts:** Plan, Orte, Wege kommen aus der DB; nur das Wetter (kostenlos) wird bei kommenden Plänen aktualisiert.
 - **Past:** Status ergibt sich aus dem Datum (kein Löschen; Verlauf dient Abwechslung und Bewertungen). Löschen ist manuell möglich.
 - **Wetter-Hinweis:** kommende Pläne zeigen je Punkt, wenn die aktuelle Vorhersage nicht mehr passt (→ Wetter).
@@ -176,6 +181,9 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - **Nächster Ausflug** (Kachel „Surprise us …“, „Ideas for …“, Wizard-Vorauswahl): Start bis 16 Uhr → „today“ (ab 10 bis 22 Uhr), bis 21 Uhr → „tonight“ (max. 5 h, Ende spätestens 2 Uhr), danach → „tomorrow“ (18–23 Uhr).
 - **Start/Ende am Zielort:** Mit gewähltem Ort wählbar „From home / Already there“ und „Back home / Staying there“. Schon dort = keine Hinfahrt, der erste Ort wird um den Zielort gesucht; dort bleiben = kein Heimweg und keine Ideen zu Hause.
 - Radius „Fit to time“ statt „Auto“, damit es nicht mit dem Verkehrsmittel Auto verwechselt wird.
+- **Programmpunkt-Karte:** links Zeitleiste (Start groß, Ende grau), Ortsname öffnet Google Maps, andere Orte als volle Zeilen darunter (Namen werden nicht abgeschnitten), runde Buttons für Auswählen, Neu würfeln, Entfernen.
+- **Bedienung am Handy:** Bedienelemente mind. 44 px hoch, Suchfelder 16 px Schrift (kein Zoom unter iOS), ein gemeinsames Suchfeld (`search-field.tsx`).
+- **Dauern** einheitlich kompakt: „45min“, „2h“, „1h 55min“ (`src/lib/duration.ts`).
 
 ## Tests
 
