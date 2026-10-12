@@ -1153,6 +1153,27 @@ describe('chosen stops', () => {
     expect(skatingItem.place).toBe(far);
   });
 
+  it('keeps every fixed-time stop when the day has more slots than fit', async () => {
+    const meal = (id: string, time: string) => ({
+      activity: { ...dinner, id },
+      place: place(id, 2),
+      start: day(time),
+    });
+    const plan = await buildPlan(
+      request({
+        start: day('08:00'),
+        end: day('22:30'),
+        slots: ['main', 'meal', 'main', 'snack', 'main'],
+        anchors: [meal('breakfast', '08:30'), meal('lunch', '12:30'), meal('supper', '19:00')],
+      }),
+      context(),
+    );
+    const ids = plan.items.map((i) => i.activity.id);
+    expect(ids).toEqual(expect.arrayContaining(['breakfast', 'lunch', 'supper']));
+    expect(plan.items.length).toBeLessThanOrEqual(5);
+    expect(plan.warnings).not.toContain('required_skipped');
+  });
+
   it('keeps an earlier kept stop when a later fixed-time stop comes back on an edit', async () => {
     // The dinner lies before the middle of the window, so placing it by time alone puts it first.
     const plan = await buildPlan(

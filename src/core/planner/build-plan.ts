@@ -698,6 +698,25 @@ function anchorsIntoLayout(slots: Slot[], anchors: Anchor[], request: PlanReques
   return entries;
 }
 
+/**
+ * At most `MAX_ITEMS` entries. Open slots go first (latest first), then kept or pinned ones; a
+ * fixed-time stop is only cut when nothing else is left, and then flagged.
+ */
+function trimmed(entries: Entry[], request: PlanRequest, state: State): Entry[] {
+  const result = [...entries];
+  const open = (e: Entry, i: number) => !e.anchor && !request.keep?.[i] && !request.pins?.[i];
+  while (result.length > MAX_ITEMS) {
+    let cut = result.findLastIndex(open);
+    if (cut === -1) cut = result.findLastIndex((e) => !e.anchor);
+    if (cut === -1) {
+      cut = result.length - 1;
+      state.warnings.add('required_skipped');
+    }
+    result.splice(cut, 1);
+  }
+  return result;
+}
+
 /** A fixed-time stop: waits for its start if early, starts on arrival (flagged) if late. */
 function scheduleAnchor(
   anchor: Anchor,
@@ -756,7 +775,7 @@ export async function buildPlan(request: PlanRequest, ctx: PlanContext): Promise
       chooseSlots(format, duration, request.food ?? 'auto', request.budgetEur, ctx.random),
     request.required ?? [],
   );
-  const entries = withAnchors(slots, anchors, request).slice(0, MAX_ITEMS);
+  const entries = trimmed(withAnchors(slots, anchors, request), request, state);
   const items: PlanItem[] = [];
   const add = (item: PlanItem) => {
     items.push(item);
