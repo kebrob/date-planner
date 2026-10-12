@@ -97,3 +97,11 @@
 - **Entscheidung:** Geglättete Mittelwerte je Aktivität, je Tag und je Wetterlage, mit Zeitverfall, als Faktoren im bestehenden Score. Bei jeder Planung neu aus allen Bewertungen berechnet (reine Funktion in `core/planner`), nichts wird inkrementell gespeichert.
 - **Begründung:** Mit so wenigen Daten würde ein ML-Modell Rauschen lernen und wäre nicht nachvollziehbar. Neuberechnung macht Änderungen und Löschungen exakt und ist bei wenigen hundert Zeilen schneller als jede Synchronisation.
 - **Verworfen:** ML-Modell (z. B. Regression), inkrementell gespeicherte Tag-Gewichte (Tabelle `tag_weight`, entfernt).
+
+## ADR-015: Feste Programmpunkte als Blöcke im bestehenden Planner
+
+- **Status:** angenommen (2026-10-12)
+- **Kontext:** Nutzer wollen Programmpunkte selbst wählen, teils zu fester Uhrzeit, und den Rest füllen lassen.
+- **Entscheidung:** Feste Punkte werden als Blöcke in die Slot-Folge eingefügt; der Planner kennt pro Abschnitt den nächsten festen Stopp (Ort, Uhrzeit) als Frist und Richtung. Ein Programmpunkt ersetzen nutzt dieselben Mittel: gepinnter Punkt an einer Position (übrige behalten) bzw. fester Block (Rest neu). Google-Suche nur auf ausdrücklichen Tipp.
+- **Begründung:** Wiederverwendung von Filter, Score, Wegen und Zügen statt eines zweiten Planungsverfahrens; Kostenschutz bleibt unverändert (keine Suche ohne Nutzeraktion).
+- **Verworfen:** Zeitfenster in Teilpläne zerlegen und getrennt planen (doppelte Logik für Budget und Wege); automatische Google-Suche beim Tippen (Kosten).

@@ -17,7 +17,7 @@ import { getDb } from '@/db/client';
 import { activity, apiUsage, settings, travelRoutine } from '@/db/schema';
 import { getCostGuard } from '@/guard';
 import { dayKey, monthKey } from '@/guard/periods';
-import { PLACE_TYPES } from '@/ports/place-types';
+import { PLACE_TYPES, TEXT_SEARCH_TYPE } from '@/ports/place-types';
 
 const transport = z.enum(['deutschlandticket', 'car', 'walk', 'bike']);
 
@@ -144,7 +144,7 @@ export const activityFormSchema = z
     durationMinutes: z.coerce.number().int().min(15).max(720),
     transports: z.array(transport),
     atHome: z.boolean(),
-    placeType: z.enum(PLACE_TYPES).nullable(),
+    placeType: z.enum([...PLACE_TYPES, TEXT_SEARCH_TYPE]).nullable(),
     placeQuery: z.string().trim().max(80).nullable(),
     dryOnly: z.boolean(),
     minTempC: optionalInt,
@@ -189,7 +189,7 @@ export function toActivityForm(row: typeof activity.$inferSelect): ActivityForm 
 
 export function fromActivityForm(raw: unknown): typeof activity.$inferInsert {
   const f = activityFormSchema.parse(raw);
-  const idea: Idea = {
+  const idea: Parameters<typeof toActivityInsert>[0] = {
     title: f.title,
     description: f.description,
     kind: f.kind,

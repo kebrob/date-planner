@@ -100,6 +100,16 @@ Gilt für alle kostenpflichtigen Anbieter (Claude API, Google Places). Einrichtu
 - **Wetterlage beim Bewerten:** Beim ersten Bewerten holt die App das tatsächliche Wetter des Dates (Open-Meteo, auf ~10 km gerundeter Punkt) und speichert die Wetterlage je Programmpunkt.
 - **Sperren vorschlagen:** Nach zwei 👎 für dieselbe Idee bietet die App „Block idea“ an; gesperrt wird nie automatisch.
 
+## Selbst gewählte Programmpunkte
+
+- **Auswahl** (Bottom Sheet „Choose“): Die eigenen aktiven Ideen werden auf dem Gerät gefiltert (Titel, Tags, Kategorie, Suchbegriff) – kostenlos. Nur auf ausdrücklichen Tipp „Search Google for …“ folgt **eine** bezahlte Ortssuche (Textsuche, 15 km um Zielort bzw. Wohnort, über den Budget-Wächter); ist das Tageslimit erreicht, sagt die App das.
+- **Google-Treffer** werden zum einmaligen Programmpunkt (Name, Art, Dauer, Kosten für beide einstellbar). Optional „Add to our ideas“: legt eine **aktive** Idee an (Ortstyp `custom` = nur Suchbegriff, Google), gleicher Titel wird wiederverwendet. Danach findet die Auswahl sie ohne Google, und Bewertungen lernen für sie.
+- **Im Wizard** („Anything set already?“): bis zu drei Punkte, je „Any time“ oder feste Uhrzeit im Zeitfenster. Ohne Uhrzeit wie bisher als Pflichtpunkt (zuerst eingeplant), mit Uhrzeit als **fester Block**.
+- **Feste Blöcke:** Der Ort wird vorab gesucht (der nächstgelegene, der zu dieser Zeit geöffnet ist). Punkte davor müssen inkl. Weg rechtzeitig enden und suchen im Korridor Richtung Block; Lücken ≥ 90 min davor werden aufgefüllt. Ein Block ersetzt einen geplanten Slot seiner Art (feste Reservierung = Mahlzeit). Ist er nicht rechtzeitig erreichbar, beginnt er bei Ankunft mit Hinweis.
+- **Ersetzen eines Punkts:** „Keep the rest“ – übrige Punkte behalten ihre Orte, Zeiten werden neu berechnet; was nicht mehr passt, wird ersetzt bzw. weggelassen und benannt. „Re-plan around it“ – der gewählte Punkt wird fester Block zur Startzeit des ersetzten Punkts, alles andere neu.
+- Selbst gewählte Punkte unterliegen nicht Budget-, Wetter- und Abwechslungsfiltern (ausdrücklicher Wunsch), wohl aber Zeit und Öffnungszeiten. Ohne vorgegebenen Ort gewinnt der nächstgelegene passende statt eines gewichteten Zufalls.
+- **Gespeicherte Pläne** behalten Punkte mit fester Uhrzeit als festen Block bei späteren Änderungen; einmalige Punkte (ohne Idee) werden beim Bearbeiten aus dem gespeicherten Punkt wiederhergestellt. Wird ein fester Punkt selbst ersetzt oder neu gewürfelt, ist er nicht mehr fest.
+
 ## Essen
 
 - Mahlzeiten und Snacks sind eigene Slot-Typen; optionaler Filter **Cuisine** (Bavarian, Italian, Asian, Burger, Mexican, Greek, Indian, Veggie) beschränkt Mahlzeiten auf passend getaggte Aktivitäten.

@@ -24,6 +24,8 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
   fallback_used: 'Nothing else fit — here is a cozy fallback.',
   over_budget: 'Slightly over budget so the day does not end early.',
   required_skipped: 'Some requested stops did not fit in time, budget or nearby places.',
+  chosen_time_moved:
+    'Getting there takes longer, so a chosen stop starts a bit later than you set.',
   places_daily_limit:
     'Daily Google place search limit reached – fewer venues available until tomorrow.',
   food_skipped: 'Food did not fit the budget or time — raise the budget or re-roll.',
@@ -151,16 +153,23 @@ type Props = {
   onRerollItem?: (index: number) => void;
   onRemoveItem?: (index: number) => void;
   onSwap?: (index: number, placeId: string) => void;
+  /** Replace an item with something the user picks. */
+  onChooseItem?: (index: number) => void;
   /** Extra content inside an item card, e.g. a rating or a weather hint. */
   renderItemExtra?: (index: number) => React.ReactNode;
   /** Action buttons below the plan. */
   children?: React.ReactNode;
 };
 
-const linkPill = 'rounded-full bg-white px-3 py-1 text-xs text-ink ring-1 ring-line hover:bg-cream';
-const smallButton = 'rounded-full bg-cream px-3 py-1 text-xs hover:bg-butter disabled:opacity-50';
+// Touch targets: ~40–44 px, the plan is mostly used on the phone.
+const linkPill =
+  'inline-flex min-h-10 items-center rounded-full bg-white px-3.5 text-sm text-ink ring-1 ring-line hover:bg-cream';
+const smallButton =
+  'min-h-10 rounded-full bg-cream px-3.5 text-sm hover:bg-butter disabled:opacity-50';
+const labelButton =
+  'inline-flex min-h-11 items-center gap-1.5 rounded-full bg-cream px-4 text-sm font-medium text-ink hover:bg-butter disabled:opacity-50';
 const iconButton =
-  'grid h-8 w-8 place-items-center rounded-full bg-cream text-ink hover:bg-butter disabled:opacity-50';
+  'grid h-11 w-11 place-items-center rounded-full bg-cream text-ink hover:bg-butter disabled:opacity-50';
 
 export function PlanResult({
   plan,
@@ -168,6 +177,7 @@ export function PlanResult({
   onRerollItem,
   onRemoveItem,
   onSwap,
+  onChooseItem,
   renderItemExtra,
   children,
 }: Props) {
@@ -264,56 +274,81 @@ export function PlanResult({
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className="text-sm whitespace-nowrap">~{item.costEur} €</span>
-                  <div className="flex gap-1">
-                    {onRerollItem && (
-                      <button
-                        type="button"
-                        onClick={() => onRerollItem(index)}
-                        disabled={pending}
-                        className={iconButton}
-                        aria-label={`Re-roll ${item.title}`}
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" />
-                        </svg>
-                      </button>
-                    )}
-                    {onRemoveItem && plan.items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => onRemoveItem(index)}
-                        disabled={pending}
-                        className={iconButton}
-                        aria-label={`Remove ${item.title}`}
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 12 12"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          aria-hidden
-                        >
-                          <path d="m3 3 6 6M9 3 3 9" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
+                <span className="text-sm whitespace-nowrap">~{item.costEur} €</span>
               </div>
+              {(onChooseItem || onRerollItem || (onRemoveItem && plan.items.length > 1)) && (
+                <div className="mt-3 flex justify-end gap-2">
+                  {onChooseItem && (
+                    <button
+                      type="button"
+                      onClick={() => onChooseItem(index)}
+                      disabled={pending}
+                      className={labelButton}
+                      aria-label={`Choose something instead of ${item.title}`}
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        aria-hidden
+                      >
+                        <circle cx="7" cy="7" r="4.5" />
+                        <path d="m10.5 10.5 3 3" />
+                      </svg>
+                      Choose
+                    </button>
+                  )}
+                  {onRerollItem && (
+                    <button
+                      type="button"
+                      onClick={() => onRerollItem(index)}
+                      disabled={pending}
+                      className={labelButton}
+                      aria-label={`Re-roll ${item.title}`}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" />
+                      </svg>
+                      Re-roll
+                    </button>
+                  )}
+                  {onRemoveItem && plan.items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveItem(index)}
+                      disabled={pending}
+                      className={iconButton}
+                      aria-label={`Remove ${item.title}`}
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        aria-hidden
+                      >
+                        <path d="m3 3 6 6M9 3 3 9" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
               {renderItemExtra?.(index)}
             </div>
           </li>

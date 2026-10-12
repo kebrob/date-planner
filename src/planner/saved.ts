@@ -6,9 +6,15 @@ import type { PlanWarning, Transport } from '@/core/planner/types';
 import { summarizeWeather, weatherConcern, windowWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
 import { activity, datePlan, planItem, settings, suggestionLog, travelRoutine } from '@/db/schema';
-import { fromLocal, toLocalDate, toLocalTime } from '@/lib/time';
+import { fromLocal, minutesBetween, toLocalDate, toLocalTime } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
-import { generatePlan, homePoint, type PlanInput } from './service';
+import {
+  generatePlan,
+  homePoint,
+  savedInput,
+  type ChosenStopInput,
+  type PlanInput,
+} from './service';
 import { REAL_TIMES_HORIZON_HOURS } from '@/rail/expected';
 import { attachTrains, hasOpenTrainLegs, type TrainPlan } from './trains';
 import { toPlanView, trainUrl, type Leg, type PlanView } from './view';
@@ -68,6 +74,8 @@ export type PlanSummary = {
 };
 
 const idSchema = z.string().uuid();
+// Built-in fallbacks and one-off stops (chat, place search) are not stored ideas.
+const storedIdea = (id: string) => idSchema.safeParse(id).success;
 
 function windowOf(plan: Pick<PlanRow, 'startsAt' | 'endsAt'>, input: Partial<PlanInput>): Window {
   return {
@@ -80,10 +88,7 @@ function windowOf(plan: Pick<PlanRow, 'startsAt' | 'endsAt'>, input: Partial<Pla
 
 /** Input the plan was created with, without per-request re-roll state. */
 function baseInput(plan: PlanRow): PlanInput {
-  const input = { ...(plan.parameters as PlanInput) };
-  delete input.keep;
-  delete input.slots;
-  return { ...input, excludeActivityIds: [] };
+  return savedInput(plan.parameters as PlanInput);
 }
 
 function stripLeg(leg: Leg | null): Leg | null {
@@ -130,7 +135,7 @@ function itemValues(planId: string, view: PlanView) {
   return view.items.map((item, position) => ({
     planId,
     position,
-    activityId: item.activityId.startsWith('builtin-') ? null : item.activityId,
+    activityId: storedIdea(item.activityId) ? item.activityId : null,
     startsAt: new Date(item.start),
     endsAt: new Date(item.end),
     title: item.title,
@@ -182,7 +187,7 @@ export async function savePlan(input: PlanInput, view: PlanView): Promise<string
     if (!plan) throw new Error('Plan insert failed');
     await tx.insert(planItem).values(itemValues(plan.id, view));
     // Accepted activities count stronger for variety than mere suggestions.
-    const ids = view.items.map((i) => i.activityId).filter((id) => !id.startsWith('builtin-'));
+    const ids = view.items.map((i) => i.activityId).filter(storedIdea);
     const known = ids.length
       ? await tx.select({ id: activity.id }).from(activity).where(inArray(activity.id, ids))
       : [];
@@ -532,7 +537,9 @@ export type PlanEdit =
   | { type: 'reroll'; index: number }
   | { type: 'remove'; index: number }
   | { type: 'swap'; index: number; placeId: string }
-  | { type: 'reschedule'; window: Window };
+  | { type: 'reschedule'; window: Window }
+  /** `keep`: other stops stay, times move; `around`: re-plan the rest around the chosen stop. */
+  | { type: 'replace'; index: number; stop: ChosenStopInput; mode: 'keep' | 'around' };
 
 type KeepEntry = { activityId: string; place: Place | null; alternatives: Place[] };
 
@@ -543,6 +550,28 @@ function keepOf(item: ItemRow): KeepEntry | null {
     activityId: item.activityId,
     place: isFullPlace(item.place) ? item.place : null,
     alternatives: (item.alternatives as Place[]) ?? [],
+  };
+}
+
+/**
+ * One-off stops (no stored idea, but a venue) cannot be kept like ideas; they are re-pinned from
+ * the saved item so that editing other stops does not lose them.
+ */
+export function oneOffStop(item: ItemRow, index: number): ChosenStopInput | null {
+  if (item.activityId || !isFullPlace(item.place)) return null;
+  const slot = item.slot as 'main' | 'meal' | 'snack';
+  return {
+    activityId: null,
+    custom: {
+      title: item.title,
+      kind: slot === 'main' ? 'activity' : slot,
+      durationMinutes: Math.max(15, minutesBetween(item.startsAt, item.endsAt)),
+      costEur: item.costEur,
+      query: item.placeName ?? item.title,
+    },
+    place: item.place,
+    startTime: null,
+    index,
   };
 }
 
@@ -564,11 +593,22 @@ export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Pr
   if (plan.endsAt < now) throw new PlanNotEditableError();
   const base = baseInput(plan);
   if (edit.type !== 'reschedule' && !items[edit.index]) throw new PlanNotEditableError();
+  // A re-rolled, removed or replaced stop that was chosen for a set time is no longer fixed.
+  if (edit.type !== 'reschedule' && edit.type !== 'swap') {
+    const target = items[edit.index]!;
+    base.chosen = base.chosen?.filter(
+      (c) =>
+        (c.activityId ?? null) !== target.activityId ||
+        (!c.activityId && c.custom?.title !== target.title),
+    );
+    if (base.chosen?.length === 0) delete base.chosen;
+  }
 
   let rows = items;
   let entries = items.map(keepOf);
   let window = windowOf(plan, base);
   const exclude: string[] = [];
+  let chosen: ChosenStopInput[] | undefined;
 
   switch (edit.type) {
     case 'reroll': {
@@ -599,18 +639,51 @@ export async function editPlan(id: string, edit: PlanEdit, now = new Date()): Pr
     case 'reschedule':
       window = edit.window;
       break;
+    case 'replace':
+      if (edit.mode === 'around') {
+        // Only the chosen stop is fixed, at the time the replaced one started.
+        const input: PlanInput = {
+          ...base,
+          ...window,
+          chosen: [
+            ...(base.chosen ?? []),
+            { ...edit.stop, startTime: toLocalTime(items[edit.index]!.startsAt), index: null },
+          ],
+          excludeActivityIds: [],
+        };
+        const result = await generatePlan(input);
+        const view = toPlanView(result.plan, await homeLocation(), result.area);
+        await replacePlan(id, savedInput(input), view);
+        return 0;
+      }
+      entries[edit.index] = null;
+      chosen = [{ ...edit.stop, startTime: null, index: edit.index }];
+      break;
   }
 
+  // Fixed one-off stops come back through the saved input; only the others are re-pinned.
+  const fixedTitles = new Set(
+    (base.chosen ?? []).flatMap((c) => (c.custom ? [c.custom.title] : [])),
+  );
+  const oneOffs = rows.flatMap((row, i) => {
+    const stop =
+      entries[i] || chosen?.some((c) => c.index === i) || fixedTitles.has(row.title)
+        ? null
+        : oneOffStop(row, i);
+    const rerolled = edit.type === 'reroll' && i === edit.index;
+    return stop && !rerolled ? [stop] : [];
+  });
   const input: PlanInput = {
     ...base,
     ...window,
     slots: rows.map((r) => r.slot as 'main' | 'meal' | 'snack'),
     keep: keepRecord(entries),
+    chosen: [...(base.chosen ?? []), ...(chosen ?? []), ...oneOffs],
     excludeActivityIds: exclude,
   };
   const result = await generatePlan(input);
   const view = toPlanView(result.plan, await homeLocation(), result.area);
-  await replacePlan(id, { ...base, ...window }, view);
+  await replacePlan(id, savedInput(input), view);
   // Kept items that could not stay as they were (e.g. venue closed on the new date).
   return entries.filter(
     (e) =>
@@ -632,11 +705,19 @@ export async function planAgain(id: string, window: Window): Promise<string> {
     }
     entries.push(entry);
   }
+  const fixed = baseInput(plan).chosen ?? [];
+  const fixedTitles = new Set(fixed.flatMap((c) => (c.custom ? [c.custom.title] : [])));
   const input: PlanInput = {
     ...baseInput(plan),
     ...window,
     slots: items.map((r) => r.slot as 'main' | 'meal' | 'snack'),
     keep: keepRecord(entries),
+    chosen: [
+      ...fixed,
+      ...items.flatMap((item, i) =>
+        entries[i] || fixedTitles.has(item.title) ? [] : (oneOffStop(item, i) ?? []),
+      ),
+    ],
     excludeActivityIds: [],
   };
   const result = await generatePlan(input);

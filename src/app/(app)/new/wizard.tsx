@@ -7,6 +7,7 @@ import { fromLocal, minutesBetween } from '@/lib/time';
 import type { PlanInput } from '@/planner/service';
 import { LocationPicker, type Point } from '../location-picker';
 import { SessionResult, usePlanSession } from '../plan-session';
+import { StopPicker, type PickedStop } from '../stop-picker';
 import { MOODS } from '../moods';
 import { Face } from './face';
 import { outingPreset, presets } from './presets';
@@ -24,7 +25,7 @@ export type WizardDefaults = {
   maxRadiusKm: number;
 };
 
-const STEPS = ['when', 'where', 'how', 'mood', 'food'] as const;
+const STEPS = ['when', 'where', 'plans', 'how', 'mood', 'food'] as const;
 type Step = (typeof STEPS)[number];
 
 const TRANSPORTS: { value: Transport; label: string; hint: string }[] = [
@@ -205,6 +206,8 @@ export function Wizard({
   const [moods, setMoods] = useState<string[]>([]);
   const [food, setFood] = useState<Food>('auto');
   const [cuisine, setCuisine] = useState<Cuisine | null>(null);
+  const [picks, setPicks] = useState<PickedStop[]>([]);
+  const [picking, setPicking] = useState(false);
 
   const windowMinutes = (() => {
     try {
@@ -236,6 +239,7 @@ export function Wizard({
     endInArea: center ? endInArea : undefined,
     maxDistanceKm,
     requiredActivityIds: idea ? [idea.id] : undefined,
+    chosen: picks.length > 0 ? picks.map((p) => p.stop) : undefined,
     excludeActivityIds: [],
   });
 
@@ -269,6 +273,7 @@ export function Wizard({
       setCenter(null);
       setMaxDistanceKm(null);
     }
+    if (step === 'plans') setPicks([]);
     if (step === 'how') setFormat(null);
     if (step === 'mood') setMoods([]);
     if (step === 'food') {
@@ -444,6 +449,75 @@ export function Wizard({
                     onStartChange={setStartInArea}
                     endInArea={endInArea}
                     onEndChange={setEndInArea}
+                  />
+                )}
+              </>
+            )}
+
+            {step === 'plans' && (
+              <>
+                <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
+                  Anything set already?
+                </h1>
+                <p className="-mt-3 text-sm text-mist">
+                  Add what you want to do for sure, at a set time if you like. We plan the rest
+                  around it.
+                </p>
+                {picks.length > 0 && (
+                  <ul className="flex flex-col gap-2">
+                    {picks.map((p, i) => (
+                      <li
+                        key={`${p.title}-${i}`}
+                        className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-butter px-4 py-2"
+                      >
+                        <span className="flex flex-col">
+                          <span className="font-medium">{p.title}</span>
+                          {p.when && <span className="text-sm text-ink/70">{p.when}</span>}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${p.title}`}
+                          onClick={() => setPicks((cur) => cur.filter((_, j) => j !== i))}
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/70 hover:bg-white"
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 12 12"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            aria-hidden
+                          >
+                            <path d="m3 3 6 6M9 3 3 9" />
+                          </svg>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {picks.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setPicking(true)}
+                    className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line text-[15px] font-medium hover:bg-cream"
+                  >
+                    <span aria-hidden className="text-xl leading-none">
+                      +
+                    </span>
+                    {picks.length === 0 ? 'Add something' : 'Add another'}
+                  </button>
+                )}
+                {picking && (
+                  <StopPicker
+                    heading="What do you want to do?"
+                    near={center}
+                    timeWindow={{ start: when.startTime, end: when.endTime }}
+                    onClose={() => setPicking(false)}
+                    onPick={(picked) => {
+                      setPicks((cur) => [...cur, picked]);
+                      setPicking(false);
+                    }}
                   />
                 )}
               </>

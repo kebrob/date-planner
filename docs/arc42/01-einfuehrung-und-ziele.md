@@ -35,7 +35,8 @@ Ausgabe: Ablaufplan mit Uhrzeiten, konkreten Orten, Kosten, Wetterhinweis, Anrei
 - Karte zur Wahl von Mittelpunkt und Radius, optionaler exakter Wohnort-Pin (ADR-012)
 - Zielort zuerst planen, Start bzw. Ende am Zielort („Already there“, „Staying there“)
 - Preise der Lokale (Google `priceRange`), Sonnenstand-Ideen (`sunset`, `after_dark`)
-- Startseite mit Kacheln („Plan a date“, „Surprise us …“), Wizard in fünf Schritten
+- Startseite mit Kacheln („Plan a date“, „Surprise us …“), Wizard (Wann, Wo, Feste Programmpunkte, Wie, Stimmung, Essen)
+- Programmpunkte selbst wählen: eigene Ideen oder – auf ausdrücklichen Tipp – Google-Ortssuche, optional zu fester Uhrzeit; Programmpunkt ersetzen mit „Keep the rest“ oder „Re-plan around it“; Suchtreffer als neue Idee speichern (2026-10-12)
 
 ### Phase 2 (umgesetzt, Stand 2026-10-12)
 

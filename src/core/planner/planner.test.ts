@@ -908,6 +908,166 @@ describe('summarizeWeather', () => {
   });
 });
 
+describe('chosen stops', () => {
+  const skating = activity({
+    id: 'skating',
+    tags: ['active'],
+    costMinEur: 10,
+    costMaxEur: 20,
+    durationMinutes: 90,
+    placeType: 'ice_rink',
+    placeQuery: 'Eislaufen',
+  });
+  const rink = place('rink', 3);
+  const day = (time: string) => fromLocal('2026-10-10', time);
+
+  it('plans a fixed-time stop at its time and fits the rest around it', async () => {
+    const anchored = await buildPlan(
+      request({
+        start: day('14:00'),
+        end: day('23:00'),
+        food: 'meal',
+        anchors: [{ activity: skating, place: rink, start: day('18:00') }],
+      }),
+      context({ activities: [...context().activities, skating] }),
+    );
+    const item = anchored.items.find((i) => i.activity.id === 'skating')!;
+    expect(item.start).toEqual(day('18:00'));
+    expect(item.place).toBe(rink);
+    const index = anchored.items.indexOf(item);
+    for (const before of anchored.items.slice(0, index)) {
+      expect(before.end.getTime()).toBeLessThanOrEqual(day('18:00').getTime());
+    }
+    expect(anchored.items.length).toBeGreaterThan(1);
+  });
+
+  it('fills the time before a late fixed stop instead of waiting', async () => {
+    const plan = await buildPlan(
+      request({
+        start: day('10:00'),
+        end: day('21:00'),
+        anchors: [{ activity: skating, place: rink, start: day('18:30') }],
+      }),
+      context({ activities: [...context().activities, skating] }),
+    );
+    const index = plan.items.findIndex((i) => i.activity.id === 'skating');
+    expect(index).toBeGreaterThan(0);
+  });
+
+  it('picks the closest venue open at that time for a fixed stop without one', async () => {
+    const closedAtSix = { alwaysOpen: false as const, periods: [] };
+    const findPlaces = vi.fn(async (a: Activity, center: LatLng) =>
+      a.id === 'skating'
+        ? [
+            { ...placeAt(center, 1, 'closed-rink'), openingHours: closedAtSix },
+            placeAt(center, 9, 'far-rink'),
+            placeAt(center, 2, 'open-rink'),
+          ]
+        : [placeAt(center, 1, `${a.id}-place`)],
+    );
+    const plan = await buildPlan(
+      request({ anchors: [{ activity: skating, place: null, start: day('19:00') }] }),
+      context({ activities: [...context().activities, skating], findPlaces }),
+    );
+    expect(plan.items.find((i) => i.activity.id === 'skating')?.place?.id).toBe('open-rink');
+  });
+
+  it('starts a fixed stop on arrival and says so when it cannot be reached in time', async () => {
+    const far = { ...rink, location: { lat: HOME.lat + 0.5, lng: HOME.lng } };
+    const plan = await buildPlan(
+      request({
+        start: day('18:55'),
+        end: day('23:00'),
+        anchors: [{ activity: skating, place: far, start: day('19:00') }],
+      }),
+      context({ activities: [skating] }),
+    );
+    expect(plan.items[0]!.start.getTime()).toBeGreaterThan(day('19:05').getTime());
+    expect(plan.warnings).toContain('chosen_time_moved');
+  });
+
+  it('lets a fixed dinner take the place of the planned meal', async () => {
+    const plan = await buildPlan(
+      request({
+        food: 'meal',
+        anchors: [{ activity: dinner, place: place('fixed-dinner', 2), start: day('20:00') }],
+      }),
+      context(),
+    );
+    expect(plan.items.filter((i) => i.slot === 'meal')).toHaveLength(1);
+    expect(plan.items.find((i) => i.slot === 'meal')!.place!.id).toBe('fixed-dinner');
+  });
+
+  it('replaces one stop with a chosen one and moves the kept ones in time', async () => {
+    const keptDinner = place('kept-dinner', 2);
+    const plan = await buildPlan(
+      request({
+        start: day('15:00'),
+        end: day('23:00'),
+        slots: ['main', 'meal'],
+        pins: { 0: { activity: skating, place: rink } },
+        keep: { 1: { activity: dinner, place: keptDinner } },
+      }),
+      context({ activities: [...context().activities, skating] }),
+    );
+    expect(plan.items.slice(0, 2).map((i) => i.activity.id)).toEqual(['skating', 'dinner']);
+    expect(plan.items[1]!.place).toBe(keptDinner);
+    expect(plan.items[1]!.start.getTime()).toBeGreaterThanOrEqual(plan.items[0]!.end.getTime());
+  });
+
+  it('keeps a stop chosen for a set time at that time when another stop is replaced', async () => {
+    const far = { ...rink, id: 'far-rink', location: { lat: HOME.lat + 0.4, lng: HOME.lng } };
+    const plan = await buildPlan(
+      request({
+        start: day('13:00'),
+        end: day('22:00'),
+        slots: ['main', 'main'],
+        pins: { 0: { activity: cinema, place: place('kino', 2) } },
+        keep: { 1: { activity: skating, place: far, at: day('19:00') } },
+      }),
+      context({ activities: [...context().activities, skating] }),
+    );
+    const skatingItem = plan.items.find((i) => i.activity.id === 'skating')!;
+    expect(skatingItem.start).toEqual(day('19:00'));
+    expect(skatingItem.place).toBe(far);
+  });
+
+  it('takes the closest venue for a chosen idea without one', async () => {
+    for (let seed = 1; seed <= 5; seed++) {
+      const plan = await buildPlan(
+        request({ slots: ['main'], pins: { 0: { activity: skating, place: null } } }),
+        context({
+          activities: [skating],
+          findPlaces: async (_a, center) => [
+            placeAt(center, 12, 'far'),
+            placeAt(center, 2, 'near'),
+          ],
+          random: seededRandom(seed),
+        }),
+      );
+      expect(plan.items[0]!.place!.id).toBe('near');
+    }
+  });
+
+  it('plans a chosen stop even when it is over budget or not the weather for it', async () => {
+    const pricey = activity({
+      ...skating,
+      id: 'pricey',
+      costMinEur: 300,
+      costMaxEur: 300,
+      weather: { dryOnly: true },
+    });
+    const plan = await buildPlan(
+      request({ budgetEur: 50, slots: ['main'], pins: { 0: { activity: pricey, place: rink } } }),
+      context({
+        activities: [pricey],
+        weather: { reliability: 'good', dry: false, minTempC: 5, maxTempC: 8 },
+      }),
+    );
+    expect(plan.items[0]!.activity.id).toBe('pricey');
+  });
+});
+
 describe('weather per item and preferences', () => {
   // Dry and sunny until 14:00, then rain.
   const forecast = Array.from({ length: 14 }, (_, h) => ({

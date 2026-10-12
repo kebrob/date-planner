@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Place } from '@/ports/places';
-import { archivedPlace, isFullPlace, rowsToView } from './saved';
+import { archivedPlace, isFullPlace, oneOffStop, rowsToView } from './saved';
+import { chosenStopSchema, customActivity } from './service';
 
 const googlePlace: Place = {
   provider: 'google',
@@ -109,5 +110,75 @@ describe('rowsToView', () => {
     const view = rowsToView(plan, [{ ...item, place: googlePlace }], new Date('2026-10-01'));
     expect(view.isPast).toBe(false);
     expect(view.items[0]!.place).toEqual(googlePlace);
+  });
+});
+
+describe('chosen stops', () => {
+  const row = {
+    id: 'i1',
+    planId: 'p1',
+    position: 1,
+    activityId: null,
+    startsAt: new Date('2026-10-10T16:00:00Z'),
+    endsAt: new Date('2026-10-10T17:30:00Z'),
+    title: 'Ice skating',
+    slot: 'main',
+    preparation: null,
+    atHome: false,
+    openingHoursUnknown: false,
+    placeProvider: 'google',
+    placeId: 'g1',
+    placeName: 'Eisstadion',
+    place: googlePlace,
+    alternatives: [],
+    costEur: 24,
+    travel: null,
+    rating: null,
+    placeBlamed: false,
+    weatherConditions: null,
+  };
+
+  it('keeps one-off stops of saved plans by pinning them again', () => {
+    expect(oneOffStop(row, 1)).toEqual({
+      activityId: null,
+      custom: {
+        title: 'Ice skating',
+        kind: 'activity',
+        durationMinutes: 90,
+        costEur: 24,
+        query: 'Eisstadion',
+      },
+      place: googlePlace,
+      startTime: null,
+      index: 1,
+    });
+    // Stored ideas are kept as ideas; archived places can't be pinned.
+    expect(oneOffStop({ ...row, activityId: 'a1' }, 1)).toBeNull();
+    expect(oneOffStop({ ...row, place: archivedPlace(googlePlace) }, 1)).toBeNull();
+  });
+
+  it('turns a one-off stop into a text-search idea of its kind', () => {
+    const meal = customActivity('chosen-0', {
+      title: 'Sushi',
+      kind: 'meal',
+      durationMinutes: 90,
+      costEur: 60,
+      query: 'Sushi',
+    });
+    expect(meal).toMatchObject({ category: 'food', tags: ['food', 'meal'], placeType: 'custom' });
+  });
+
+  it('needs either one of your ideas or a one-off stop', () => {
+    const base = { place: null, startTime: null, index: null };
+    expect(chosenStopSchema.safeParse({ ...base, activityId: null, custom: null }).success).toBe(
+      false,
+    );
+    expect(
+      chosenStopSchema.safeParse({
+        ...base,
+        activityId: '7f0f3c2e-1b2a-4c3d-9e8f-0a1b2c3d4e5f',
+        custom: null,
+      }).success,
+    ).toBe(true);
   });
 });

@@ -18,8 +18,23 @@ import {
   type PlanEdit,
   type Window,
 } from '@/planner/saved';
-import { AreaNotFoundError, generatePlan, homePoint, type PlanInput } from '@/planner/service';
+import {
+  AreaNotFoundError,
+  generatePlan,
+  homePoint,
+  savedInput,
+  type PlanInput,
+} from '@/planner/service';
 import { toPlanView, type PlanView } from '@/planner/view';
+import {
+  addIdea,
+  listIdeaOptions,
+  searchPlaces,
+  type IdeaOption,
+  type newIdeaSchema,
+  type placeSearchSchema,
+} from '@/planner/chosen';
+import type { Place } from '@/ports/places';
 import { nextTrain, type LiveTrain } from '@/rail/live';
 import {
   dismissRatingPrompt,
@@ -68,10 +83,7 @@ export async function generatePlanAction(input: PlanInput): Promise<Result<PlanV
 export async function savePlanAction(input: PlanInput, view: PlanView): Promise<Result<string>> {
   await requireSession();
   try {
-    const base = { ...input, excludeActivityIds: [] };
-    delete base.keep;
-    delete base.slots;
-    const id = await savePlan(base, view);
+    const id = await savePlan(savedInput(input), view);
     revalidatePlans();
     return { ok: true, data: id };
   } catch (error) {
@@ -206,5 +218,37 @@ export async function dismissRatingPromptAction(id: string): Promise<Result<null
     return { ok: true, data: null };
   } catch (error) {
     return failure(error, 'Could not skip the rating.');
+  }
+}
+
+export async function listIdeaOptionsAction(): Promise<Result<IdeaOption[]>> {
+  await requireSession();
+  try {
+    return { ok: true, data: await listIdeaOptions() };
+  } catch (error) {
+    return failure(error, 'Could not load your ideas.');
+  }
+}
+
+/** Paid place search; only called when the user taps "Search Google". */
+export async function searchPlacesAction(
+  input: z.input<typeof placeSearchSchema>,
+): Promise<Result<{ places: Place[]; limitReached: boolean }>> {
+  await requireSession();
+  try {
+    return { ok: true, data: await searchPlaces(input) };
+  } catch (error) {
+    return failure(error, 'Could not search places.');
+  }
+}
+
+export async function addIdeaAction(input: z.input<typeof newIdeaSchema>): Promise<Result<string>> {
+  await requireSession();
+  try {
+    const id = await addIdea(input);
+    revalidatePath('/admin/activities');
+    return { ok: true, data: id };
+  } catch (error) {
+    return failure(error, 'Could not save the idea.');
   }
 }

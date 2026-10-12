@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { ActivityForm } from '@/admin/service';
 import { CUISINES, MOOD_TAGS } from '@/core/planner/types';
-import { PLACE_TYPES } from '@/ports/place-types';
+import { PLACE_TYPES, TEXT_SEARCH_TYPE } from '@/ports/place-types';
 import { saveActivityAction } from '../../actions';
 import { field, Message, primary, secondary, TRANSPORTS } from '../../forms';
 
@@ -227,6 +227,7 @@ export function ActivityEditor({
                   {t.replaceAll('_', ' ')}
                 </option>
               ))}
+              <option value={TEXT_SEARCH_TYPE}>Search term only (Google)</option>
             </select>
           </label>
           {form.placeType && (

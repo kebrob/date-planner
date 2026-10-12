@@ -33,3 +33,6 @@ export const PLACE_TYPES = [
 ] as const;
 
 export type PlaceType = (typeof PLACE_TYPES)[number];
+
+/** Venue found by its search term only (Google text search), e.g. ideas saved from a search. */
+export const TEXT_SEARCH_TYPE = 'custom';

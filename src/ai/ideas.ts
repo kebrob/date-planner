@@ -130,8 +130,9 @@ export function withoutDuplicates(ideas: Idea[], existingTitles: string[]): Idea
 }
 
 export function toActivityInsert(
-  idea: Idea,
-  source: 'claude' | 'import',
+  // Ideas saved in the app may also use the text-search venue type.
+  idea: Omit<Idea, 'placeType'> & { placeType: string | null },
+  source: 'claude' | 'import' | 'manual',
 ): typeof activity.$inferInsert {
   const food = idea.kind !== 'activity';
   const tags = [

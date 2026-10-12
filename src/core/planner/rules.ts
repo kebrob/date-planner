@@ -1,4 +1,5 @@
 import { localParts } from '@/lib/time';
+import { TEXT_SEARCH_TYPE } from '@/ports/place-types';
 import type { Place } from '@/ports/places';
 import { weightedShuffle } from './random';
 import type {
@@ -186,7 +187,7 @@ export function needsPlace(activity: Activity): boolean {
 
 /** Free ideas are searched with a free provider first; free-text stops ('custom') need a paid one. */
 export function isFreeSearch(activity: Activity): boolean {
-  return activity.costMaxEur === 0 && activity.placeType !== 'custom';
+  return activity.costMaxEur === 0 && activity.placeType !== TEXT_SEARCH_TYPE;
 }
 
 const PREFERENCE_BONUS = 2;

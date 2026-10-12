@@ -17,11 +17,12 @@ import { activity, apiUsage, settings, suggestionLog, travelRoutine } from '@/db
 import { dayKey } from '@/guard/periods';
 import { nextOuting } from './outing';
 import { attachTrains } from './trains';
-import { fitsWeather, isFreeSearch, seasonOf, timeOfDay } from '@/core/planner/rules';
+import { fitsWeather, foodKind, isFreeSearch, seasonOf, timeOfDay } from '@/core/planner/rules';
 import { weightedShuffle } from '@/core/planner/random';
 import { loadLearning } from '@/ratings/service';
 import { fromLocal } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
+import { TEXT_SEARCH_TYPE } from '@/ports/place-types';
 import type { LatLng, Place } from '@/ports/places';
 
 export class AreaNotFoundError extends Error {
@@ -52,6 +53,54 @@ export const placeSchema = z.object({
     .nullable(),
   mapsUrl: z.string().max(500).optional(),
 });
+
+const customStopSchema = z.object({
+  title: z.string().trim().min(2).max(80),
+  kind: z.enum(['activity', 'meal', 'snack']),
+  durationMinutes: z.number().int().min(15).max(600),
+  costEur: z.number().int().min(0).max(1000),
+  /** Search text it was found with, used if the venue has to be searched again. */
+  query: z.string().trim().min(2).max(80),
+});
+
+/** A stop the user picked: one of their ideas or a one-off from a place search. */
+export const chosenStopSchema = z
+  .object({
+    activityId: z.string().uuid().nullable(),
+    custom: customStopSchema.nullable(),
+    place: placeSchema.nullable(),
+    /** Fixed start within the window; null = any time. */
+    startTime: time.nullable(),
+    /** Takes the place of the item at this position (the others are kept). */
+    index: z.number().int().min(0).max(4).nullable(),
+  })
+  .refine((v) => (v.activityId === null) !== (v.custom === null), {
+    message: 'Either an idea or a one-off stop',
+  });
+
+export type ChosenStopInput = z.input<typeof chosenStopSchema>;
+
+export function customActivity(id: string, custom: z.output<typeof customStopSchema>): Activity {
+  return {
+    id,
+    title: custom.title,
+    description: '',
+    category: custom.kind === 'activity' ? 'activity' : 'food',
+    tags: custom.kind === 'activity' ? [] : ['food', custom.kind],
+    costMinEur: custom.costEur,
+    costMaxEur: custom.costEur,
+    durationMinutes: custom.durationMinutes,
+    weather: {},
+    transports: [],
+    atHome: false,
+    // Text search only: one-off stops have no provider-neutral type.
+    placeType: TEXT_SEARCH_TYPE,
+    placeQuery: custom.query,
+    timesOfDay: [],
+    seasons: [],
+    preparation: null,
+  };
+}
 
 export const planInputSchema = z
   .object({
@@ -91,6 +140,7 @@ export const planInputSchema = z
       )
       .max(3)
       .optional(),
+    chosen: z.array(chosenStopSchema).max(5).optional(),
     slots: z
       .array(z.enum(['main', 'meal', 'snack']))
       .max(5)
@@ -118,6 +168,20 @@ export const planInputSchema = z
   );
 
 export type PlanInput = z.input<typeof planInputSchema>;
+
+/**
+ * The input a saved plan keeps: without re-roll state, but with stops chosen for a set time, so
+ * they stay at that time when the plan is edited later.
+ */
+export function savedInput(input: PlanInput): PlanInput {
+  const base: PlanInput = { ...input, excludeActivityIds: [] };
+  delete base.keep;
+  delete base.slots;
+  const fixed = input.chosen?.filter((c) => c.startTime && c.index === null);
+  if (fixed?.length) base.chosen = fixed;
+  else delete base.chosen;
+  return base;
+}
 
 type ActivityRow = typeof activity.$inferSelect;
 
@@ -173,7 +237,7 @@ export function homePoint(row: SettingsRow): LatLng {
 }
 
 // External place searches only ever see a ~1 km grid, never the exact home pin.
-const toGrid = (p: LatLng): LatLng => ({
+export const toGrid = (p: LatLng): LatLng => ({
   lat: Math.round(p.lat * 100) / 100,
   lng: Math.round(p.lng * 100) / 100,
 });
@@ -191,7 +255,7 @@ export async function loadPlannerDefaults() {
   };
 }
 
-async function placesLimitReached(now: Date): Promise<boolean> {
+export async function placesLimitReached(now: Date): Promise<boolean> {
   const limits = getLimits();
   if (limits.places.provider !== 'google' || !process.env.GOOGLE_PLACES_API_KEY) return false;
   const [row] = await getDb()
@@ -232,7 +296,7 @@ export async function generatePlan(
     transports: [],
     atHome: false,
     // Ad-hoc stops are searched by text (Google); there is no matching OSM category.
-    placeType: stop.searchQuery ? 'custom' : null,
+    placeType: stop.searchQuery ? TEXT_SEARCH_TYPE : null,
     placeQuery: stop.searchQuery,
     timesOfDay: [],
     seasons: [],
@@ -240,7 +304,46 @@ export async function generatePlan(
   }));
   const catalog = activityRows.map(toActivity);
   required.push(...catalog.filter((a) => input.requiredActivityIds?.includes(a.id)));
-  const activities = [...catalog, ...required.filter((a) => a.id.startsWith('adhoc-'))];
+
+  const allChosen = (input.chosen ?? []).flatMap((c, i) => {
+    const a = c.activityId
+      ? catalog.find((x) => x.id === c.activityId)
+      : customActivity(`chosen-${i}`, c.custom!);
+    return a ? [{ ...c, activity: a, place: (c.place as Place | null) ?? null }] : [];
+  });
+  // On re-rolls the chosen stops are usually kept items already; rejected ones stay out.
+  const kept = new Set(Object.values(input.keep ?? {}).map((k) => k.activityId));
+  // A stop picked for a position was chosen just now, so it wins over earlier rejections.
+  const chosen = allChosen.filter(
+    (c) =>
+      c.index !== null ||
+      (!input.excludeActivityIds.includes(c.activity.id) && !kept.has(c.activity.id)),
+  );
+  // A time on the start date, or on the end date for windows past midnight.
+  const startOf = (t: string) => {
+    const sameDay = fromLocal(input.date, t);
+    return sameDay < start ? fromLocal(input.endDate, t) : sameDay;
+  };
+  const pins = Object.fromEntries(chosen.filter((c) => c.index !== null).map((c) => [c.index!, c]));
+  // A set time outside the window counts as "any time".
+  const fixedStart = (c: (typeof chosen)[number]) => {
+    const at = c.startTime ? startOf(c.startTime) : null;
+    return at && at >= start && at < end ? at : null;
+  };
+  const anchors = chosen.flatMap((c) =>
+    c.index === null && fixedStart(c) ? [{ ...c, start: fixedStart(c)! }] : [],
+  );
+  const anyTime = chosen.filter((c) => c.index === null && !fixedStart(c));
+  required.push(...anyTime.map((c) => c.activity));
+  const chosenPlaces = Object.fromEntries(
+    anyTime.flatMap((c) => (c.place ? [[c.activity.id, c.place] as const] : [])),
+  );
+  const activities = [
+    ...catalog,
+    ...required.filter((a) => a.id.startsWith('adhoc-')),
+    // One-off chosen stops, so that kept items can refer to them.
+    ...allChosen.map((c) => c.activity).filter((a) => a.id.startsWith('chosen-')),
+  ];
   const townLocation = { lat: home.homeLat, lng: home.homeLng };
   const area = input.areaPoint
     ? {
@@ -259,10 +362,14 @@ export async function generatePlan(
   for (const [index, k] of Object.entries(input.keep ?? {})) {
     const kept = activities.find((a) => a.id === k.activityId);
     if (kept) {
+      // Chosen for a set time: stays at that time when the rest changes.
+      const fixed = allChosen.find((c) => c.activity.id === kept.id && c.index === null);
+      const at = fixed?.startTime ? startOf(fixed.startTime) : undefined;
       keep[Number(index)] = {
         activity: kept,
         place: k.place as Place | null,
         alternatives: (k.alternatives ?? []) as Place[],
+        ...(at && at >= start && at < end ? { at } : {}),
       };
     }
   }
@@ -285,7 +392,13 @@ export async function generatePlan(
       allowOverBudget: true,
       maxDistanceKm: input.maxDistanceKm ?? null,
       required,
-      slots: input.slots,
+      anchors,
+      pins,
+      chosenPlaces,
+      // A chosen stop takes a slot of its own kind (a restaurant replacing an activity is a meal).
+      slots: input.slots?.map((slot, i) =>
+        pins[i] ? (foodKind(pins[i].activity) ?? 'main') : slot,
+      ),
       excludeActivityIds: input.excludeActivityIds,
       keep,
     },

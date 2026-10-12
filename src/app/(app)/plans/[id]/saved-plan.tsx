@@ -11,6 +11,7 @@ import {
 } from '../../actions';
 import { PlanResult } from '../../plan-result';
 import { DateRating, ItemRating } from '../../rating';
+import { StopPicker } from '../../stop-picker';
 
 const field = 'rounded-lg border border-line bg-transparent px-3 py-2';
 const button = 'rounded-xl border border-line px-4 py-2 text-sm disabled:opacity-50 hover:bg-cream';
@@ -60,6 +61,7 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
   const [note, setNote] = useState(plan.note ?? '');
   const [window, setWindow] = useState<Window>(plan.window);
   const [panel, setPanel] = useState<'none' | 'reschedule' | 'again'>('none');
+  const [choosing, setChoosing] = useState<number | null>(null);
   // Single stops are rated on demand, or right away when some already are.
   const [rateItems, setRateItems] = useState(plan.itemRatings.some((r) => r.rating !== null));
 
@@ -144,8 +146,23 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
         onRerollItem={editable ? (index) => edit({ type: 'reroll', index }) : undefined}
         onRemoveItem={editable ? (index) => edit({ type: 'remove', index }) : undefined}
         onSwap={editable ? (index, placeId) => edit({ type: 'swap', index, placeId }) : undefined}
+        onChooseItem={editable ? setChoosing : undefined}
         renderItemExtra={itemExtra}
       />
+
+      {choosing !== null && (
+        <StopPicker
+          heading={`Instead of ${plan.items[choosing]?.title.toLowerCase() ?? 'this'}`}
+          near={plan.items[choosing]?.place?.location ?? null}
+          askMode
+          onClose={() => setChoosing(null)}
+          onPick={(picked, mode) => {
+            const index = choosing;
+            setChoosing(null);
+            edit({ type: 'replace', index, stop: picked.stop, mode });
+          }}
+        />
+      )}
 
       {plan.canRate && <DateRating plan={plan} showItems={rateItems} onShowItems={setRateItems} />}
 

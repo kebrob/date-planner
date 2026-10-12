@@ -86,6 +86,9 @@ export type Learning = {
   avoidPlaces: string[];
 };
 
+/** An activity the user picked themselves, optionally with the venue they chose. */
+export type ChosenStop = { activity: Activity; place: Place | null };
+
 export type PlanRequest = {
   start: Date;
   end: Date;
@@ -111,10 +114,25 @@ export type PlanRequest = {
   maxDistanceKm?: number | null;
   /** Ad-hoc ideas that must be part of the plan (e.g. "shopping" requested in the chat). */
   required?: Activity[];
+  /** Chosen stops at a fixed start; the rest of the plan is fitted before, between and after. */
+  anchors?: (ChosenStop & { start: Date })[];
+  /** Chosen stops for item positions, e.g. replacing one stop while keeping the others. */
+  pins?: Record<number, ChosenStop>;
+  /** Venues the user picked for ideas in `required`; used instead of a search. */
+  chosenPlaces?: Record<string, Place>;
   /** Activities rejected during this planning session. */
   excludeActivityIds: string[];
   /** Items kept from a previous plan when re-rolling a single item, keyed by item index. */
-  keep?: Record<number, { activity: Activity; place: Place | null; alternatives?: Place[] }>;
+  keep?: Record<
+    number,
+    {
+      activity: Activity;
+      place: Place | null;
+      alternatives?: Place[];
+      /** Chosen for a set time: stays a fixed block when the rest is re-planned. */
+      at?: Date;
+    }
+  >;
 };
 
 export type PlanContext = {
@@ -193,6 +211,7 @@ export type PlanWarning =
   | 'food_skipped'
   | 'over_budget'
   | 'required_skipped'
+  | 'chosen_time_moved'
   | 'places_daily_limit'
   | 'train_times_adjusted'
   | 'train_ticket_needed'
