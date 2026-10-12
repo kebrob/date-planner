@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-export default function ErrorPage({ unstable_retry }: { unstable_retry: () => void }) {
+export default function ErrorPage({ retry }: { retry: () => void }) {
   return (
     <div role="alert" className="flex flex-col items-start gap-4 pt-10">
       <h1 className="text-[28px] font-semibold tracking-tight">Something went wrong</h1>
@@ -12,7 +12,7 @@ export default function ErrorPage({ unstable_retry }: { unstable_retry: () => vo
       <div className="flex items-center gap-4">
         <button
           type="button"
-          onClick={() => unstable_retry()}
+          onClick={() => retry()}
           className="rounded-full bg-ink px-5 py-3.5 text-sm font-medium text-white hover:bg-ink/85"
         >
           Try again
