@@ -29,7 +29,7 @@ Ziel: App unter `https://dates.robertkebinger.com`, gehostet auf Vercel (Hobby),
 | `GOOGLE_PLACES_API_KEY` | eigener Prod-Key, beschränkt auf Places API (New)                                                  |
 | `DB_CLIENT_ID`          | Client ID der Anwendung im DB API Marketplace (Abos: Timetables, StaDa – je Free)                  |
 | `DB_API_KEY`            | API Key derselben Anwendung                                                                        |
-| `PLACES_DAILY_LIMIT`    | z. B. `35` (siehe Runbook)                                                                         |
+| `PLACES_DAILY_LIMIT`    | Default `25` genügt; höchstens unter dem Google-Kontingent (30/Tag) wählen (siehe Runbook)         |
 | weitere Limits          | nur falls abweichend von den Defaults (`.env.example`)                                             |
 
 4. **Keine Zahlungsmethode** bei Vercel hinterlegen (Hobby-Plan).

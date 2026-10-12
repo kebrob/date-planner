@@ -21,7 +21,7 @@ Ausgabe: Ablaufplan mit Uhrzeiten, konkreten Orten, Kosten, Wetterhinweis, Anrei
 
 - Login für einen gemeinsamen Account per Passkey (Face ID) + Notfall-Passwort
 - Admin: Einstellungen (Wohnort, Verkehrsmittel, Budget, Anreise-Routinen), Aktivitäten-Verwaltung, Kosten-/Verbrauchsübersicht
-- Aktivitäten erzeugen: manuell, per Claude-Button („10 Ideen generieren“) oder per Prompt-Export/JSON-Import über das Claude-Abo; neue Ideen landen als Entwurf
+- Aktivitäten erzeugen: manuell, per Claude-Button (3, 5 oder 10 Ideen) oder per Prompt-Export/JSON-Import über das Claude-Abo; neue Ideen landen als Entwurf
 - Planner: Formular, Planformat abhängig von Zeitfenster (eine Aktivität / Aktivität + Essen / Tagesplan), Neu würfeln (ganz oder einzelner Programmpunkt)
 - Wetter (Open-Meteo), Ortssuche (Google Places, Fallback OpenStreetMap)
 - Claude-Chat mit Zugriff auf Planner-Funktionen (Tool Use)
