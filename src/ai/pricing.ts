@@ -6,7 +6,6 @@ type Rates = { inputPerMTok: number; outputPerMTok: number; cacheReadPerMTok: nu
 const RATES: Record<string, Rates> = {
   'claude-sonnet-5-5': { inputPerMTok: 2, outputPerMTok: 10, cacheReadPerMTok: 0.2 },
   'claude-opus-5-5': { inputPerMTok: 4, outputPerMTok: 20, cacheReadPerMTok: 0.2 },
-  'claude-haiku-5-5': { inputPerMTok: 0.1, outputPerMTok: 0.5, cacheReadPerMTok: 0.01 },
 };
 
 // A refused request may be served by a fallback model; unknown models are billed at the highest
@@ -43,7 +42,7 @@ export function actualCostUsd(model: string, usage: UsageLike): number {
 
 /** Worst-case cost of a request, used to reserve budget before the call. */
 export function estimateMaxCostUsd(
-  params: { model: string; max_tokens: number },
+  params: { model: string; max_tokens: number; cache_control?: unknown },
   serializedRequestLength: number,
   maxWebSearches: number,
   /** Set when a refusal fallback may serve the request on a pricier model. */
@@ -52,8 +51,10 @@ export function estimateMaxCostUsd(
   const r = withFallback ? MOST_EXPENSIVE : ratesFor(params.model);
   const inputTokens =
     Math.ceil(serializedRequestLength / CHARS_PER_TOKEN) + maxWebSearches * TOKENS_PER_WEB_SEARCH;
+  // With caching, the whole input may be written to the cache at the higher write price.
+  const inputRate = r.inputPerMTok * (params.cache_control ? CACHE_WRITE_MULTIPLIER : 1);
   return (
-    (inputTokens * r.inputPerMTok + params.max_tokens * r.outputPerMTok) / 1_000_000 +
+    (inputTokens * inputRate + params.max_tokens * r.outputPerMTok) / 1_000_000 +
     maxWebSearches * WEB_SEARCH_USD
   );
 }

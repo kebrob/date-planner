@@ -105,6 +105,9 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<ToolLoopRes
       system: options.system,
       messages: [...messages],
       tools,
+      // Each round resends system prompt, tools and the growing history; caching makes the
+      // repeated prefix cheap.
+      cache_control: { type: 'ephemeral' },
       ...(options.effort ? { output_config: { effort: options.effort } } : {}),
     };
     const estimate = estimateMaxCostUsd(params, JSON.stringify(params).length, remainingSearches);

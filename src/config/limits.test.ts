@@ -8,7 +8,7 @@ describe('parseLimits', () => {
     expect(limits.ai.monthlyBudgetUsd).toBe(15);
     expect(limits.ai.dailyBudgetUsd).toBe(2);
     expect(limits.ai.maxToolIterations).toBe(8);
-    expect(limits.ai.maxWebSearches).toEqual({ chat: 3, generate: 5, trip: 15 });
+    expect(limits.ai.maxWebSearches).toEqual({ chat: 3, trip: 15 });
     expect(limits.places).toEqual({
       provider: 'google',
       dailyLimit: 25,
