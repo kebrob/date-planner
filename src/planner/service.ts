@@ -21,6 +21,7 @@ import { firstOpenStart } from '@/core/planner/opening-hours';
 import { fitsWeather, foodKind, isFreeSearch, seasonOf, timeOfDay } from '@/core/planner/rules';
 import { weightedShuffle } from '@/core/planner/random';
 import { loadLearning } from '@/ratings/service';
+import { placeSchema } from './schemas';
 import { fromLocal } from '@/lib/time';
 import type { GeoArea } from '@/ports/geocoding';
 import { TEXT_SEARCH_TYPE } from '@/ports/place-types';
@@ -35,25 +36,6 @@ export class AreaNotFoundError extends Error {
 const transport = z.enum(['deutschlandticket', 'car', 'walk', 'bike']);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^\d{2}:\d{2}$/);
-
-export const placeSchema = z.object({
-  provider: z.enum(['google', 'osm']),
-  id: z.string().max(300),
-  name: z.string().max(300),
-  location: z.object({ lat: z.number(), lng: z.number() }),
-  address: z.string().max(500).optional(),
-  rating: z.number().optional(),
-  openingHours: z
-    .union([
-      z.object({ alwaysOpen: z.literal(true) }),
-      z.object({
-        alwaysOpen: z.literal(false),
-        periods: z.array(z.object({ start: z.number(), end: z.number() })).max(50),
-      }),
-    ])
-    .nullable(),
-  mapsUrl: z.string().max(500).optional(),
-});
 
 const customStopSchema = z.object({
   title: z.string().trim().min(2).max(80),

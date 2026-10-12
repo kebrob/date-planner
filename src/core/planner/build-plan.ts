@@ -33,7 +33,7 @@ import type {
 import { weatherFactor, windowWeather } from './weather';
 
 const MAX_CANDIDATES_PER_SLOT = 15;
-const MAX_ITEMS = 5;
+export const MAX_ITEMS = 5;
 // Free time left (before heading home) that is worth filling with another item.
 const MIN_FILL_MINUTES = 90;
 // Kept back for later slots so the first item cannot use up the whole budget.

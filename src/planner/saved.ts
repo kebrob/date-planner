@@ -8,9 +8,11 @@ import { getDb } from '@/db/client';
 import { activity, datePlan, planItem, settings, suggestionLog, travelRoutine } from '@/db/schema';
 import { addMinutes, fromLocal, minutesBetween, toLocalDate, toLocalTime } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
+import { planViewSchema } from './schemas';
 import {
   generatePlan,
   homePoint,
+  planInputSchema,
   savedInput,
   type ChosenStopInput,
   type PlanInput,
@@ -180,8 +182,10 @@ function planValues(view: PlanView, input: PlanInput) {
   };
 }
 
-export async function savePlan(input: PlanInput, view: PlanView): Promise<string> {
-  if (view.items.length === 0) throw new Error('Cannot save an empty plan');
+/** `view` usually comes from the client, so it is validated before it is stored. */
+export async function savePlan(input: PlanInput, rawView: PlanView): Promise<string> {
+  planInputSchema.parse(input);
+  const view = planViewSchema.parse(rawView);
   return getDb().transaction(async (tx) => {
     const [plan] = await tx
       .insert(datePlan)
