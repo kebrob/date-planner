@@ -1,5 +1,5 @@
 {
-  "id": "349a4650-0542-4fa8-af66-024ccb7cace0",
+  "id": "9e56f96b-a6d4-4077-b73c-6349e2114115",
   "prevId": "030d458e-bd86-4246-bdf6-4ae73720d024",
   "version": "7",
   "dialect": "postgresql",
@@ -995,47 +995,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.tag_weight": {
-      "name": "tag_weight",
-      "schema": "",
-      "columns": {
-        "tag": {
-          "name": "tag",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "context": {
-          "name": "context",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'any'"
-        },
-        "weight": {
-          "name": "weight",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "tag_weight_tag_context_pk": {
-          "name": "tag_weight_tag_context_pk",
-          "columns": [
-            "tag",
-            "context"
-          ]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

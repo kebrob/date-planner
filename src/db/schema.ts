@@ -6,7 +6,6 @@ import {
   jsonb,
   pgEnum,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uuid,
@@ -207,17 +206,6 @@ export const loginAttempt = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('login_attempt_ip_idx').on(t.ipHash, t.createdAt)],
-);
-
-// Unused; kept so deployed code keeps working until it is dropped in a later migration.
-export const tagWeight = pgTable(
-  'tag_weight',
-  {
-    tag: text('tag').notNull(),
-    context: text('context').notNull().default('any'),
-    weight: doublePrecision('weight').notNull().default(0),
-  },
-  (t) => [primaryKey({ columns: [t.tag, t.context] })],
 );
 
 export const trip = pgTable('trip', {
