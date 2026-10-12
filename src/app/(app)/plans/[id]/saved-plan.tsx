@@ -149,7 +149,8 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
           disabled={pending}
           onClick={() =>
             run(async () => {
-              await updatePlanMetaAction(plan.id, { isFavorite: !plan.isFavorite });
+              const result = await updatePlanMetaAction(plan.id, { isFavorite: !plan.isFavorite });
+              if (!result.ok) return setMessage(result.error);
               router.refresh();
             })
           }

@@ -112,8 +112,13 @@ export function DateRating({
         value={rating}
         disabled={pending}
         onChange={(next) => {
+          const previous = rating;
           setRating(next);
-          run(() => rateDateAction(plan.id, next));
+          run(async () => {
+            const result = await rateDateAction(plan.id, next);
+            if (!result.ok) setRating(previous);
+            return result;
+          });
         }}
       />
       <div className="-mx-3 flex flex-wrap justify-between">
@@ -159,14 +164,23 @@ export function ItemRating({
   const [placeBlamed, setPlaceBlamed] = useState(initial.placeBlamed);
   const [suggestBlock, setSuggestBlock] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const save = (next: Rating, blamed: boolean) => {
+    const previous = { rating, placeBlamed };
     // Outside the transition, so the buttons and checkbox respond before the server does.
     setRating(next);
     setPlaceBlamed(blamed);
+    setError(null);
     startTransition(async () => {
       const result = await rateItemAction(planId, position, next, blamed);
-      setSuggestBlock(result.ok && result.data.suggestBlock);
+      if (!result.ok) {
+        setRating(previous.rating);
+        setPlaceBlamed(previous.placeBlamed);
+        setError(result.error);
+        return;
+      }
+      setSuggestBlock(result.data.suggestBlock);
       router.refresh();
     });
   };
@@ -233,6 +247,7 @@ export function ItemRating({
         </p>
       )}
       {blocked && <p className="text-sm text-mist">Blocked – it won&apos;t be suggested again.</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }
@@ -242,10 +257,13 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const run = (action: () => Promise<unknown>) =>
+  const run = (action: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {
-      await action();
+      setError(null);
+      const result = await action();
+      if (!result.ok) return setError(result.error ?? 'Something went wrong.');
       setDone(true);
       router.refresh();
     });
@@ -280,6 +298,7 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
       >
         We didn&apos;t go
       </button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </section>
   );
 }
