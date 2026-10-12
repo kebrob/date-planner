@@ -4,10 +4,10 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDb, type Db } from '@/db/client';
 import { loginAttempt, session } from '@/db/schema';
+import { SESSION_COOKIE } from './cookie';
 import { isLoginBlocked, LOGIN_WINDOW_MS, type LoginMethod } from './rate-limit';
 import { hashToken, newToken } from './tokens';
 
-export const SESSION_COOKIE = 'dp_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
 // Managing passkeys needs a recent sign-in, so a stolen session cookie cannot add its own passkey.
 const FRESH_SESSION_MS = 10 * 60_000;

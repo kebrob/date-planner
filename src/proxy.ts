@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-
-const SESSION_COOKIE = 'dp_session';
+import { SESSION_COOKIE } from '@/auth/cookie';
 const PUBLIC_PATHS = [
   '/login',
   '/api/auth/password',
@@ -22,6 +21,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|robots.txt).*)',
+    // Exact public files only; a mere prefix would also let e.g. "/iconic" through unchecked.
+    '/((?!_next/static/|_next/image|icons/|favicon\\.ico$|icon\\.svg$|apple-icon\\.png$|manifest\\.webmanifest$|robots\\.txt$).*)',
   ],
 };
