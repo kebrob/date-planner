@@ -10,6 +10,7 @@ import type { Point } from '../location-picker';
 import { SessionResult, usePlanSession } from '../plan-session';
 import type { PickedStop } from '../stop-picker';
 import { StepHeading } from './controls';
+import { STEPS, type Step } from './step-list';
 import type { TimePreset } from './presets';
 import { FoodStep, HowStep, MoodStep, PlansStep, WhenStep, WhereStep, type Format } from './steps';
 
@@ -24,9 +25,6 @@ type WizardDefaults = {
   home: { lat: number; lng: number };
   maxRadiusKm: number;
 };
-
-const STEPS = ['when', 'where', 'plans', 'how', 'mood', 'food'] as const;
-type Step = (typeof STEPS)[number];
 
 export function Wizard({
   defaults,

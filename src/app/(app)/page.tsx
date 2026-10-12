@@ -10,6 +10,7 @@ import { AskBar } from './ask-bar';
 import { LiveTrainCard } from './live-train';
 import { PlanCard } from './plan-card';
 import { RatingPromptCard } from './rating';
+import { STEPS } from './new/step-list';
 
 const TODAY = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Europe/Berlin',
@@ -99,7 +100,7 @@ export default async function HomePage() {
           <span className="text-xl leading-snug font-semibold">Plan a date</span>
           <span className="flex items-end justify-between">
             <PlayDot tone="butter" />
-            <Pill onDark>5 steps</Pill>
+            <Pill onDark>{STEPS.length} steps</Pill>
           </span>
         </Link>
         <Link
