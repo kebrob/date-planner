@@ -22,7 +22,7 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^\d{2}:\d{2}$/);
 const transport = z.enum(['deutschlandticket', 'car', 'walk']);
 
-export const planDateInput = z.object({
+const planDateInput = z.object({
   date,
   start_time: time,
   end_time: time,
@@ -47,12 +47,12 @@ export const planDateInput = z.object({
     .max(3),
 });
 
-export const weatherInput = z.object({ date, town: z.string().max(100).nullable() });
-export const findIdeasInput = z.object({
+const weatherInput = z.object({ date, town: z.string().max(100).nullable() });
+const findIdeasInput = z.object({
   query: z.string().max(80).nullable(),
   kind: z.enum(['activity', 'meal', 'snack', 'home']).nullable(),
 });
-export const saveIdeaInput = z.object({
+const saveIdeaInput = z.object({
   title: z.string().min(2).max(80),
   description: z.string().max(300),
   kind: z.enum(['activity', 'meal', 'snack']),
@@ -229,7 +229,7 @@ export function systemPrompt(ctx: {
   ].join('\n');
 }
 
-export type ChatResult = {
+type ChatResult = {
   text: string;
   status: ToolLoopResult['status'];
 };

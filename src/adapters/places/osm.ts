@@ -9,7 +9,7 @@ const TIMEOUT_MS = 4_000;
 const MAX_RADIUS_KM = 15;
 
 // Provider-neutral place type → OSM tag filters (any filter may match).
-export const OSM_FILTERS: Record<PlaceType, string[]> = {
+const OSM_FILTERS: Record<PlaceType, string[]> = {
   miniature_golf: ['["leisure"="miniature_golf"]'],
   cinema: ['["amenity"="cinema"]'],
   bowling: ['["leisure"="bowling_alley"]'],

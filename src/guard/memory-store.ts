@@ -17,7 +17,7 @@ type Entry = {
   actualCostUsd: number | null;
 };
 
-/** In-process store for tests and local development without a database. */
+/** In-process store for tests. */
 export class MemoryUsageStore implements UsageStore {
   readonly entries: Entry[] = [];
   private queue: Promise<unknown> = Promise.resolve();

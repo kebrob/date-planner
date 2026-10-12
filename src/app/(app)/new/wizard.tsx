@@ -17,7 +17,7 @@ type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
 type Cuisine = NonNullable<PlanInput['cuisine']>;
 
-export type WizardDefaults = {
+type WizardDefaults = {
   transport: Transport;
   budgetEur: number;
   homeName: string;

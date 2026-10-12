@@ -22,7 +22,7 @@ export function isFullPlace(value: unknown): value is Place {
 
 export type Window = { date: string; startTime: string; endDate: string; endTime: string };
 
-export type WeatherConcern = NonNullable<ReturnType<typeof weatherConcern>>;
+type WeatherConcern = NonNullable<ReturnType<typeof weatherConcern>>;
 
 export type SavedPlanView = PlanView & {
   id: string;
@@ -56,7 +56,7 @@ export type PlanSummary = {
 
 const idSchema = z.string().uuid();
 // Built-in fallbacks and one-off stops (chat, place search) are not stored ideas.
-export const storedIdea = (id: string) => idSchema.safeParse(id).success;
+const storedIdea = (id: string) => idSchema.safeParse(id).success;
 
 export function windowOf(
   plan: Pick<PlanRow, 'startsAt' | 'endsAt'>,

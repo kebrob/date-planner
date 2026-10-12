@@ -16,7 +16,7 @@ export type ClientTool = {
   execute: (input: unknown) => Promise<string>;
 };
 
-export type ToolLoopOptions = {
+type ToolLoopOptions = {
   createMessage: CreateMessage;
   guard: CostGuard;
   model: string;

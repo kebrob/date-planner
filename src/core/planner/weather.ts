@@ -80,7 +80,7 @@ const SUNNY_SPOTS = [
 ];
 
 /** Default weather preferences; learned per-condition tag weights from ratings come on top. */
-export const WEATHER_PREFERENCES: WeatherRule[] = [
+const WEATHER_PREFERENCES: WeatherRule[] = [
   { when: 'rain', tags: ['indoor', 'home'], factor: 1.5 },
   { when: 'rain', tags: ['outdoor'], factor: 0.4 },
   { when: 'snow', tags: ['indoor', 'home'], factor: 1.3 },

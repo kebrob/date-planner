@@ -12,9 +12,9 @@ export class GuardDeniedError extends Error {
   }
 }
 
-export type GuardedCall<T> = () => Promise<{ result: T; actualCostUsd: number }>;
+type GuardedCall<T> = () => Promise<{ result: T; actualCostUsd: number }>;
 
-export type CostGuardOptions = {
+type CostGuardOptions = {
   store: UsageStore;
   limits: GuardLimits;
   /** Kill switch per provider; disabled providers are denied without touching the store. */

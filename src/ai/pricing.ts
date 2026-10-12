@@ -13,7 +13,7 @@ const RATES: Record<string, Rates> = {
 const MOST_EXPENSIVE: Rates = { inputPerMTok: 10, outputPerMTok: 50, cacheReadPerMTok: 1 };
 
 const CACHE_WRITE_MULTIPLIER = 1.25;
-export const WEB_SEARCH_USD = 0.01;
+const WEB_SEARCH_USD = 0.01;
 // Upper bound for tokens one search result set adds to the context.
 const TOKENS_PER_WEB_SEARCH = 10_000;
 const CHARS_PER_TOKEN = 3;

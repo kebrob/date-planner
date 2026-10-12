@@ -25,7 +25,7 @@ export function timeWindow(date: string, startHour: number, durationHours: numbe
   return { date: day, startTime, endDate: toLocalDate(end), endTime: toLocalTime(end) };
 }
 
-export type Outing = ReturnType<typeof timeWindow> & { when: 'today' | 'tonight' | 'tomorrow' };
+type Outing = ReturnType<typeof timeWindow> & { when: 'today' | 'tonight' | 'tomorrow' };
 
 /** The next sensible time for a spontaneous date, depending on how much of the day is left. */
 export function nextOuting(now = new Date()): Outing {

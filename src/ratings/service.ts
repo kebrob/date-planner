@@ -30,7 +30,7 @@ const PROMPT_DAYS = 14;
 const idSchema = z.string().uuid();
 
 /** Rated items of dates that took place, with what is needed to learn from them. */
-export async function loadRatedItems(now = new Date()): Promise<RatedItem[]> {
+async function loadRatedItems(now = new Date()): Promise<RatedItem[]> {
   const rows = await getDb()
     .select({
       activityId: planItem.activityId,

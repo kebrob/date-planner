@@ -14,7 +14,7 @@ const url = z
   .max(500)
   .regex(/^https:\/\/[^\s]+$/, 'https link');
 
-export const tripPlanSchema = z.object({
+const tripPlanSchema = z.object({
   title: z.string().min(2).max(100),
   destination: z.string().max(100),
   summary: z.string().max(600),
@@ -135,7 +135,7 @@ const normalizedUrl = (url: string) => {
 };
 
 /** URLs of all web search results in the conversation. */
-export function searchedUrls(messages: Anthropic.MessageParam[]): Set<string> {
+function searchedUrls(messages: Anthropic.MessageParam[]): Set<string> {
   const urls = new Set<string>();
   for (const message of messages) {
     if (message.role !== 'assistant' || typeof message.content === 'string') continue;
@@ -151,7 +151,7 @@ export function searchedUrls(messages: Anthropic.MessageParam[]): Set<string> {
  * Keeps only links that came from a search result. Search results are untrusted text, so an
  * injected instruction could otherwise make Claude add any link as a button.
  */
-export function withSearchedLinks(plan: TripPlan, urls: Set<string>): TripPlan {
+function withSearchedLinks(plan: TripPlan, urls: Set<string>): TripPlan {
   const known = (link: string | null) => (link && urls.has(normalizedUrl(link)) ? link : null);
   return {
     ...plan,

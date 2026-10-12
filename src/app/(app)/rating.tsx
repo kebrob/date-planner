@@ -21,7 +21,7 @@ const quietButton =
   'inline-flex min-h-11 items-center rounded-full px-3 text-sm text-mist hover:bg-white/70 hover:text-ink disabled:opacity-50';
 
 /** Three options; tapping the selected one again removes the rating. */
-export function RatingButtons({
+function RatingButtons({
   value,
   onChange,
   disabled,

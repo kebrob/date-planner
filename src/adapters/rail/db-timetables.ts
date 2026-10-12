@@ -86,7 +86,7 @@ function toEvent(planned?: Attrs, change?: Attrs): StationEvent | null {
 }
 
 /** "RB54" → "RB 54"; names that already have a space stay as they are. */
-export function lineName(name: string): string {
+function lineName(name: string): string {
   return name.replace(/^([A-Za-z]+)(\d)/, '$1 $2');
 }
 

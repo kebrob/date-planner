@@ -11,7 +11,7 @@ import { PlanningAnimation } from './planning-animation';
 import { PlanEditPickers } from './plan-edit-pickers';
 import { Toast } from './toast';
 
-export type CurrentPlan = { input: PlanInput; view: PlanView };
+type CurrentPlan = { input: PlanInput; view: PlanView };
 
 function keepAll(view: PlanView) {
   return Object.fromEntries(
@@ -204,7 +204,7 @@ export function usePlanSession() {
   };
 }
 
-export type PlanSession = ReturnType<typeof usePlanSession>;
+type PlanSession = ReturnType<typeof usePlanSession>;
 
 // Plans ready sooner than this skip the animation, so it never just flashes.
 const ANIMATION_DELAY_MS = 400;

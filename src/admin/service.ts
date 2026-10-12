@@ -26,7 +26,7 @@ export class AdminInputError extends Error {}
 
 // ---------- Settings ----------
 
-export const settingsSchema = z.object({
+const settingsSchema = z.object({
   homeName: z.string().trim().min(2).max(60),
   homePostalCode: z
     .string()
@@ -98,7 +98,7 @@ export async function saveHomePin(raw: unknown): Promise<void> {
 
 // ---------- Travel routines ----------
 
-export const routineSchema = z.object({
+const routineSchema = z.object({
   transport,
   description: z.string().trim().min(2).max(120),
   firstLegMode: transport.nullable(),
@@ -129,7 +129,7 @@ const optionalInt = z.preprocess(
   z.coerce.number().int().min(-20).max(40).nullable(),
 );
 
-export const activityFormSchema = z
+const activityFormSchema = z
   .object({
     title: z.string().trim().min(2).max(80),
     description: z.string().trim().max(300),
@@ -296,7 +296,7 @@ async function storeIdeas(ideas: Idea[], existing: string[], source: 'claude' | 
   return { added: added.length, skipped: ideas.length - added.length };
 }
 
-export const generateSchema = z.object({
+const generateSchema = z.object({
   count: z.coerce.number().int().min(1).max(10),
   focus: z.string().trim().max(120).optional(),
 });

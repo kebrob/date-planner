@@ -143,7 +143,7 @@ export function fitsWeather(activity: Activity, weather: WeatherSummary): boolea
   return true;
 }
 
-export type CandidateFilter = {
+type CandidateFilter = {
   slot: Slot;
   slotStart: Date;
   availableMinutes: number;

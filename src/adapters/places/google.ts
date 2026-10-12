@@ -96,11 +96,11 @@ const GOOGLE_TYPES: Partial<Record<PlaceType, string>> = {
   mall: 'shopping_mall',
 };
 
-export function googleTypeFor(placeType: string): string | undefined {
+function googleTypeFor(placeType: string): string | undefined {
   return GOOGLE_TYPES[placeType as PlaceType];
 }
 
-export function boundingBox(center: { lat: number; lng: number }, radiusKm: number) {
+function boundingBox(center: { lat: number; lng: number }, radiusKm: number) {
   const dLat = radiusKm / 111;
   const dLng = radiusKm / (111 * Math.cos((center.lat * Math.PI) / 180));
   return {

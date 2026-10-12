@@ -77,7 +77,7 @@ export async function nextTrain(now = new Date()): Promise<LiveTrain | null> {
 }
 
 /** Applies the latest delay, platform and cancellation; keeps the stored data on any failure. */
-export async function refreshTrain(live: LiveTrain): Promise<LiveTrain> {
+async function refreshTrain(live: LiveTrain): Promise<LiveTrain> {
   const rail = getRail();
   if (!rail) return live;
   const { train } = live;

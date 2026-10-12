@@ -162,7 +162,7 @@ export function toPlanView(
 // A new stop needs time for itself and for getting there.
 const MIN_GAP_MINUTES = 60;
 
-export type FreeGap = {
+type FreeGap = {
   /** Where a new stop would go: before the item at this index (or at the end). */
   position: number;
   minutes: number;

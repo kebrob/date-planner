@@ -13,7 +13,7 @@ const partsFormat = new Intl.DateTimeFormat('en-US', {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export type LocalParts = {
+type LocalParts = {
   year: number;
   month: number;
   day: number;

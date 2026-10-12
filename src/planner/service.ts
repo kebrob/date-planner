@@ -484,7 +484,7 @@ export async function generatePlan(
   return { plan, input, area };
 }
 
-export type IdeaTeaser = {
+type IdeaTeaser = {
   id: string;
   title: string;
   durationMinutes: number;
