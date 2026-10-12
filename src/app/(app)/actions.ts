@@ -126,7 +126,10 @@ export async function updatePlanMetaAction(
   try {
     const note =
       changes.note === undefined ? undefined : changes.note?.trim().slice(0, 500) || null;
-    await updatePlanMeta(id, { isFavorite: changes.isFavorite, note });
+    await updatePlanMeta(id, {
+      isFavorite: z.boolean().optional().parse(changes.isFavorite),
+      note,
+    });
     revalidatePlans(id);
     return { ok: true, data: null };
   } catch (error) {

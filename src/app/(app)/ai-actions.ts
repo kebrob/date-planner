@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 import { IdeasGenerationError } from '@/ai/ideas';
 import { TripPlanningError } from '@/ai/trip';
 import { requireSession } from '@/auth/session';
@@ -52,15 +52,24 @@ export async function chatAction(message: string): Promise<Result<ChatReply>> {
   }
 }
 
-export async function undoLastChatTurnAction(): Promise<string | null> {
+export async function undoLastChatTurnAction(): Promise<Result<string | null>> {
   await requireSession();
-  return undoLastTurn();
+  try {
+    return { ok: true, data: await undoLastTurn() };
+  } catch (error) {
+    return failure(error, 'Could not undo the last question.');
+  }
 }
 
-export async function clearChatAction(): Promise<void> {
+export async function clearChatAction(): Promise<Result<null>> {
   await requireSession();
-  await clearHistory();
-  revalidatePath('/chat');
+  try {
+    await clearHistory();
+    revalidatePath('/chat');
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not clear the conversation.');
+  }
 }
 
 export async function createTripAction(input: unknown): Promise<Result<string>> {
@@ -74,15 +83,30 @@ export async function createTripAction(input: unknown): Promise<Result<string>> 
   }
 }
 
-export async function setTripFavoriteAction(id: string, isFavorite: boolean): Promise<void> {
+const tripId = z.string().uuid();
+
+export async function setTripFavoriteAction(
+  id: string,
+  isFavorite: boolean,
+): Promise<Result<null>> {
   await requireSession();
-  await setTripFavorite(id, isFavorite);
-  revalidatePath('/trips');
-  revalidatePath(`/trips/${id}`);
+  try {
+    await setTripFavorite(tripId.parse(id), z.boolean().parse(isFavorite));
+    revalidatePath('/trips');
+    revalidatePath(`/trips/${id}`);
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not update the trip.');
+  }
 }
 
-export async function deleteTripAction(id: string): Promise<void> {
+export async function deleteTripAction(id: string): Promise<Result<null>> {
   await requireSession();
-  await deleteTrip(id);
-  revalidatePath('/trips');
+  try {
+    await deleteTrip(tripId.parse(id));
+    revalidatePath('/trips');
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not delete the trip.');
+  }
 }
