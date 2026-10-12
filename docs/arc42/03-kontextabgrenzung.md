@@ -6,9 +6,9 @@ flowchart LR
     APP --> DB[(Neon Postgres)]
     APP -->|Ideen, Chat, Ausflüge| CLAUDE[Claude API<br/>Anthropic]
     APP -->|Ortssuche| GP[Google Places API]
-    APP -.->|Fallback Ortssuche| OSM[OpenStreetMap Overpass]
+    APP -->|Kostenlose Ideen, Fallback Ortssuche| OSM[OpenStreetMap Overpass]
     APP -->|Vorhersage, Geocoding| OM[Open-Meteo]
-    APP -.->|Phase 2| DBV[DB-Verbindungen<br/>inoffiziell]
+    APP -->|Fahrpläne, Echtzeit| DBV[DB Timetables API]
     U -.->|Links| GM[Google Maps / bahn.de]
 ```
 
@@ -16,7 +16,7 @@ flowchart LR
 | ---------------------- | --------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------- |
 | Claude API             | Aktivitäten generieren, Chat, Ausflugsplanung | Stadt/Region, Aktivitäten-Katalog, Planparameter, Chat-Text            | nutzungsabhängig, Limit 20 $/Monat       |
 | Google Places          | Konkrete Orte, Öffnungszeiten, Bewertungen    | Suchbegriff + grobe Koordinaten                                        | Freikontingent, Quota-begrenzt           |
-| OpenStreetMap Overpass | Fallback Ortssuche                            | Ortstyp + grobe Koordinaten                                            | kostenlos                                |
+| OpenStreetMap Overpass | Ortssuche für kostenlose Ideen, Fallback      | Ortstyp + grobe Koordinaten                                            | kostenlos                                |
 | Open-Meteo             | Wettervorhersage bis 16 Tage                  | grobe Koordinaten                                                      | kostenlos                                |
 | Open-Meteo Geocoding   | Zielort („München“) in Koordinaten umwandeln  | eingegebener Ortsname                                                  | kostenlos, Quellenangabe GeoNames        |
 | DB Timetables API      | Abfahrten/Ankünfte je Bahnhof mit Echtzeit    | Bahnhofsnummer, Datum/Stunde                                           | kostenlos (Free-Plan, 60/min), CC BY 4.0 |

@@ -8,7 +8,7 @@ flowchart TB
     API --> AUTH[auth]
     API --> PLANNER[core/planner]
     API --> AI[ai]
-    PLANNER --> PORTS[ports<br/>Places, Weather, Transit]
+    PLANNER --> PORTS[ports<br/>Places, Weather, Rail]
     AI --> PLANNER
     PORTS --> ADAPTERS[adapters<br/>google-places, osm-places, open-meteo, ...]
     AI --> GUARD[guard<br/>Budget, Rate Limit, Circuit Breaker]
@@ -36,7 +36,7 @@ flowchart TB
 
 Regel: `core/` importiert nie aus `adapters/`, `ai/` oder `db/`. Adapter werden über eine zentrale Factory anhand der Environment-Variablen ausgewählt.
 
-## Datenmodell (MVP)
+## Datenmodell
 
 | Tabelle                               | Inhalt                                                                                                                                                                                                                                                     |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -50,4 +50,5 @@ Regel: `core/` importiert nie aus `adapters/`, `ai/` oder `db/`. Adapter werden 
 | `chat_message`                        | Chat-Verlauf (nur Text, keine Ortsdaten)                                                                                                                                                                                                                   |
 | `passkey`, `session`, `login_attempt` | Authentifizierung                                                                                                                                                                                                                                          |
 | `trip`                                | Mehrtägige Ausflugsvorschläge (Eingabe, strukturierter Plan, Favorit)                                                                                                                                                                                      |
+| `tag_weight`                          | Gelernte Gewichte je Tag und Kontext; wird vom Planner gelesen, Befüllung folgt mit Bewertungen (Phase 2)                                                                                                                                                  |
 | `rating` _(Phase 2)_                  | Sterne, „nochmal?“, Gründe                                                                                                                                                                                                                                 |

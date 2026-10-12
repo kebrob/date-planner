@@ -30,17 +30,33 @@ Ausgabe: Ablaufplan mit Uhrzeiten, konkreten Orten, Kosten, Wetterhinweis, Anrei
 - Essen konkret mit 2 Alternativen, optionaler Küchen-Filter
 - Kostenschutz für alle kostenpflichtigen APIs (→ [Kapitel 8](08-querschnittliche-konzepte.md#kostenschutz))
 
+### Nach dem MVP umgesetzt (Stand 2026-10-12)
+
+- Karte zur Wahl von Mittelpunkt und Radius, optionaler exakter Wohnort-Pin (ADR-012)
+- Zielort zuerst planen, Start bzw. Ende am Zielort („Already there“, „Staying there“)
+- Preise der Lokale (Google `priceRange`), Sonnenstand-Ideen (`sunset`, `after_dark`)
+- Startseite mit Kacheln („Plan a date“, „Surprise us …“), Wizard in fünf Schritten
+
 ### Phase 2
 
-- Bewertungen nach dem Date, lernendes Scoring (Tag-Gewichte), Aktivität sperren
-- Zugverbindungen über inoffizielle DB-Schnittstelle (Filter Regionalverkehr), kombiniert mit Anreise-Routinen
-- Wetterabhängige Vorlieben
+| Thema                                                       | Status                                                                                                                                          |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bewertungen nach dem Date, lernendes Scoring (Tag-Gewichte) | offen – Tabelle `tag_weight` wird gelesen, aber nicht befüllt                                                                                   |
+| Aktivität sperren                                           | umgesetzt (Admin, Status `blocked`)                                                                                                             |
+| Zugverbindungen, Filter Regionalverkehr, Anreise-Routinen   | teilweise – Direktzüge über offizielle DB Timetables API inkl. Live-Status (ADR-009); offen: Umstiege, Aktualisierung vorab gespeicherter Pläne |
+| Wetterabhängige Vorlieben                                   | offen – bisher nur harte Filter (trocken, Temperatur) über das gesamte Zeitfenster                                                              |
 
 ### Phase 3
 
-- Eingebettete Karte, echte Fahrzeiten (Routes)
-- Swipe-Matching, Überraschungsmodus
-- Kalender-Export (.ics), Date-Tagebuch, Bucket List, saisonale Aktivitäten, lokale Events
+| Thema                                 | Status                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------- |
+| Eingebettete Karte                    | teilweise – Karte zur Orts-/Radiuswahl; offen: Karte mit Plan und Route   |
+| Echte Fahrzeiten (Routes)             | offen – Wege sind Schätzungen                                             |
+| Swipe-Matching                        | offen                                                                     |
+| Überraschungsmodus                    | teilweise – Kachel „Surprise us …“ (Sofortplan mit Standardwerten)        |
+| Saisonale Aktivitäten                 | teilweise – Saison-Filter je Aktivität; offen: datierte Saison-Ereignisse |
+| Kalender-Export (.ics), Date-Tagebuch | offen                                                                     |
+| Bucket List, lokale Events            | offen                                                                     |
 
 ## Qualitätsziele
 
