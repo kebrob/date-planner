@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { fromLocal, toLocalTime } from '@/lib/time';
 import type { ChosenStopInput, PlanInput } from '@/planner/service';
 import type { PlanView } from '@/planner/view';
@@ -33,14 +33,22 @@ export function usePlanSession() {
   const [pending, startTransition] = useTransition();
   // A completely new plan is coming (not just one item), so the old one is hidden meanwhile.
   const [whole, setWhole] = useState(false);
+  // Only the latest request may set the plan; an older one can still be on its way.
+  const latest = useRef(0);
 
   /** `note` may explain the new plan, e.g. which kept stops no longer fit. */
   function run(input: PlanInput, newPlan = false, note?: (view: PlanView) => string | null) {
+    const request = ++latest.current;
     setMessage(null);
     setNotice(null);
     setWhole(newPlan);
     startTransition(async () => {
-      const result = await generatePlanAction(input);
+      // A dropped connection keeps the current plan instead of ending in the error page.
+      const result = await generatePlanAction(input).catch(() => ({
+        ok: false as const,
+        error: 'Connection problem. Please try again.',
+      }));
+      if (request !== latest.current) return;
       if (!result.ok) return setMessage(result.error);
       // Only for this run: later re-rolls treat that stop like any other.
       setCurrent({ input: { ...input, anyKindAt: undefined }, view: result.data });
@@ -60,6 +68,7 @@ export function usePlanSession() {
       run(input, true);
     },
     show(plan: CurrentPlan) {
+      latest.current++;
       setExcluded([]);
       setMessage(null);
       setCurrent(plan);
