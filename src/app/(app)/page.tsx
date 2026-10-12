@@ -4,7 +4,7 @@ import { formatDuration } from '@/lib/duration';
 import { listUpcoming } from '@/planner/saved';
 import { nextOuting } from '@/planner/outing';
 import { ideasForNextOuting } from '@/planner/service';
-import { nextTrain } from '@/rail/live';
+import { nextTrain } from '@/planner/live';
 import { listRatingPrompts } from '@/ratings/service';
 import { AskBar } from './ask-bar';
 import { LiveTrainCard } from './live-train';

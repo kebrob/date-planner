@@ -42,7 +42,7 @@ import {
   type placeSearchSchema,
 } from '@/planner/chosen';
 import type { Place } from '@/ports/places';
-import { nextTrain, type LiveTrain } from '@/rail/live';
+import { nextTrain, type LiveTrain } from '@/planner/live';
 import {
   dismissRatingPrompt,
   PlanNotRatableError,

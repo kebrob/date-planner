@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { formatDuration } from '@/lib/duration';
-import type { LiveTrain } from '@/rail/live';
+import type { LiveTrain } from '@/planner/live';
 import { liveTrainAction } from './actions';
 
 const POLL_MS = 60_000;

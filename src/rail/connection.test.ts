@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { addMinutes, fromLocal } from '@/lib/time';
 import type { RailStation, RailTimetable, StationStop } from '@/ports/rail';
-import {
-  findConnection,
-  findConnectionTo,
-  findTransferConnection,
-  isRegional,
-  normalizeStationName,
-} from './connection';
+import { findConnection, findConnectionTo, findTransferConnection, isRegional } from './connection';
 import { ExpectedTimetable, referenceOffset, shiftDays } from './expected';
 
 const ROSENHEIM: RailStation = {
@@ -72,13 +66,6 @@ const stations = {
   near: async (point: { lat: number }) => (point.lat < 48 ? [ROSENHEIM] : [HBF, MARIENPLATZ, OST]),
   named: async () => null,
 };
-
-describe('normalizeStationName', () => {
-  it('matches spelling variants of the same station', () => {
-    expect(normalizeStationName('München Hauptbahnhof')).toBe(normalizeStationName('München Hbf'));
-    expect(normalizeStationName('Rosenheim (Bahnhof)')).toBe(normalizeStationName('Rosenheim'));
-  });
-});
 
 describe('findConnection', () => {
   const input = {
