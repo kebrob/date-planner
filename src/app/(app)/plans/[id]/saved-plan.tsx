@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, useTransition } from 'react';
 import { fromLocal } from '@/lib/time';
-import type { PlanEdit, SavedPlanView, Window } from '@/planner/saved';
+import type { PlanEdit } from '@/planner/edit';
+import type { SavedPlanView, Window } from '@/planner/saved';
 import {
   deletePlanAction,
   editPlanAction,

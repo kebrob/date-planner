@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Place } from '@/ports/places';
-import { isFullPlace, oneOffStop, rowsToView } from './saved';
+import { oneOffStop } from './edit';
+import { isFullPlace, rowsToView } from './saved';
 import { chosenStopSchema, customActivity } from './service';
 import { freeGaps, type PlanView } from './view';
 

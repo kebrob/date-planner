@@ -3,7 +3,7 @@ import { getRail } from '@/adapters';
 import type { TrainLeg } from '@/core/planner/types';
 import { getDb } from '@/db/client';
 import { datePlan, planItem } from '@/db/schema';
-import { refreshSoonTrains } from '@/planner/saved';
+import { refreshSoonTrains } from '@/planner/refresh';
 import { addMinutes } from '@/lib/time';
 import type { StationStop } from '@/ports/rail';
 
