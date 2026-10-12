@@ -256,8 +256,11 @@ export async function saveActivity(id: string | null, raw: unknown): Promise<str
   const [row] = await db
     .insert(activity)
     .values({ ...values, source: 'manual' })
+    .onConflictDoNothing()
     .returning({ id: activity.id });
-  return row!.id;
+  // Saved under the same title meanwhile.
+  if (!row) throw new AdminInputError(`"${values.title}" already exists.`);
+  return row.id;
 }
 
 export async function setActivityStatus(id: string, status: 'draft' | 'active' | 'blocked') {
@@ -285,12 +288,15 @@ async function ideasContext(count: number, focus?: string) {
 
 async function storeIdeas(ideas: Idea[], existing: string[], source: 'claude' | 'import') {
   const fresh = withoutDuplicates(ideas, existing);
-  if (fresh.length > 0) {
-    await getDb()
-      .insert(activity)
-      .values(fresh.map((i) => toActivityInsert(i, source)));
-  }
-  return { added: fresh.length, skipped: ideas.length - fresh.length };
+  // Titles are unique; one saved meanwhile (e.g. from the chat) is skipped, not an error.
+  const added = fresh.length
+    ? await getDb()
+        .insert(activity)
+        .values(fresh.map((i) => toActivityInsert(i, source)))
+        .onConflictDoNothing()
+        .returning({ id: activity.id })
+    : [];
+  return { added: added.length, skipped: ideas.length - added.length };
 }
 
 export const generateSchema = z.object({

@@ -89,7 +89,7 @@ export const newIdeaSchema = z.object({
  * An idea with the same title is reused instead of duplicated, and activated: the planner only
  * uses active ideas, so a draft or blocked one would silently drop the chosen stop.
  */
-export async function addIdea(raw: z.input<typeof newIdeaSchema>): Promise<string> {
+export async function addIdea(raw: z.input<typeof newIdeaSchema>, retry = true): Promise<string> {
   const idea = newIdeaSchema.parse(raw);
   const db = getDb();
   const [existing] = await db
@@ -129,6 +129,10 @@ export async function addIdea(raw: z.input<typeof newIdeaSchema>): Promise<strin
       ),
       status: 'active',
     })
+    .onConflictDoNothing()
     .returning({ id: activity.id });
-  return row!.id;
+  if (row) return row.id;
+  // Saved under the same title meanwhile: use that one.
+  if (retry) return addIdea(raw, false);
+  throw new Error('Idea could not be saved');
 }

@@ -149,7 +149,12 @@ function handlers(collected: ChatPlan[]): ChatToolHandlers {
         preparation: null,
       };
       if (withoutDuplicates([idea], existing).length === 0) return `"${i.title}" already exists.`;
-      await getDb().insert(activity).values(toActivityInsert(idea, 'claude'));
+      const saved = await getDb()
+        .insert(activity)
+        .values(toActivityInsert(idea, 'claude'))
+        .onConflictDoNothing()
+        .returning({ id: activity.id });
+      if (saved.length === 0) return `"${i.title}" already exists.`;
       return `Saved "${i.title}" as a draft; it appears in the admin area for review.`;
     },
     listPlans: async () => {

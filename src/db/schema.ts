@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   doublePrecision,
@@ -8,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -79,61 +81,73 @@ export const activity = pgTable(
     source: activitySource('source').notNull().default('manual'),
     createdAt: createdAt(),
   },
-  (t) => [index('activity_status_idx').on(t.status)],
+  (t) => [
+    index('activity_status_idx').on(t.status),
+    // Ideas are matched by title (imports, chat, saved searches); duplicates would make that ambiguous.
+    uniqueIndex('activity_title_unique_idx').on(sql`lower(${t.title})`),
+  ],
 );
 
-export const datePlan = pgTable('date_plan', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
-  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
-  parameters: jsonb('parameters').notNull(),
-  weather: jsonb('weather'),
-  totalCostEur: integer('total_cost_eur').notNull().default(0),
-  overBudgetEur: integer('over_budget_eur').notNull().default(0),
-  status: planStatus('status').notNull().default('suggested'),
-  isFavorite: boolean('is_favorite').notNull().default(false),
-  note: text('note'),
-  areaName: text('area_name'),
-  // Rounded to ~10 km, kept after the date (unlike place data) to look up the weather it had.
-  weatherPoint: jsonb('weather_point').$type<{ lat: number; lng: number }>(),
-  travelHome: jsonb('travel_home'),
-  rating: dateRating('rating'),
-  // "We didn't go": excluded from variety history and learning.
-  notHappened: boolean('not_happened').notNull().default(false),
-  ratingPromptDismissed: boolean('rating_prompt_dismissed').notNull().default(false),
-  trainsCheckedAt: timestamp('trains_checked_at', { withTimezone: true }),
-  createdAt: createdAt(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const datePlan = pgTable(
+  'date_plan',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    parameters: jsonb('parameters').notNull(),
+    weather: jsonb('weather'),
+    totalCostEur: integer('total_cost_eur').notNull().default(0),
+    overBudgetEur: integer('over_budget_eur').notNull().default(0),
+    status: planStatus('status').notNull().default('suggested'),
+    isFavorite: boolean('is_favorite').notNull().default(false),
+    note: text('note'),
+    areaName: text('area_name'),
+    // Rounded to ~10 km, kept after the date (unlike place data) to look up the weather it had.
+    weatherPoint: jsonb('weather_point').$type<{ lat: number; lng: number }>(),
+    travelHome: jsonb('travel_home'),
+    rating: dateRating('rating'),
+    // "We didn't go": excluded from variety history and learning.
+    notHappened: boolean('not_happened').notNull().default(false),
+    ratingPromptDismissed: boolean('rating_prompt_dismissed').notNull().default(false),
+    trainsCheckedAt: timestamp('trains_checked_at', { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('date_plan_status_starts_idx').on(t.status, t.startsAt)],
+);
 
-export const planItem = pgTable('plan_item', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  planId: uuid('plan_id')
-    .notNull()
-    .references(() => datePlan.id, { onDelete: 'cascade' }),
-  position: integer('position').notNull(),
-  activityId: uuid('activity_id').references(() => activity.id, { onDelete: 'set null' }),
-  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
-  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
-  title: text('title').notNull(),
-  slot: text('slot').notNull().default('main'),
-  preparation: text('preparation'),
-  atHome: boolean('at_home').notNull().default(false),
-  openingHoursUnknown: boolean('opening_hours_unknown').notNull().default(false),
-  // Provider id and display name are kept permanently; full place data only until the date has
-  // passed (provider terms restrict long-term storage), see archivedPlace().
-  placeProvider: text('place_provider'),
-  placeId: text('place_id'),
-  placeName: text('place_name'),
-  place: jsonb('place'),
-  alternatives: jsonb('alternatives').notNull().default([]),
-  costEur: integer('cost_eur').notNull().default(0),
-  travel: jsonb('travel'),
-  rating: dateRating('rating'),
-  placeBlamed: boolean('place_blamed').notNull().default(false),
-  // Weather while the item took place, recorded when the date gets rated; null = not yet known.
-  weatherConditions: text('weather_conditions').array(),
-});
+export const planItem = pgTable(
+  'plan_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => datePlan.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    activityId: uuid('activity_id').references(() => activity.id, { onDelete: 'set null' }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    title: text('title').notNull(),
+    slot: text('slot').notNull().default('main'),
+    preparation: text('preparation'),
+    atHome: boolean('at_home').notNull().default(false),
+    openingHoursUnknown: boolean('opening_hours_unknown').notNull().default(false),
+    // Provider id and display name are kept permanently; full place data only until the date has
+    // passed (provider terms restrict long-term storage), see archivedPlace().
+    placeProvider: text('place_provider'),
+    placeId: text('place_id'),
+    placeName: text('place_name'),
+    place: jsonb('place'),
+    alternatives: jsonb('alternatives').notNull().default([]),
+    costEur: integer('cost_eur').notNull().default(0),
+    travel: jsonb('travel'),
+    rating: dateRating('rating'),
+    placeBlamed: boolean('place_blamed').notNull().default(false),
+    // Weather while the item took place, recorded when the date gets rated; null = not yet known.
+    weatherConditions: text('weather_conditions').array(),
+  },
+  (t) => [index('plan_item_plan_position_idx').on(t.planId, t.position)],
+);
 
 export const suggestionLog = pgTable(
   'suggestion_log',
@@ -146,7 +160,10 @@ export const suggestionLog = pgTable(
     accepted: boolean('accepted').notNull().default(false),
     createdAt: createdAt(),
   },
-  (t) => [index('suggestion_log_activity_idx').on(t.activityId, t.createdAt)],
+  (t) => [
+    index('suggestion_log_activity_idx').on(t.activityId, t.createdAt),
+    index('suggestion_log_plan_idx').on(t.planId),
+  ],
 );
 
 export const apiUsage = pgTable(
@@ -168,12 +185,16 @@ export const apiUsage = pgTable(
   ],
 );
 
-export const chatMessage = pgTable('chat_message', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  role: text('role').notNull(),
-  content: jsonb('content').notNull(),
-  createdAt: createdAt(),
-});
+export const chatMessage = pgTable(
+  'chat_message',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    role: text('role').notNull(),
+    content: jsonb('content').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('chat_message_created_at_idx').on(t.createdAt)],
+);
 
 export const passkey = pgTable('passkey', {
   id: text('id').primaryKey(),
