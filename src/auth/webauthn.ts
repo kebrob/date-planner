@@ -6,7 +6,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import { count, eq, gte, lt } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { getDb } from '@/db/client';
 import { authChallenge, passkey } from '@/db/schema';
@@ -23,10 +23,9 @@ function relyingParty() {
   return { rpID, origin, rpName: 'Date Planner' };
 }
 
-// Options are public, so the number of open challenges is capped instead of growing per request.
-const MAX_OPEN_CHALLENGES = 50;
-
-export class TooManyChallengesError extends Error {}
+// Options are public, so the table is kept small by dropping the oldest challenges. Refusing new
+// ones instead would let anyone block every passkey login by requesting options in a loop.
+const MAX_OPEN_CHALLENGES = 200;
 
 async function storeChallenge(challenge: string) {
   const db = getDb();
@@ -34,12 +33,12 @@ async function storeChallenge(challenge: string) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_MS);
   await db.delete(authChallenge).where(lt(authChallenge.expiresAt, now));
-  const [open] = await db
-    .select({ n: count() })
-    .from(authChallenge)
-    .where(gte(authChallenge.expiresAt, now));
-  if ((open?.n ?? 0) >= MAX_OPEN_CHALLENGES) throw new TooManyChallengesError();
   await db.insert(authChallenge).values({ id, challenge, expiresAt });
+  await db.execute(sql`
+    delete from ${authChallenge} where ${authChallenge.id} in (
+      select ${authChallenge.id} from ${authChallenge}
+      order by ${authChallenge.expiresAt} desc offset ${MAX_OPEN_CHALLENGES}
+    )`);
   (await cookies()).set(CHALLENGE_COOKIE, id, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
