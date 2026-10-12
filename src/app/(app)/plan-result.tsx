@@ -25,6 +25,8 @@ const WARNINGS: Record<PlanView['warnings'][number], string> = {
   fallback_used: 'Nothing else fit — here is a cozy fallback.',
   over_budget: 'Slightly over budget so the day does not end early.',
   required_skipped: 'Some requested stops did not fit in time, budget or nearby places.',
+  chosen_closed:
+    "A place you picked isn't open long enough during your time. Pick a different time or place.",
   chosen_time_moved:
     'Getting there takes longer, so a chosen stop starts a bit later than you set.',
   places_daily_limit:

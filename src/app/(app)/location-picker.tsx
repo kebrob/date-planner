@@ -30,7 +30,12 @@ export function LocationPicker({
   autoRadiusKm,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
-  const map = useRef<{ map: LeafletMap; circle: Circle; dot: CircleMarker } | null>(null);
+  const map = useRef<{
+    map: LeafletMap;
+    circle: Circle;
+    dot: CircleMarker;
+    observer: ResizeObserver;
+  } | null>(null);
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -69,19 +74,24 @@ export function LocationPicker({
         fillColor: '#1d1d1f',
         fillOpacity: 1,
       }).addTo(m);
-      map.current = { map: m, circle, dot };
       // Re-fit whenever the container changes size (initial layout, rotation, CSS loading late).
+      // Without animation: a zoom still running when the map is removed breaks Leaflet.
       const observer = new ResizeObserver(() => {
-        m.invalidateSize();
-        m.fitBounds(circle.getBounds(), { padding: [12, 12] });
+        m.invalidateSize({ animate: false });
+        m.fitBounds(circle.getBounds(), { padding: [12, 12], animate: false });
       });
       observer.observe(container.current);
-      m.on('unload', () => observer.disconnect());
+      map.current = { map: m, circle, dot, observer };
       setReady(true);
     });
     return () => {
       disposed = true;
-      map.current?.map.remove();
+      const current = map.current;
+      if (current) {
+        current.observer.disconnect();
+        current.map.stop();
+        current.map.remove();
+      }
       map.current = null;
     };
     // Initialise once; updates are handled by the effect below.
@@ -109,7 +119,7 @@ export function LocationPicker({
     m.circle.setLatLng([current.lat, current.lng]).setRadius(effectiveKm * 1000);
     m.dot.setLatLng([current.lat, current.lng]);
     // The container may have been laid out after Leaflet measured it.
-    m.map.invalidateSize();
+    m.map.invalidateSize({ animate: false });
     m.map.fitBounds(m.circle.getBounds(), { padding: [12, 12] });
   }, [ready, current.lat, current.lng, effectiveKm]);
 

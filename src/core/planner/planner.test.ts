@@ -3,7 +3,7 @@ import { fromLocal } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
 import { buildPlan, FALLBACK_ACTIVITY, firstStopRadiusKm } from './build-plan';
 import { estimateTravel } from './geo';
-import { isOpenDuring } from './opening-hours';
+import { firstOpenStart, isOpenDuring } from './opening-hours';
 import { seededRandom } from './random';
 import { formatFor, itemCost, NO_LEARNING, score } from './rules';
 import type { Activity, PlanContext, PlanRequest } from './types';
@@ -924,6 +924,36 @@ describe('estimateTravel', () => {
     const munich = { lat: 48.14, lng: 11.56 };
     expect(estimateTravel(HOME, city, 'deutschlandticket', undefined).mode).toBe('local_transit');
     expect(estimateTravel(HOME, munich, 'deutschlandticket', undefined).mode).toBe('train');
+  });
+});
+
+describe('firstOpenStart', () => {
+  // Saturday 14:00–16:00 (public skating).
+  const sat = 6 * 24 * 60;
+  const skating = {
+    alwaysOpen: false as const,
+    periods: [{ start: sat + 14 * 60, end: sat + 16 * 60 }],
+  };
+
+  it('finds the earliest start at which the place is open for the whole duration', () => {
+    const start = firstOpenStart(
+      skating,
+      fromLocal('2026-10-10', '10:00'),
+      fromLocal('2026-10-10', '22:00'),
+      90,
+    );
+    expect(start).toEqual(fromLocal('2026-10-10', '14:00'));
+  });
+
+  it('returns null when it is never open long enough in the window', () => {
+    expect(
+      firstOpenStart(
+        skating,
+        fromLocal('2026-10-10', '15:00'),
+        fromLocal('2026-10-10', '22:00'),
+        90,
+      ),
+    ).toBeNull();
   });
 });
 

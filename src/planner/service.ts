@@ -17,6 +17,7 @@ import { activity, apiUsage, settings, suggestionLog, travelRoutine } from '@/db
 import { dayKey } from '@/guard/periods';
 import { nextOuting } from './outing';
 import { attachTrains } from './trains';
+import { firstOpenStart } from '@/core/planner/opening-hours';
 import { fitsWeather, foodKind, isFreeSearch, seasonOf, timeOfDay } from '@/core/planner/rules';
 import { weightedShuffle } from '@/core/planner/random';
 import { loadLearning } from '@/ratings/service';
@@ -340,10 +341,26 @@ export async function generatePlan(
     const at = c.startTime ? startOf(c.startTime) : null;
     return at && at >= start && at < end ? at : null;
   };
-  const anchors = chosen.flatMap((c) =>
-    c.index === null && fixedStart(c) ? [{ ...c, start: fixedStart(c)! }] : [],
+  // A venue with short opening hours (e.g. public skating) is fixed at its first open time.
+  const openStart = (c: (typeof chosen)[number]) => {
+    const hours = c.place?.openingHours;
+    if (!hours || hours.alwaysOpen) return null;
+    const first = firstOpenStart(hours, start, end, c.activity.durationMinutes);
+    return first && first > start ? first : null;
+  };
+  const closedAllDay = chosen.filter(
+    (c) =>
+      c.index === null &&
+      !fixedStart(c) &&
+      c.place?.openingHours &&
+      !firstOpenStart(c.place.openingHours, start, end, c.activity.durationMinutes),
   );
-  const anyTime = chosen.filter((c) => c.index === null && !fixedStart(c));
+  const anchors = chosen.flatMap((c) => {
+    if (c.index !== null) return [];
+    const at = fixedStart(c) ?? openStart(c);
+    return at ? [{ ...c, start: at }] : [];
+  });
+  const anyTime = chosen.filter((c) => c.index === null && !fixedStart(c) && !openStart(c));
   required.push(...anyTime.map((c) => c.activity));
   const chosenPlaces = Object.fromEntries(
     anyTime.flatMap((c) => (c.place ? [[c.activity.id, c.place] as const] : [])),
@@ -478,6 +495,7 @@ export async function generatePlan(
   if (suggested.length > 0) {
     await db.insert(suggestionLog).values(suggested.map((activityId) => ({ activityId })));
   }
+  if (closedAllDay.length > 0) plan.warnings.push('chosen_closed');
   if (await placesLimitReached(now)) plan.warnings.push('places_daily_limit');
   return { plan, input, area };
 }

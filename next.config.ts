@@ -2,6 +2,8 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // `next dev` would otherwise write AGENTS.md/CLAUDE.md into the repo whenever an AI agent runs it.
+  agentRules: false,
   async headers() {
     return [
       {

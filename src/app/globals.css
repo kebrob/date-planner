@@ -58,27 +58,15 @@ body {
     outline-offset: 2px;
   }
 
-  /* Planning animation: one 6 s loop, walking takes the first 80 %. */
-  .planning-route {
-    stroke-dasharray: 1;
-    animation: planning-route 6s linear infinite;
-  }
-
-  .planning-stop {
+  /* Planning animation: pulse at the heart, status text sliding in. */
+  .planning-ripple {
     transform-box: fill-box;
     transform-origin: center;
-    animation: planning-stop 6s ease-out infinite backwards;
+    animation: planning-ripple 1100ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
   }
 
-  .planning-hop {
-    animation: planning-hop 400ms ease-in-out infinite alternate;
-  }
-
-  .planning-heart {
-    opacity: 0;
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: planning-heart 6s ease-out infinite;
+  .planning-text {
+    animation: planning-text 450ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -91,54 +79,26 @@ body {
   }
 }
 
-@keyframes planning-route {
-  0% {
-    stroke-dashoffset: 1;
-  }
-  80%,
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes planning-stop {
-  0% {
-    transform: scale(0.75);
-    opacity: 0.45;
-  }
-  6% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
-  12%,
-  88% {
+@keyframes planning-ripple {
+  from {
+    opacity: 0.55;
     transform: scale(1);
-    opacity: 1;
   }
-  100% {
-    transform: scale(0.75);
-    opacity: 0.45;
-  }
-}
-
-@keyframes planning-hop {
   to {
-    transform: translateY(-3px);
+    opacity: 0;
+    transform: scale(2.3);
   }
 }
 
-@keyframes planning-heart {
-  0%,
-  80% {
+@keyframes planning-text {
+  from {
     opacity: 0;
-    transform: translateY(0) scale(0.6);
+    transform: translateY(6px);
+    filter: blur(2px);
   }
-  86% {
+  to {
     opacity: 1;
-    transform: translateY(-6px) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-22px) scale(1.1);
+    transform: none;
+    filter: none;
   }
 }

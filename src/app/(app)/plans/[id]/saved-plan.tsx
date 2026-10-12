@@ -243,9 +243,29 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
 
       {panel !== 'none' && (
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-5 ring-1 ring-line">
-          <p className="text-sm font-medium">
-            {panel === 'reschedule' ? 'Change date or transport' : 'Plan this date again on'}
-          </p>
+          <div className="-mt-2 -mr-2 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">
+              {panel === 'reschedule' ? 'Change date or transport' : 'Plan this date again on'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setPanel('none')}
+              aria-label="Close"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-cream"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="m3 3 6 6M9 3 3 9" />
+              </svg>
+            </button>
+          </div>
           <WindowFields value={window} onChange={setWindow} />
           {panel === 'reschedule' && (
             <div className="flex gap-2" role="group" aria-label="Transport">
@@ -287,11 +307,21 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
 
       <div className="flex gap-2">
         {editable && (
-          <button type="button" className={rowButton} onClick={() => setPanel('reschedule')}>
+          <button
+            type="button"
+            className={rowButton}
+            aria-expanded={panel === 'reschedule'}
+            onClick={() => setPanel(panel === 'reschedule' ? 'none' : 'reschedule')}
+          >
             Change plan
           </button>
         )}
-        <button type="button" className={rowButton} onClick={() => setPanel('again')}>
+        <button
+          type="button"
+          className={rowButton}
+          aria-expanded={panel === 'again'}
+          onClick={() => setPanel(panel === 'again' ? 'none' : 'again')}
+        >
           Plan again
         </button>
         <button

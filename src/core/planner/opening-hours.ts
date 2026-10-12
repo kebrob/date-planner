@@ -20,3 +20,20 @@ export function isOpenDuring(hours: OpeningHours, start: Date, end: Date): boole
     [-WEEK, 0, WEEK].some((shift) => p.start + shift <= from && to <= p.end + shift),
   );
 }
+
+const STEP_MINUTES = 15;
+
+/** Earliest start in [from, to − duration] (15-min steps) at which the place is open throughout. */
+export function firstOpenStart(
+  hours: OpeningHours,
+  from: Date,
+  to: Date,
+  durationMinutes: number,
+): Date | null {
+  const last = to.getTime() - durationMinutes * 60_000;
+  for (let t = from.getTime(); t <= last; t += STEP_MINUTES * 60_000) {
+    const start = new Date(t);
+    if (isOpenDuring(hours, start, new Date(t + durationMinutes * 60_000))) return start;
+  }
+  return null;
+}

@@ -218,6 +218,7 @@ export type PlanWarning =
   | 'over_budget'
   | 'required_skipped'
   | 'chosen_time_moved'
+  | 'chosen_closed'
   | 'places_daily_limit'
   | 'train_times_adjusted'
   | 'train_ticket_needed'
