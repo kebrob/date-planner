@@ -15,6 +15,10 @@ import { RATING_OPTIONS } from './rating-options';
 
 type Rating = SavedPlanView['rating'];
 
+// At least 44 px high: these are tapped on the phone, often on the way home.
+const quietButton =
+  'inline-flex min-h-11 items-center rounded-full px-3 text-sm text-mist hover:bg-white/70 hover:text-ink disabled:opacity-50';
+
 const DAY = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Europe/Berlin',
   weekday: 'short',
@@ -35,7 +39,7 @@ export function RatingButtons({
   compact?: boolean;
 }) {
   return (
-    <div className="flex gap-2" role="group" aria-label="Rating">
+    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Rating">
       {RATING_OPTIONS.map((o) => {
         const selected = value === o.value;
         return (
@@ -45,12 +49,16 @@ export function RatingButtons({
             disabled={disabled}
             aria-pressed={selected}
             onClick={() => onChange(selected ? null : o.value)}
-            className={`flex items-center gap-1.5 rounded-full disabled:opacity-50 ${
-              compact ? 'px-2.5 py-1 text-xs' : 'px-4 py-2 text-sm'
-            } ${selected ? 'bg-ink text-white' : 'bg-cream text-ink hover:bg-butter'}`}
+            className={`flex items-center justify-center rounded-2xl active:scale-95 disabled:opacity-70 ${
+              compact
+                ? 'min-h-14 flex-col gap-0.5 px-1 text-xs'
+                : 'min-h-[76px] flex-col gap-1 px-2 text-sm font-medium'
+            } ${selected ? 'bg-ink text-white' : 'bg-white text-ink ring-1 ring-line hover:bg-butter'}`}
           >
-            <span aria-hidden>{o.emoji}</span>
-            {compact ? <span className="sr-only">{o.label}</span> : o.label}
+            <span aria-hidden className={compact ? 'text-lg' : 'text-[26px] leading-none'}>
+              {o.emoji}
+            </span>
+            {o.label}
           </button>
         );
       })}
@@ -83,12 +91,12 @@ export function DateRating({
 
   if (plan.notHappened) {
     return (
-      <section className="flex items-center justify-between rounded-3xl bg-cream p-4 text-sm">
+      <section className="flex items-center justify-between gap-3 rounded-3xl bg-cream p-4 text-sm">
         <span>Marked as not happened – not used for suggestions.</span>
         <button
           type="button"
           disabled={pending}
-          className="underline disabled:opacity-50"
+          className="min-h-11 shrink-0 rounded-full bg-white px-4 font-medium ring-1 ring-line hover:bg-butter disabled:opacity-50"
           onClick={() => run(() => setNotHappenedAction(plan.id, false))}
         >
           Undo
@@ -108,10 +116,10 @@ export function DateRating({
           run(() => rateDateAction(plan.id, next));
         }}
       />
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-mist">
+      <div className="-mx-3 flex flex-wrap justify-between">
         <button
           type="button"
-          className="hover:text-ink"
+          className={quietButton}
           onClick={() => onShowItems(!showItems)}
           aria-expanded={showItems}
         >
@@ -120,7 +128,7 @@ export function DateRating({
         <button
           type="button"
           disabled={pending}
-          className="hover:text-ink disabled:opacity-50"
+          className={quietButton}
           onClick={() => run(() => setNotHappenedAction(plan.id, true))}
         >
           We didn&apos;t go
@@ -152,14 +160,16 @@ export function ItemRating({
   const [suggestBlock, setSuggestBlock] = useState(false);
   const [blocked, setBlocked] = useState(false);
 
-  const save = (next: Rating, blamed: boolean) =>
+  const save = (next: Rating, blamed: boolean) => {
+    // Outside the transition, so the buttons and checkbox respond before the server does.
+    setRating(next);
+    setPlaceBlamed(blamed);
     startTransition(async () => {
-      setRating(next);
-      setPlaceBlamed(blamed);
       const result = await rateItemAction(planId, position, next, blamed);
       setSuggestBlock(result.ok && result.data.suggestBlock);
       router.refresh();
     });
+  };
 
   return (
     <div className="mt-2 flex flex-col gap-2 border-t border-line pt-3">
@@ -170,23 +180,47 @@ export function ItemRating({
         onChange={(next) => save(next, next === 'dislike' && placeBlamed)}
       />
       {rating === 'dislike' && hasPlace && (
-        <label className="flex items-center gap-2 text-xs text-mist">
-          <input
-            type="checkbox"
-            checked={placeBlamed}
-            disabled={pending}
-            onChange={(e) => save('dislike', e.target.checked)}
-          />
+        <button
+          type="button"
+          role="switch"
+          aria-checked={placeBlamed}
+          disabled={pending}
+          onClick={() => save('dislike', !placeBlamed)}
+          className={`flex min-h-11 items-center gap-3 rounded-2xl px-3 text-left text-sm disabled:opacity-70 ${
+            placeBlamed ? 'bg-butter text-ink' : 'bg-paper text-mist ring-1 ring-line'
+          }`}
+        >
+          <span
+            aria-hidden
+            className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${
+              placeBlamed ? 'bg-ink text-white' : 'bg-white ring-1 ring-line'
+            }`}
+          >
+            {placeBlamed && (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m2.5 6.5 2.5 2.5 4.5-6" />
+              </svg>
+            )}
+          </span>
           It was the place, not the idea
-        </label>
+        </button>
       )}
       {suggestBlock && !blocked && !activityId.startsWith('builtin-') && (
-        <p className="flex flex-wrap items-center gap-2 text-xs text-mist">
+        <p className="flex flex-wrap items-center gap-2 text-sm text-mist">
           Not your thing twice now. Stop suggesting it?
           <button
             type="button"
             disabled={pending}
-            className="rounded-full bg-cream px-3 py-1 text-ink hover:bg-butter disabled:opacity-50"
+            className="min-h-11 rounded-full bg-cream px-4 text-ink hover:bg-butter disabled:opacity-50"
             onClick={() =>
               startTransition(async () => {
                 const result = await setActivityStatusAction(activityId, 'blocked');
@@ -198,7 +232,7 @@ export function ItemRating({
           </button>
         </p>
       )}
-      {blocked && <p className="text-xs text-mist">Blocked – it won&apos;t be suggested again.</p>}
+      {blocked && <p className="text-sm text-mist">Blocked – it won&apos;t be suggested again.</p>}
     </div>
   );
 }
@@ -227,7 +261,7 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
         <button
           type="button"
           disabled={pending}
-          className="text-sm text-mist hover:text-ink disabled:opacity-50"
+          className={`${quietButton} -mt-2 -mr-3`}
           onClick={() => run(() => dismissRatingPromptAction(prompt.id))}
         >
           Skip
@@ -241,7 +275,7 @@ export function RatingPromptCard({ prompt }: { prompt: Prompt }) {
       <button
         type="button"
         disabled={pending}
-        className="self-start text-sm text-mist hover:text-ink disabled:opacity-50"
+        className={`${quietButton} -mx-3 self-start`}
         onClick={() => run(() => setNotHappenedAction(prompt.id, true))}
       >
         We didn&apos;t go

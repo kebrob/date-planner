@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  notExists,
+  or,
+} from 'drizzle-orm';
 import { z } from 'zod';
 import { getWeatherProvider } from '@/adapters';
 import { learn, shouldSuggestBlock, type RatedItem } from '@/core/planner/learning';
@@ -160,7 +172,7 @@ export async function dismissRatingPrompt(planId: string, now = new Date()): Pro
 
 export type RatingPrompt = { id: string; startsAt: Date; titles: string[] };
 
-/** Recent past dates without a rating that were neither skipped nor marked as not happened. */
+/** Recent past dates without any rating (date or stop), neither skipped nor marked as not happened. */
 export async function listRatingPrompts(now = new Date(), limit = 2): Promise<RatingPrompt[]> {
   const db = getDb();
   const plans = await db
@@ -172,6 +184,12 @@ export async function listRatingPrompts(now = new Date(), limit = 2): Promise<Ra
         lt(datePlan.endsAt, now),
         gte(datePlan.endsAt, new Date(now.getTime() - PROMPT_DAYS * 86_400_000)),
         isNull(datePlan.rating),
+        notExists(
+          db
+            .select({ id: planItem.id })
+            .from(planItem)
+            .where(and(eq(planItem.planId, datePlan.id), isNotNull(planItem.rating))),
+        ),
         eq(datePlan.notHappened, false),
         eq(datePlan.ratingPromptDismissed, false),
       ),

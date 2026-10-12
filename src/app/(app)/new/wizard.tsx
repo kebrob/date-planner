@@ -341,7 +341,7 @@ export function Wizard({
         <div className="mt-6 flex flex-col gap-5">
           <div className="flex items-end justify-between">
             <h1 className="text-[30px] leading-tight font-semibold tracking-tight">
-              {session.pending && !session.current ? 'Planning your date…' : 'Your date'}
+              {session.planning ? 'Planning your date…' : 'Your date'}
             </h1>
             {!quick && (
               <button

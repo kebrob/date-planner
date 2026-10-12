@@ -90,13 +90,13 @@ export function SavedPlan({ plan }: { plan: SavedPlanView }) {
     return (
       <>
         {editable && concern && (
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-700">
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-amber-700">
             {CONCERNS[concern]}
             <button
               type="button"
               disabled={pending}
               onClick={() => edit({ type: 'reroll', index })}
-              className="rounded-full bg-cream px-3 py-1 text-ink hover:bg-butter disabled:opacity-50"
+              className="min-h-11 rounded-full bg-cream px-4 text-sm text-ink hover:bg-butter disabled:opacity-50"
             >
               Swap for something else
             </button>
