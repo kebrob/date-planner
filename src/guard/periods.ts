@@ -1,5 +1,5 @@
 // Budgets reset at local midnight / month start in the users' time zone, not UTC.
-const TIME_ZONE = 'Europe/Berlin';
+import { TIME_ZONE } from '@/lib/time';
 
 const dayFormat = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE,

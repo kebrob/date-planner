@@ -59,7 +59,7 @@ const TRAVEL_MODE: Record<TravelMode, string> = {
 
 type Point = { name: string; location: LatLng; place?: Place };
 
-export function directionsUrl(from: Point, to: Point, mode: TravelMode): string {
+function directionsUrl(from: Point, to: Point, mode: TravelMode): string {
   const params = new URLSearchParams({
     api: '1',
     origin: `${from.location.lat},${from.location.lng}`,

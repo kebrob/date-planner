@@ -10,10 +10,10 @@ import { TRANSPORTS } from '../transports';
 import { Choice, field, OptionRow, StepHeading } from './controls';
 import { Face } from './face';
 import type { TimePreset } from './presets';
+import type { Cuisine } from '@/core/planner/types';
 
 type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
-type Cuisine = NonNullable<PlanInput['cuisine']>;
 export type Format = NonNullable<PlanInput['format']>;
 type Setter<T> = (value: T) => void;
 

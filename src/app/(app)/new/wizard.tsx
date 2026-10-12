@@ -13,10 +13,10 @@ import { StepHeading } from './controls';
 import { STEPS, type Step } from './step-list';
 import type { TimePreset } from './presets';
 import { FoodStep, HowStep, MoodStep, PlansStep, WhenStep, WhereStep, type Format } from './steps';
+import type { Cuisine } from '@/core/planner/types';
 
 type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
-type Cuisine = NonNullable<PlanInput['cuisine']>;
 
 type WizardDefaults = {
   transport: Transport;

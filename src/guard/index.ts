@@ -18,4 +18,3 @@ export function getCostGuard(): CostGuard {
   return instance;
 }
 
-export { CostGuard, GuardDeniedError } from './guard';

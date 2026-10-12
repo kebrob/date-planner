@@ -1,17 +1,10 @@
 'use client';
 
-import { timeFormat } from '@/lib/time';
+import { timeFormat, longDayFormat } from '@/lib/time';
 import { formatDuration } from '@/lib/duration';
 import { freeGaps, type PlanView } from '@/planner/view';
 import { TravelIcon } from './travel-icon';
 import { CloseIcon } from './icons';
-
-const DAY = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Berlin',
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-});
 
 const WARNINGS: Record<PlanView['warnings'][number], string> = {
   forecast_unreliable: 'Weather forecast is still uncertain this far ahead.',
@@ -412,7 +405,7 @@ export function PlanResult({
       <header className="flex items-baseline justify-between">
         <div>
           <h2 className="text-lg font-semibold">
-            {first ? DAY.format(new Date(first.start)) : 'Your plan'}
+            {first ? longDayFormat.format(new Date(first.start)) : 'Your plan'}
           </h2>
           {weather && <p className="text-sm text-mist">{weather}</p>}
         </div>

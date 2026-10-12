@@ -11,6 +11,7 @@ import { getLimits } from '@/config/limits';
 import { buildPlan } from '@/core/planner/build-plan';
 import {
   CUISINES,
+  MAX_ITEMS,
   type Activity,
   type History,
   type Plan,
@@ -63,7 +64,12 @@ export const chosenStopSchema = z
     /** Fixed start within the window; null = any time. */
     startTime: time.nullable(),
     /** Takes the place of the item at this position (the others are kept). */
-    index: z.number().int().min(0).max(4).nullable(),
+    index: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_ITEMS - 1)
+      .nullable(),
   })
   .refine((v) => (v.activityId === null) !== (v.custom === null), {
     message: 'Either an idea or a one-off stop',
@@ -141,16 +147,25 @@ export const planInputSchema = z
       )
       .max(3)
       .optional(),
-    chosen: z.array(chosenStopSchema).max(5).optional(),
+    chosen: z.array(chosenStopSchema).max(MAX_ITEMS).optional(),
     /** Off after the user removed stops: free time stays free. */
     fillGaps: z.boolean().optional(),
     /** Kept stops that no longer fit are left out instead of replaced (moving a plan). */
     replaceUnfit: z.boolean().optional(),
     /** Positions of added stops that may be an activity, a snack or a meal. */
-    anyKindAt: z.array(z.number().int().min(0).max(4)).max(5).optional(),
+    anyKindAt: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_ITEMS - 1),
+      )
+      .max(MAX_ITEMS)
+      .optional(),
     slots: z
       .array(z.enum(['main', 'meal', 'snack']))
-      .max(5)
+      .max(MAX_ITEMS)
       .optional(),
     excludeActivityIds: z.array(z.string().max(100)).max(100).default([]),
     keep: z

@@ -51,7 +51,7 @@ export const travelRoutine = pgTable('travel_routine', {
   createdAt: createdAt(),
 });
 
-export type WeatherRequirement = {
+type WeatherRequirement = {
   dryOnly?: boolean;
   minTempC?: number;
   maxTempC?: number;

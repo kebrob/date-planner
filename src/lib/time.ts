@@ -84,6 +84,14 @@ export const timeFormat = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
 });
 
+/** "Saturday 10 October" in Europe/Berlin, for display. */
+export const longDayFormat = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TIME_ZONE,
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+
 /** "Sat 10 Oct" in Europe/Berlin, for display. */
 export const shortDayFormat = new Intl.DateTimeFormat('en-GB', {
   timeZone: TIME_ZONE,
