@@ -820,6 +820,26 @@ describe('route planning', () => {
     expect(plan.travelHome!.distanceKm).toBeGreaterThan(30);
   });
 
+  it('measures walking range from the destination when already there', async () => {
+    const town = north(10);
+    const plan = await buildPlan(
+      request({
+        format: 'single',
+        food: 'none',
+        transport: 'walk',
+        area: { name: 'Town', location: town },
+        startInArea: true,
+        endInArea: true,
+      }),
+      context({
+        activities: [cinema],
+        findPlaces: async (a, center) => [placeAt(center, 0.3, a.id)],
+      }),
+    );
+    expect(plan.items.map((i) => i.activity.id)).toEqual(['cinema']);
+    expect(plan.warnings).not.toContain('fallback_used');
+  });
+
   it('plans no way home when staying in the destination', async () => {
     const munich = { lat: 48.14, lng: 11.58 };
     const plan = await buildPlan(

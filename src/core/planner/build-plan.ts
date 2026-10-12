@@ -402,11 +402,12 @@ async function venuesFor(
     }
     state.placeCache.set(cacheKey, places);
   }
-  const limitedRange = maxDistanceKm(request.transport) !== Infinity;
+  const range = maxDistanceKm(request.transport);
+  // Already in the area: walking or cycling range counts from there, not from home.
+  const origin = startsInArea(request) ? request.area!.location : ctx.home;
   return places.filter(
     (p) =>
-      region.accepts(p.location) &&
-      (!limitedRange || distanceKm(ctx.home, p.location) <= maxDistanceKm(request.transport)),
+      region.accepts(p.location) && (range === Infinity || distanceKm(origin, p.location) <= range),
   );
 }
 
