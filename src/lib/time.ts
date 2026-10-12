@@ -41,6 +41,11 @@ function offsetMs(date: Date): number {
   return asUtc - Math.floor(date.getTime() / 60_000) * 60_000;
 }
 
+/** Offset of Europe/Berlin from UTC at that instant (60 in winter, 120 in summer). */
+export function utcOffsetMinutes(date: Date): number {
+  return offsetMs(date) / 60_000;
+}
+
 /** Converts a wall-clock date ("2026-10-10") and time ("17:30") in Europe/Berlin to an instant. */
 export function fromLocal(date: string, time: string): Date {
   const [y, m, d] = date.split('-').map(Number);

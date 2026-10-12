@@ -1005,6 +1005,20 @@ describe('isOpenDuring', () => {
       isOpenDuring(late, fromLocal('2026-10-11', '00:30'), fromLocal('2026-10-11', '01:30')),
     ).toBe(true);
   });
+
+  it('compares wall-clock times on the nights the clocks change', () => {
+    // Saturday 20:00 – Sunday 04:00
+    const bar = {
+      alwaysOpen: false as const,
+      periods: [{ start: 6 * 1440 + 20 * 60, end: 7 * 1440 + 4 * 60 }],
+    };
+    // 2026-03-29: 01:30 + 120 real minutes is 04:30 summer time.
+    const spring = fromLocal('2026-03-29', '01:30');
+    expect(isOpenDuring(bar, spring, new Date(spring.getTime() + 120 * 60_000))).toBe(false);
+    // 2026-10-25: 01:30 + 180 real minutes is 03:30 winter time.
+    const autumn = fromLocal('2026-10-25', '01:30');
+    expect(isOpenDuring(bar, autumn, new Date(autumn.getTime() + 180 * 60_000))).toBe(true);
+  });
 });
 
 describe('summarizeWeather', () => {

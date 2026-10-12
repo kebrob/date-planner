@@ -1,4 +1,4 @@
-import { localParts } from '@/lib/time';
+import { localParts, utcOffsetMinutes } from '@/lib/time';
 import type { OpeningHours } from '@/ports/places';
 
 const WEEK = 7 * 24 * 60;
@@ -14,7 +14,9 @@ export function isOpenDuring(hours: OpeningHours, start: Date, end: Date): boole
   const length = Math.round((end.getTime() - start.getTime()) / 60_000);
   if (length <= 0 || length > WEEK) return false;
   const from = minuteOfWeek(start);
-  const to = from + length;
+  // Opening hours are wall-clock times; on the nights the clocks change, local time skips or
+  // repeats an hour.
+  const to = from + length + utcOffsetMinutes(end) - utcOffsetMinutes(start);
   // Shift periods by one week as well, to cover intervals and periods wrapping past Saturday midnight.
   return hours.periods.some((p) =>
     [-WEEK, 0, WEEK].some((shift) => p.start + shift <= from && to <= p.end + shift),
