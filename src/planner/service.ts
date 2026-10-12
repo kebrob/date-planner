@@ -1,6 +1,12 @@
 import { and, eq, max, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { getGeocoder, getPlacesProvider, getRail, getWeatherProvider } from '@/adapters';
+import {
+  getGeocoder,
+  getPlacesProvider,
+  getRail,
+  getWeatherProvider,
+  isGooglePlacesConfigured,
+} from '@/adapters';
 import { getLimits } from '@/config/limits';
 import { buildPlan } from '@/core/planner/build-plan';
 import {
@@ -266,13 +272,12 @@ export async function loadPlannerDefaults() {
 }
 
 export async function placesLimitReached(now: Date): Promise<boolean> {
-  const limits = getLimits();
-  if (limits.places.provider !== 'google' || !process.env.GOOGLE_PLACES_API_KEY) return false;
+  if (!isGooglePlacesConfigured()) return false;
   const [row] = await getDb()
     .select({ n: sql<number>`count(*)` })
     .from(apiUsage)
     .where(and(eq(apiUsage.provider, 'google_places'), eq(apiUsage.day, dayKey(now))));
-  return Number(row?.n ?? 0) >= limits.places.dailyLimit;
+  return Number(row?.n ?? 0) >= getLimits().places.dailyLimit;
 }
 
 export async function generatePlan(

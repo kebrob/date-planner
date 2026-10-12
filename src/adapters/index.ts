@@ -18,19 +18,28 @@ import { StationListFinder } from './rail/station-list';
 import { OpenMeteoProvider } from './weather/open-meteo';
 
 let places: PlacesProvider | undefined;
+let google: GooglePlacesProvider | undefined;
 let weather: WeatherProvider | undefined;
 let geocoder: GeocodingProvider | undefined;
 let rail: { stations: RailStationFinder; timetable: RailTimetable } | undefined;
 
+/** Google is the configured place provider and has an API key. */
+export function isGooglePlacesConfigured(): boolean {
+  return getLimits().places.provider === 'google' && Boolean(process.env.GOOGLE_PLACES_API_KEY);
+}
+
+function googlePlaces(): GooglePlacesProvider {
+  google ??= new GooglePlacesProvider(process.env.GOOGLE_PLACES_API_KEY!, getCostGuard());
+  return google;
+}
+
 export function getPlacesProvider(): PlacesProvider {
   if (!places) {
     const osm = new CircuitBreakerPlacesProvider(new OsmPlacesProvider());
-    const key = process.env.GOOGLE_PLACES_API_KEY;
-    const useGoogle = getLimits().places.provider === 'google' && Boolean(key);
     places = new CachedPlacesProvider(
-      useGoogle
+      isGooglePlacesConfigured()
         ? (() => {
-            const google = new GooglePlacesProvider(key!, getCostGuard());
+            const google = googlePlaces();
             return new RoutingPlacesProvider(
               new FallbackPlacesProvider(google, osm),
               // Free ideas try OSM first; Google answers when Overpass is slow or rate-limited.
@@ -55,9 +64,7 @@ export function getGeocoder(): GeocodingProvider {
 
 /** Null when Google is not configured; OSM places are stored in full and need no re-fetch. */
 export function getPlaceDetailsProvider(): PlaceDetailsProvider | null {
-  const key = process.env.GOOGLE_PLACES_API_KEY;
-  if (getLimits().places.provider !== 'google' || !key) return null;
-  return new GooglePlacesProvider(key, getCostGuard());
+  return isGooglePlacesConfigured() ? googlePlaces() : null;
 }
 
 /** Null without DB API credentials; train legs then keep their estimates. */
