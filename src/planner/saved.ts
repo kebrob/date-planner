@@ -5,7 +5,8 @@ import type { RatingValue } from '@/core/planner/learning';
 import type { PlanWarning, Transport } from '@/core/planner/types';
 import { summarizeWeather, weatherConcern, windowWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import { activity, datePlan, planItem, settings, suggestionLog, travelRoutine } from '@/db/schema';
+import { findSettings, loadSettings } from '@/db/settings';
+import { activity, datePlan, planItem, suggestionLog, travelRoutine } from '@/db/schema';
 import { addMinutes, fromLocal, minutesBetween, toLocalDate, toLocalTime } from '@/lib/time';
 import type { LatLng, Place } from '@/ports/places';
 import { planViewSchema } from './schemas';
@@ -14,6 +15,7 @@ import {
   homePoint,
   planInputSchema,
   savedInput,
+  toRoutine,
   type ChosenStopInput,
   type PlanInput,
 } from './service';
@@ -367,10 +369,7 @@ async function refreshTrains(
 
   const db = getDb();
   const input = plan.parameters as PlanInput;
-  const [[home], routines] = await Promise.all([
-    db.select().from(settings).where(eq(settings.id, 1)).limit(1),
-    db.select().from(travelRoutine),
-  ]);
+  const [home, routines] = await Promise.all([findSettings(), db.select().from(travelRoutine)]);
   if (!home) return null;
   const window = windowOf(plan, input);
   const routine = routines.find((r) => r.transport === input.transport);
@@ -393,11 +392,7 @@ async function refreshTrains(
       home: homePoint(home),
       homeGrid: { lat: home.homeLat, lng: home.homeLng },
       startPoint: area,
-      routine: routine && {
-        transport: routine.transport as Transport,
-        firstLegMinutes: routine.firstLegMinutes,
-        bufferMinutes: routine.bufferMinutes,
-      },
+      routine: routine && toRoutine(routine),
       refreshOnly: true,
       now,
     },
@@ -481,7 +476,7 @@ export async function getSavedPlan(id: string, now = new Date()): Promise<SavedP
   if (!view.isPast) {
     // Weather is free, so refresh it on every view.
     const db = getDb();
-    const [home] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
+    const home = await findSettings();
     const firstPlace = view.items.find((i) => i.place)?.place?.location;
     const location = firstPlace ?? (home ? { lat: home.homeLat, lng: home.homeLng } : null);
     if (location) {
@@ -591,9 +586,7 @@ function keepRecord(entries: (KeepEntry | null)[]) {
 }
 
 async function homeLocation() {
-  const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-  if (!home) throw new Error('Settings missing');
-  return homePoint(home);
+  return homePoint(await loadSettings());
 }
 
 /** Re-plans a saved, upcoming plan; returns the titles of kept stops that no longer fit. */

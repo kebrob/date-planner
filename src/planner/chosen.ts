@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { getPlacesProvider } from '@/adapters';
 import { toActivityInsert } from '@/ai/ideas';
 import { getDb } from '@/db/client';
-import { activity, settings } from '@/db/schema';
+import { loadSettings } from '@/db/settings';
+import { activity } from '@/db/schema';
 import { TEXT_SEARCH_TYPE } from '@/ports/place-types';
 import type { LatLng, Place } from '@/ports/places';
 import { placesLimitReached, toGrid } from './service';
@@ -60,8 +61,7 @@ export async function searchPlaces(
   const { query, near } = placeSearchSchema.parse(raw);
   let center: LatLng | null = near;
   if (!center) {
-    const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-    if (!home) throw new Error('Settings missing');
+    const home = await loadSettings();
     center = { lat: home.homeLat, lng: home.homeLng };
   }
   const places = await getPlacesProvider()

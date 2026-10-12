@@ -17,7 +17,8 @@ import { learn, shouldSuggestBlock, type RatedItem } from '@/core/planner/learni
 import type { Learning, WeatherCondition } from '@/core/planner/types';
 import { windowWeather } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import { activity, datePlan, planItem, settings, suggestionLog } from '@/db/schema';
+import { findSettings } from '@/db/settings';
+import { activity, datePlan, planItem, suggestionLog } from '@/db/schema';
 
 export const ratingSchema = z.enum(['dislike', 'like', 'love']).nullable();
 export type Rating = z.infer<typeof ratingSchema>;
@@ -88,7 +89,7 @@ async function recordWeather(plan: typeof datePlan.$inferSelect): Promise<void> 
   if (items.length === 0) return;
   let point = plan.weatherPoint;
   if (!point) {
-    const [home] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
+    const home = await findSettings();
     if (!home) return;
     point = { lat: home.homeLat, lng: home.homeLng };
   }

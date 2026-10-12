@@ -14,6 +14,7 @@ import { getLimits } from '@/config/limits';
 import { distanceKm } from '@/core/planner/geo';
 import { CUISINES } from '@/core/planner/types';
 import { getDb } from '@/db/client';
+import { isSettingsRow, loadSettings } from '@/db/settings';
 import { activity, apiUsage, settings, travelRoutine } from '@/db/schema';
 import { getCostGuard } from '@/guard';
 import { dayKey, monthKey } from '@/guard/periods';
@@ -36,11 +37,7 @@ export const settingsSchema = z.object({
   maxRadiusKm: z.coerce.number().int().min(5).max(300),
 });
 
-export async function getSettings() {
-  const [row] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-  if (!row) throw new Error('Settings missing – run npm run db:seed');
-  return row;
-}
+export const getSettings = loadSettings;
 
 export async function saveSettings(raw: unknown): Promise<void> {
   const input = settingsSchema.parse(raw);
@@ -68,7 +65,7 @@ export async function saveSettings(raw: unknown): Promise<void> {
       homeLng: Math.round(location.lng * 100) / 100,
       updatedAt: new Date(),
     })
-    .where(eq(settings.id, 1));
+    .where(isSettingsRow);
 }
 
 // Close enough to the town that a mis-tap far away is rejected.
@@ -96,7 +93,7 @@ export async function saveHomePin(raw: unknown): Promise<void> {
       homeExactLng: pin ? Math.round(pin.lng * 10_000) / 10_000 : null,
       updatedAt: new Date(),
     })
-    .where(eq(settings.id, 1));
+    .where(isSettingsRow);
 }
 
 // ---------- Travel routines ----------

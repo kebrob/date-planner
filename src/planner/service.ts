@@ -10,10 +10,12 @@ import {
   type Plan,
   type PlanRequest,
   type Transport,
+  type TravelRoutine,
 } from '@/core/planner/types';
 import { summarizeWeather, weatherFactor } from '@/core/planner/weather';
 import { getDb } from '@/db/client';
-import { activity, apiUsage, settings, suggestionLog, travelRoutine } from '@/db/schema';
+import { findSettings, loadSettings, type Settings } from '@/db/settings';
+import { activity, apiUsage, suggestionLog, travelRoutine } from '@/db/schema';
 import { dayKey } from '@/guard/periods';
 import { nextOuting } from './outing';
 import { attachTrains } from './trains';
@@ -220,10 +222,16 @@ async function loadHistory(now: Date): Promise<History> {
   return history;
 }
 
-type SettingsRow = typeof settings.$inferSelect;
+export function toRoutine(row: typeof travelRoutine.$inferSelect): TravelRoutine {
+  return {
+    transport: row.transport as Transport,
+    firstLegMinutes: row.firstLegMinutes,
+    bufferMinutes: row.bufferMinutes,
+  };
+}
 
 /** Exact home pin when set, else the rounded town; used for travel times and route links only. */
-export function homePoint(row: SettingsRow): LatLng {
+export function homePoint(row: Settings): LatLng {
   return row.homeExactLat !== null && row.homeExactLng !== null
     ? { lat: row.homeExactLat, lng: row.homeExactLng }
     : { lat: row.homeLat, lng: row.homeLng };
@@ -236,8 +244,7 @@ export const toGrid = (p: LatLng): LatLng => ({
 });
 
 export async function loadPlannerDefaults() {
-  const [row] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-  if (!row) throw new Error('Settings missing – run npm run db:seed');
+  const row = await loadSettings();
   return {
     transport: row.defaultTransport as Transport,
     budgetEur: row.defaultBudgetEur,
@@ -267,14 +274,13 @@ export async function generatePlan(
   const start = fromLocal(input.date, input.startTime);
   const end = fromLocal(input.endDate, input.endTime);
 
-  const [[home], routines, activityRows, learning, history] = await Promise.all([
-    db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+  const [home, routines, activityRows, learning, history] = await Promise.all([
+    loadSettings(),
     db.select().from(travelRoutine),
     db.select().from(activity).where(eq(activity.status, 'active')),
     loadLearning(now),
     loadHistory(now),
   ]);
-  if (!home) throw new Error('Settings missing – run npm run db:seed');
 
   const required = (input.requiredStops ?? []).map((stop, i): Activity => ({
     id: `adhoc-${i}`,
@@ -420,11 +426,7 @@ export async function generatePlan(
     {
       home: homePoint(home),
       maxRadiusKm: home.maxRadiusKm,
-      routines: routines.map((r) => ({
-        transport: r.transport as Transport,
-        firstLegMinutes: r.firstLegMinutes,
-        bufferMinutes: r.bufferMinutes,
-      })),
+      routines: routines.map(toRoutine),
       activities,
       history,
       weather: summarizeWeather(weatherHours, start, end, now),
@@ -459,11 +461,7 @@ export async function generatePlan(
         home: homePoint(home),
         homeGrid: townLocation,
         startPoint: plan.startsInArea && area ? area.location : undefined,
-        routine: routine && {
-          transport: routine.transport as Transport,
-          firstLegMinutes: routine.firstLegMinutes,
-          bufferMinutes: routine.bufferMinutes,
-        },
+        routine: routine && toRoutine(routine),
       },
       rail,
     ).catch(() => {
@@ -502,8 +500,8 @@ export type IdeaTeaser = {
  */
 export async function ideasForNextOuting(now = new Date(), count = 3): Promise<IdeaTeaser[]> {
   const db = getDb();
-  const [[home], rows] = await Promise.all([
-    db.select().from(settings).where(eq(settings.id, 1)).limit(1),
+  const [home, rows] = await Promise.all([
+    findSettings(),
     db.select().from(activity).where(eq(activity.status, 'active')),
   ]);
   if (!home) return [];

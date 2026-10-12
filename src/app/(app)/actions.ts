@@ -9,7 +9,8 @@ import { SIGN_IN_AGAIN } from '@/auth/responses';
 import { destroyAllSessions, hasFreshSession, requireSession } from '@/auth/session';
 import { logError, type Result } from '@/lib/result';
 import { getDb } from '@/db/client';
-import { passkey, settings } from '@/db/schema';
+import { loadSettings } from '@/db/settings';
+import { passkey } from '@/db/schema';
 import {
   deletePlan,
   editPlan,
@@ -78,8 +79,7 @@ export async function generatePlanAction(input: PlanInput): Promise<Result<PlanV
   await requireSession();
   try {
     const { plan, area } = await generatePlan(input);
-    const [home] = await getDb().select().from(settings).where(eq(settings.id, 1)).limit(1);
-    return { ok: true, data: toPlanView(plan, homePoint(home!), area) };
+    return { ok: true, data: toPlanView(plan, homePoint(await loadSettings()), area) };
   } catch (error) {
     return failure(error, 'Could not create a plan. Check your inputs and try again.');
   }
