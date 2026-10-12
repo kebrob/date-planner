@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { IdeasGenerationError } from '@/ai/ideas';
 import { TripPlanningError } from '@/ai/trip';
 import { requireSession } from '@/auth/session';
+import { logError, type Result } from '@/lib/result';
 import {
   ChatDisabledError,
   clearHistory,
@@ -15,8 +16,6 @@ import {
 import { GuardDeniedError } from '@/guard';
 import { AreaNotFoundError } from '@/planner/service';
 import { createTrip, deleteTrip, setTripFavorite, TripsDisabledError } from '@/trips/service';
-
-type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 function failure(error: unknown, fallback: string): { ok: false; error: string } {
   if (error instanceof ZodError) {
@@ -40,7 +39,7 @@ function failure(error: unknown, fallback: string): { ok: false; error: string }
   if (error instanceof TripPlanningError || error instanceof IdeasGenerationError) {
     return { ok: false, error: error.message };
   }
-  console.error(fallback, error instanceof Error ? error.message : error);
+  logError(fallback, error);
   return { ok: false, error: fallback };
 }
 

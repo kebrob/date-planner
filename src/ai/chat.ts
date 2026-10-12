@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { CUISINES, MOOD_TAGS } from '@/core/planner/types';
 import type { CostGuard } from '@/guard/guard';
+import { logError } from '@/lib/result';
 import { PLACE_TYPES } from '@/ports/place-types';
 import { runToolLoop, type ClientTool, type CreateMessage } from './tool-loop';
 
@@ -101,7 +102,7 @@ function tool(
       } catch (error) {
         if (error instanceof ToolUserError) throw error;
         // Internal details (SQL, hosts, stack) stay in our logs and are never sent to the model.
-        console.error(`chat tool ${name} failed`, error instanceof Error ? error.message : error);
+        logError(`chat tool ${name} failed`, error);
         throw new Error('The app had an internal error running this tool. Do not retry it now.');
       }
     },

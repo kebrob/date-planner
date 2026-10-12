@@ -17,9 +17,8 @@ import {
 } from '@/admin/service';
 import { IdeasGenerationError, IdeasImportError } from '@/ai/ideas';
 import { requireSession } from '@/auth/session';
+import { logError, type Result } from '@/lib/result';
 import { GuardDeniedError } from '@/guard';
-
-type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const GUARD_MESSAGES: Record<GuardDeniedError['reason'], string> = {
   daily_budget: 'Daily Claude budget reached – try again tomorrow or use the prompt export.',
@@ -47,7 +46,7 @@ function failure(error: unknown, fallback: string): { ok: false; error: string }
   ) {
     return { ok: false, error: error.message };
   }
-  console.error(fallback, error instanceof Error ? error.message : error);
+  logError(fallback, error);
   return { ok: false, error: fallback };
 }
 

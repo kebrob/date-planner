@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { getGeocoder } from '@/adapters';
 import { SIGN_IN_AGAIN } from '@/auth/responses';
 import { destroyAllSessions, hasFreshSession, requireSession } from '@/auth/session';
+import { logError, type Result } from '@/lib/result';
 import { getDb } from '@/db/client';
 import { passkey, settings } from '@/db/schema';
 import {
@@ -49,8 +50,6 @@ import {
   type Rating,
 } from '@/ratings/service';
 
-type Result<T> = { ok: true; data: T } | { ok: false; error: string };
-
 function failure(error: unknown, fallback: string): { ok: false; error: string } {
   if (error instanceof AreaNotFoundError) {
     return { ok: false, error: `Couldn't find "${error.query}". Try a town or city name.` };
@@ -65,7 +64,7 @@ function failure(error: unknown, fallback: string): { ok: false; error: string }
   if (error instanceof PlanNotRatableError) {
     return { ok: false, error: 'This date cannot be rated (yet).' };
   }
-  console.error(fallback, error instanceof Error ? error.message : error);
+  logError(fallback, error);
   return { ok: false, error: fallback };
 }
 
