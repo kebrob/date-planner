@@ -17,6 +17,8 @@ export type State = {
   reachedArea: boolean;
   spentEur: number;
   used: Set<string>;
+  /** Kept, pinned or fixed-time stops still to come; fillers must not pick them as well. */
+  reserved: Set<string>;
   /** Paid place searches, including free ones that a paid provider answered. */
   lookups: number;
   freeLookups: number;

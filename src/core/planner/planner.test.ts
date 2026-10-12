@@ -1213,6 +1213,26 @@ describe('chosen stops', () => {
     expect(plan.warnings).not.toContain('required_skipped');
   });
 
+  it('does not plan an idea again that a later stop of the plan keeps', async () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const plan = await buildPlan(
+        request({
+          start: day('18:00'),
+          end: day('23:30'),
+          slots: ['main', 'snack', 'main'],
+          keep: {
+            1: { activity: iceCream, place: place('ice', 1) },
+            2: { activity: boardGames, place: null },
+          },
+          excludeActivityIds: ['cinema'],
+        }),
+        context({ activities: [boardGames, boardGames2, iceCream], random: seededRandom(seed) }),
+      );
+      const ids = plan.items.map((i) => i.activity.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+
   it('keeps an earlier kept stop when a later fixed-time stop comes back on an edit', async () => {
     // The dinner lies before the middle of the window, so placing it by time alone puts it first.
     const plan = await buildPlan(

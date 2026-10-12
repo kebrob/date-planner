@@ -90,6 +90,7 @@ async function fillSlot(
     (a) =>
       (pass.homeAllowed || !a.atHome) &&
       !(a.atHome && endsInArea(request)) &&
+      !state.reserved.has(a.id) &&
       isCandidate(a, {
         slot,
         slotStart: state.cursor,
@@ -211,6 +212,7 @@ function apply(item: PlanItem, state: State, request: PlanRequest, ctx: PlanCont
   state.cursor = item.end;
   state.spentEur += item.costEur;
   state.used.add(item.activity.id);
+  state.reserved.delete(item.activity.id);
   state.atHomeLocation = distanceKm(target, ctx.home) < 0.05;
   state.location = target;
   if (
@@ -245,6 +247,13 @@ export async function buildPlan(planRequest: PlanRequest, ctx: PlanContext): Pro
     reachedArea: false,
     spentEur: 0,
     used: new Set(),
+    reserved: new Set(
+      [
+        ...Object.values(request.keep ?? {}),
+        ...Object.values(request.pins ?? {}),
+        ...(request.anchors ?? []),
+      ].map((stop) => stop.activity.id),
+    ),
     lookups: 0,
     freeLookups: 0,
     freeFallsBack: false,
