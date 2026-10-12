@@ -1,13 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import type { ActivityForm } from '@/admin/service';
 import { CUISINES, MOOD_TAGS } from '@/core/planner/types';
 import { PLACE_TYPES, TEXT_SEARCH_TYPE } from '@/ports/place-types';
 import { saveActivityAction } from '../../actions';
 import { TRANSPORTS } from '../../../transports';
-import { field, Message, primary, secondary } from '../../forms';
+import { field, Message, primary, secondary, useAction } from '../../forms';
 
 const TIMES = ['morning', 'afternoon', 'evening', 'night'] as const;
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
@@ -76,8 +76,7 @@ export function ActivityEditor({
 }) {
   const router = useRouter();
   const [form, setForm] = useState<ActivityForm>(initial ?? empty);
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const { pending, message, run } = useAction();
   const set = <K extends keyof ActivityForm>(key: K, value: ActivityForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
   const label = 'flex flex-col gap-1 text-sm';
@@ -87,12 +86,13 @@ export function ActivityEditor({
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        startTransition(async () => {
-          const result = await saveActivityAction(id, form);
-          if (!result.ok) return setMessage({ ok: false, text: result.error });
-          router.push('/admin/activities');
-          router.refresh();
-        });
+        run(
+          () => saveActivityAction(id, form),
+          () => {
+            router.push('/admin/activities');
+            return null;
+          },
+        );
       }}
     >
       <h1 className="text-[28px] font-semibold tracking-tight">

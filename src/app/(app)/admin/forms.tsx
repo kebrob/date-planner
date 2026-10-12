@@ -19,16 +19,17 @@ export function useAction() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  /** `success` returns the message to show, or null for none (e.g. after navigating away). */
   const run = <T,>(
     action: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>,
-    success: (data: T) => string,
+    success: (data: T) => string | null,
   ) =>
     startTransition(async () => {
       const result = await action();
-      setMessage(
-        result.ok ? { ok: true, text: success(result.data) } : { ok: false, text: result.error },
-      );
-      if (result.ok) router.refresh();
+      if (!result.ok) return setMessage({ ok: false, text: result.error });
+      const text = success(result.data);
+      setMessage(text === null ? null : { ok: true, text });
+      router.refresh();
     });
   return { pending, message, run };
 }
