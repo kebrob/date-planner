@@ -1,4 +1,5 @@
-const URL_PATTERN = /(https:\/\/[^\s)\]]+)/g;
+// A URL ends before closing punctuation, so "see https://bahn.de." links to bahn.de.
+export const URL_PATTERN = /(https:\/\/[^\s)\]]*[^\s)\].,;:!?'"])/g;
 
 /** Renders plain text with line breaks and clickable https links (no HTML from the model). */
 export function Linkify({ text }: { text: string }) {

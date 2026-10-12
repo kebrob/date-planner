@@ -10,7 +10,7 @@ import { SessionResult, usePlanSession } from '../plan-session';
 import { StopPicker, type PickedStop } from '../stop-picker';
 import { MOODS } from '../moods';
 import { Face } from './face';
-import { outingPreset, presets } from './presets';
+import type { TimePreset } from './presets';
 
 type Transport = PlanInput['transport'];
 type Food = NonNullable<PlanInput['food']>;
@@ -188,14 +188,19 @@ export function Wizard({
   defaults,
   quick,
   idea,
+  timePresets,
+  initialWhen,
 }: {
   defaults: WizardDefaults;
   quick: boolean;
   idea: { id: string; title: string } | null;
+  /** Computed on the server, so server and browser render the same times. */
+  timePresets: TimePreset[];
+  initialWhen: TimePreset;
 }) {
   const session = usePlanSession();
   const [step, setStep] = useState<Step | 'result'>(quick ? 'result' : 'when');
-  const [when, setWhen] = useState(() => outingPreset());
+  const [when, setWhen] = useState(initialWhen);
   const [center, setCenter] = useState<Point | null>(null);
   const [startInArea, setStartInArea] = useState(false);
   const [endInArea, setEndInArea] = useState(false);
@@ -376,7 +381,7 @@ export function Wizard({
                   When&apos;s your date?
                 </h1>
                 <div className="grid grid-cols-2 gap-2.5">
-                  {presets().map((p) => (
+                  {timePresets.map((p) => (
                     <Choice
                       key={p.label}
                       selected={
