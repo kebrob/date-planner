@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_ITEMS } from '@/core/planner/build-plan';
+import { MAX_ITEMS } from '@/core/planner/types';
 import { PLAN_WARNINGS } from '@/core/planner/types';
 
 const https = z

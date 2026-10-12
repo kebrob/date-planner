@@ -1,4 +1,4 @@
-import { MAX_ITEMS } from '@/core/planner/build-plan';
+import { MAX_ITEMS } from '@/core/planner/types';
 import type {
   Plan,
   PlanWarning,

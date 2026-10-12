@@ -1,5 +1,5 @@
 import { getPlaceDetailsProvider } from '@/adapters';
-import { MAX_ITEMS } from '@/core/planner/build-plan';
+import { MAX_ITEMS } from '@/core/planner/types';
 import { addMinutes, fromLocal, minutesBetween, toLocalTime } from '@/lib/time';
 import type { Place } from '@/ports/places';
 import {

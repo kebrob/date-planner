@@ -1,6 +1,9 @@
 import type { LatLng, Place } from '@/ports/places';
 import type { WeatherHour } from '@/ports/weather';
 
+/** Most stops a plan can have. */
+export const MAX_ITEMS = 5;
+
 export type Transport = 'deutschlandticket' | 'car' | 'walk' | 'bike';
 export type PlanFormat = 'single' | 'evening' | 'day';
 export type Slot = 'main' | 'meal' | 'snack';
