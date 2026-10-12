@@ -13,6 +13,7 @@ import { authChallenge, passkey } from '@/db/schema';
 import { newToken } from './tokens';
 
 const CHALLENGE_COOKIE = 'dp_challenge';
+const CHALLENGE_PATH = '/api/auth';
 const CHALLENGE_TTL_MS = 5 * 60_000;
 
 function relyingParty() {
@@ -43,7 +44,7 @@ async function storeChallenge(challenge: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    path: '/api/auth',
+    path: CHALLENGE_PATH,
     expires: expiresAt,
   });
 }
@@ -52,7 +53,7 @@ async function storeChallenge(challenge: string) {
 async function consumeChallenge(): Promise<string | null> {
   const store = await cookies();
   const id = store.get(CHALLENGE_COOKIE)?.value;
-  store.delete(CHALLENGE_COOKIE);
+  store.delete({ name: CHALLENGE_COOKIE, path: CHALLENGE_PATH });
   if (!id) return null;
   const [row] = await getDb().delete(authChallenge).where(eq(authChallenge.id, id)).returning();
   if (!row || row.expiresAt < new Date()) return null;
@@ -109,13 +110,16 @@ export async function authenticationOptions() {
   return options;
 }
 
-export async function verifyAuthentication(response: AuthenticationResponseJSON) {
+/** Returns the id of the passkey used, or null when the response is not valid. */
+export async function verifyAuthentication(
+  response: AuthenticationResponseJSON,
+): Promise<string | null> {
   const { rpID, origin } = relyingParty();
   const expectedChallenge = await consumeChallenge();
-  if (!expectedChallenge) return false;
+  if (!expectedChallenge) return null;
   const db = getDb();
   const [stored] = await db.select().from(passkey).where(eq(passkey.id, response.id)).limit(1);
-  if (!stored) return false;
+  if (!stored) return null;
   const result = await verifyAuthenticationResponse({
     response,
     expectedChallenge,
@@ -129,10 +133,10 @@ export async function verifyAuthentication(response: AuthenticationResponseJSON)
       transports: stored.transports,
     },
   });
-  if (!result.verified) return false;
+  if (!result.verified) return null;
   await db
     .update(passkey)
     .set({ counter: result.authenticationInfo.newCounter, lastUsedAt: new Date() })
     .where(eq(passkey.id, stored.id));
-  return true;
+  return stored.id;
 }

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, gt, gte, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, lt, sql } from 'drizzle-orm';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDb, type Db } from '@/db/client';
@@ -9,13 +9,22 @@ import { hashToken, newToken } from './tokens';
 
 export const SESSION_COOKIE = 'dp_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
+// Managing passkeys needs a recent sign-in, so a stolen session cookie cannot add its own passkey.
+const FRESH_SESSION_MS = 10 * 60_000;
+// Login attempts only matter within the rate-limit window; older ones are deleted.
+const LOGIN_ATTEMPT_RETENTION_MS = 24 * 60 * 60_000;
 
-export async function createSession(): Promise<void> {
+/** `passkeyId`: the passkey used to sign in, so removing it ends this session. */
+export async function createSession(passkeyId: string | null = null): Promise<void> {
   const token = newToken();
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await getDb()
-    .insert(session)
-    .values({ tokenHash: hashToken(token), expiresAt });
+  const now = Date.now();
+  const expiresAt = new Date(now + SESSION_TTL_MS);
+  const db = getDb();
+  await db.insert(session).values({ tokenHash: hashToken(token), passkeyId, expiresAt });
+  await db.delete(session).where(lt(session.expiresAt, new Date(now)));
+  await db
+    .delete(loginAttempt)
+    .where(lt(loginAttempt.createdAt, new Date(now - LOGIN_ATTEMPT_RETENTION_MS)));
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -25,20 +34,36 @@ export async function createSession(): Promise<void> {
   });
 }
 
-export async function hasValidSession(): Promise<boolean> {
+async function currentSession() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return false;
+  if (!token) return null;
   const [row] = await getDb()
-    .select({ tokenHash: session.tokenHash })
+    .select({ createdAt: session.createdAt })
     .from(session)
     .where(and(eq(session.tokenHash, hashToken(token)), gt(session.expiresAt, new Date())))
     .limit(1);
-  return Boolean(row);
+  return row ?? null;
+}
+
+export async function hasValidSession(): Promise<boolean> {
+  return Boolean(await currentSession());
 }
 
 /** Use at the start of every protected page, server action and route handler. */
 export async function requireSession(): Promise<void> {
   if (!(await hasValidSession())) redirect('/login');
+}
+
+/** Signed in within the last few minutes. */
+export async function hasFreshSession(): Promise<boolean> {
+  const row = await currentSession();
+  return Boolean(row && Date.now() - row.createdAt.getTime() < FRESH_SESSION_MS);
+}
+
+/** Signs out every device, including this one. */
+export async function destroyAllSessions(): Promise<void> {
+  await getDb().delete(session);
+  (await cookies()).delete(SESSION_COOKIE);
 }
 
 export async function destroySession(): Promise<void> {

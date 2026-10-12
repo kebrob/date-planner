@@ -187,6 +187,8 @@ export const passkey = pgTable('passkey', {
 
 export const session = pgTable('session', {
   tokenHash: text('token_hash').primaryKey(),
+  /** Passkey used to sign in; removing the passkey ends the session. Null = emergency password. */
+  passkeyId: text('passkey_id').references(() => passkey.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: createdAt(),
 });

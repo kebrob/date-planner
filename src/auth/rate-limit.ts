@@ -13,7 +13,3 @@ export function isLoginBlocked(
   // Passkeys cannot be guessed; a global cap on them would only let anyone lock the owners out.
   return method === 'password' && failures.global >= MAX_FAILURES_GLOBAL;
 }
-
-export function tooManyAttempts(): Response {
-  return Response.json({ error: 'Too many attempts. Try again in 15 minutes.' }, { status: 429 });
-}

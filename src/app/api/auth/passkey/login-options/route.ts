@@ -1,4 +1,4 @@
-import { tooManyAttempts } from '@/auth/rate-limit';
+import { tooManyAttempts } from '@/auth/responses';
 import { loginBlocked } from '@/auth/session';
 import { authenticationOptions, TooManyChallengesError } from '@/auth/webauthn';
 

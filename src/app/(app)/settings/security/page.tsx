@@ -2,7 +2,7 @@ import { desc } from 'drizzle-orm';
 import { requireSession } from '@/auth/session';
 import { getDb } from '@/db/client';
 import { passkey } from '@/db/schema';
-import { AddPasskey, DeletePasskey, LogoutButton } from './client';
+import { AddPasskey, DeletePasskey, LogoutButton, SignOutEverywhere } from './client';
 
 export default async function SecurityPage() {
   await requireSession();
@@ -38,6 +38,7 @@ export default async function SecurityPage() {
         <AddPasskey />
       </section>
       <LogoutButton />
+      <SignOutEverywhere />
     </div>
   );
 }

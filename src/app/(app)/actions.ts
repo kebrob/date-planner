@@ -2,9 +2,11 @@
 
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { getGeocoder } from '@/adapters';
-import { requireSession } from '@/auth/session';
+import { SIGN_IN_AGAIN } from '@/auth/responses';
+import { destroyAllSessions, hasFreshSession, requireSession } from '@/auth/session';
 import { getDb } from '@/db/client';
 import { passkey, settings } from '@/db/schema';
 import {
@@ -156,10 +158,25 @@ export async function findTownAction(
   return area ? { name: area.name, lat: area.location.lat, lng: area.location.lng } : null;
 }
 
-export async function deletePasskeyAction(id: string): Promise<void> {
+/** Sessions signed in with the passkey end with it (cascade). */
+export async function deletePasskeyAction(id: string): Promise<Result<null>> {
   await requireSession();
-  await getDb().delete(passkey).where(eq(passkey.id, id));
-  revalidatePath('/settings/security');
+  if (!(await hasFreshSession())) return { ok: false, error: SIGN_IN_AGAIN };
+  try {
+    await getDb()
+      .delete(passkey)
+      .where(eq(passkey.id, z.string().min(1).max(1000).parse(id)));
+    revalidatePath('/settings/security');
+    return { ok: true, data: null };
+  } catch (error) {
+    return failure(error, 'Could not remove the passkey.');
+  }
+}
+
+export async function signOutEverywhereAction(): Promise<void> {
+  await requireSession();
+  await destroyAllSessions();
+  redirect('/login');
 }
 
 /** Polled by the live train card on the home screen. */

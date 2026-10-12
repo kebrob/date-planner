@@ -1,0 +1,2 @@
+ALTER TABLE "session" ADD COLUMN "passkey_id" text;--> statement-breakpoint
+ALTER TABLE "session" ADD CONSTRAINT "session_passkey_id_passkey_id_fk" FOREIGN KEY ("passkey_id") REFERENCES "public"."passkey"("id") ON DELETE cascade ON UPDATE no action;

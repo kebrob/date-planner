@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { verifyPassword } from '@/auth/password';
-import { tooManyAttempts } from '@/auth/rate-limit';
+import { tooManyAttempts } from '@/auth/responses';
 import { beginLoginAttempt, confirmLoginAttempt, createSession } from '@/auth/session';
 
 const body = z.object({ password: z.string().min(1).max(200) });
