@@ -6,6 +6,7 @@ import type { IdeaOption } from '@/planner/chosen';
 import type { ChosenStopInput } from '@/planner/service';
 import type { LatLng, Place } from '@/ports/places';
 import { addIdeaAction, listIdeaOptionsAction, searchPlacesAction } from './actions';
+import { useFocusTrap } from './focus-trap';
 import { SearchField } from './search-field';
 
 export type PickedStop = {
@@ -47,8 +48,6 @@ const chip = (selected: boolean) =>
 const primary =
   'min-h-12 w-full rounded-full bg-ink px-5 text-[15px] font-medium text-white hover:bg-ink/85 disabled:opacity-50';
 
-let ideasCache: IdeaOption[] | null = null;
-
 const cost = (min: number, max: number) => (max === 0 ? 'free' : `${min}–${max} €`);
 const capitalized = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -62,8 +61,10 @@ export function StopPicker({
   onPick,
   onClose,
 }: Props) {
-  const [ideas, setIdeas] = useState<IdeaOption[] | null>(ideasCache);
+  const [ideas, setIdeas] = useState<IdeaOption[] | null>(null);
   const [query, setQuery] = useState('');
+  // What the place search ran with; the field may change while it runs.
+  const [searched, setSearched] = useState('');
   const [stage, setStage] = useState<'search' | 'places' | 'details' | 'confirm'>('search');
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -80,18 +81,18 @@ export function StopPicker({
   const [fixedTime, setFixedTime] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const searchField = useRef<HTMLInputElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialog);
   const close = useRef(onClose);
   useEffect(() => {
     close.current = onClose;
   }, [onClose]);
 
   useEffect(() => {
-    if (!ideasCache) {
-      void listIdeaOptionsAction().then((r) => {
-        if (r.ok) setIdeas((ideasCache = r.data));
-        else setMessage(r.error);
-      });
-    }
+    // Loaded on every open, so ideas changed meanwhile (e.g. in admin) show up.
+    void listIdeaOptionsAction()
+      .then((r) => (r.ok ? setIdeas(r.data) : setMessage(r.error)))
+      .catch(() => setMessage('Connection problem. Please try again.'));
     searchField.current?.focus();
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -117,19 +118,27 @@ export function StopPicker({
   };
 
   const searchGoogle = async () => {
+    const text = query.trim();
+    if (searching) return;
     setSearching(true);
     setMessage(null);
-    const result = await searchPlacesAction({ query: query.trim(), near });
-    setSearching(false);
-    if (!result.ok) return setMessage(result.error);
-    setPlaces(result.data.places);
-    setStage('places');
-    if (result.data.places.length === 0) {
-      setMessage(
-        result.data.limitReached
-          ? "Today's place searches are used up. Pick one of your ideas or try tomorrow."
-          : `Nothing found for “${query.trim()}” nearby. Try other words.`,
-      );
+    try {
+      const result = await searchPlacesAction({ query: text, near });
+      if (!result.ok) return setMessage(result.error);
+      setSearched(text);
+      setPlaces(result.data.places);
+      setStage('places');
+      if (result.data.places.length === 0) {
+        setMessage(
+          result.data.limitReached
+            ? "Today's place searches are used up. Pick one of your ideas or try tomorrow."
+            : `Nothing found for “${text}” nearby. Try other words.`,
+        );
+      }
+    } catch {
+      setMessage('Connection problem. Please try again.');
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -137,7 +146,7 @@ export function StopPicker({
     setPlace(p);
     const perPerson = p.pricePerPerson;
     setDetails({
-      title: capitalized(query.trim()),
+      title: capitalized(searched),
       kind: perPerson ? 'meal' : 'activity',
       durationMinutes: perPerson ? 90 : 120,
       costEur: perPerson
@@ -149,7 +158,7 @@ export function StopPicker({
   };
 
   const confirmDetails = async () => {
-    const custom = { ...details, title: details.title.trim(), query: query.trim() };
+    const custom = { ...details, title: details.title.trim(), query: searched };
     if (!details.save) {
       return choose(
         { activityId: null, custom, place, startTime: null, index: null },
@@ -157,10 +166,10 @@ export function StopPicker({
       );
     }
     setSaving(true);
-    const result = await addIdeaAction(custom);
-    setSaving(false);
+    const result = await addIdeaAction(custom)
+      .catch(() => ({ ok: false as const, error: 'Connection problem. Please try again.' }))
+      .finally(() => setSaving(false));
     if (!result.ok) return setMessage(result.error);
-    ideasCache = null;
     choose(
       { activityId: result.data, custom: null, place, startTime: null, index: null },
       custom.title,
@@ -189,6 +198,7 @@ export function StopPicker({
         tabIndex={-1}
       />
       <div
+        ref={dialog}
         role="dialog"
         aria-modal="true"
         aria-label={heading}

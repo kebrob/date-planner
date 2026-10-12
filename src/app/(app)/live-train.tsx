@@ -21,7 +21,13 @@ export function LiveTrainCard({ initial }: { initial: LiveTrain }) {
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
-    const poll = async () => setLive(await liveTrainAction());
+    let latest = 0;
+    // Failures keep the last known train; only the newest of overlapping polls counts.
+    const poll = async () => {
+      const request = ++latest;
+      const result = await liveTrainAction().catch(() => null);
+      if (result?.ok && request === latest) setLive(result.data);
+    };
     const start = () => {
       clearInterval(timer);
       timer = setInterval(() => {

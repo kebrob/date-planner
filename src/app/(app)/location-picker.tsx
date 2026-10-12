@@ -125,13 +125,18 @@ export function LocationPicker({
 
   const search = async () => {
     const q = query.trim();
-    if (q.length < 2) return;
+    if (q.length < 2 || searching) return;
     setSearching(true);
     setNotFound(false);
-    const found = await findTownAction(q);
-    setSearching(false);
-    if (found) onCenterChange(found);
-    else setNotFound(true);
+    try {
+      const found = await findTownAction(q);
+      if (found) onCenterChange(found);
+      else setNotFound(true);
+    } catch {
+      setNotFound(true);
+    } finally {
+      setSearching(false);
+    }
   };
 
   return (

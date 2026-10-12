@@ -181,10 +181,14 @@ export async function signOutEverywhereAction(): Promise<void> {
   redirect('/login');
 }
 
-/** Polled by the live train card on the home screen. */
-export async function liveTrainAction(): Promise<LiveTrain | null> {
+/** Polled by the live train card on the home screen; data null = no train coming up. */
+export async function liveTrainAction(): Promise<Result<LiveTrain | null>> {
   await requireSession();
-  return nextTrain().catch(() => null);
+  try {
+    return { ok: true, data: await nextTrain() };
+  } catch (error) {
+    return failure(error, 'Live train data unavailable.');
+  }
 }
 
 export async function rateDateAction(id: string, rating: Rating): Promise<Result<null>> {
