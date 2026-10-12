@@ -161,9 +161,8 @@ describe('runToolLoop', () => {
     const createMessage = vi.fn<CreateMessage>(async () =>
       message('tool_use', [toolUse()], 0, 50_000),
     );
-    await expect(runToolLoop(options(createMessage, { guard }))).rejects.toBeInstanceOf(
-      GuardDeniedError,
-    );
+    const result = await runToolLoop(options(createMessage, { guard }));
+    expect(result.status).toBe('interrupted');
     expect(createMessage).toHaveBeenCalledTimes(1);
   });
 
@@ -172,5 +171,35 @@ describe('runToolLoop', () => {
     const result = await runToolLoop(options(createMessage));
     expect(result.status).toBe(stop);
     expect(createMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runToolLoop interruptions', () => {
+  it('keeps earlier rounds when a later call is denied by the guard', async () => {
+    let calls = 0;
+    const guard = new CostGuard({ store: new MemoryUsageStore(), limits });
+    const run = guard.run.bind(guard);
+    vi.spyOn(guard, 'run').mockImplementation((provider, estimate, call) =>
+      ++calls > 1
+        ? Promise.reject(new GuardDeniedError('anthropic', 'rate_limit'))
+        : run(provider, estimate, call),
+    );
+    const createMessage = vi.fn<CreateMessage>(async () =>
+      message('tool_use', [text('Checking the weather'), toolUse()]),
+    );
+    const result = await runToolLoop(options(createMessage, { guard }));
+    expect(result.status).toBe('interrupted');
+    expect(result.text).toBe('Checking the weather');
+    expect(weatherTool.execute).toHaveBeenCalled();
+  });
+
+  it('still fails when the very first call is denied', async () => {
+    const guard = new CostGuard({
+      store: new MemoryUsageStore(),
+      limits,
+      enabled: { anthropic: false },
+    });
+    const createMessage = vi.fn<CreateMessage>();
+    await expect(runToolLoop(options(createMessage, { guard }))).rejects.toThrow(GuardDeniedError);
   });
 });

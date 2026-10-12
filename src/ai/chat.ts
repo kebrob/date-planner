@@ -4,7 +4,7 @@ import { CUISINES, MOOD_TAGS } from '@/core/planner/types';
 import type { CostGuard } from '@/guard/guard';
 import { logError } from '@/lib/result';
 import { PLACE_TYPES } from '@/ports/place-types';
-import { runToolLoop, type ClientTool, type CreateMessage } from './tool-loop';
+import { runToolLoop, type ClientTool, type CreateMessage, type ToolLoopResult } from './tool-loop';
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
@@ -224,7 +224,7 @@ export function systemPrompt(ctx: {
 
 export type ChatResult = {
   text: string;
-  status: 'done' | 'iteration_limit' | 'refusal' | 'max_tokens';
+  status: ToolLoopResult['status'];
 };
 
 export async function runChat(
@@ -261,6 +261,12 @@ export async function runChat(
     iteration_limit: 'That took too many steps – please ask a bit more specifically.',
     refusal: 'Sorry, I cannot help with that.',
     max_tokens: '',
+    interrupted: 'I had to stop early (time or usage limit) – here is what I have so far.',
   };
-  return { text: result.text || fallbackText[result.status], status: result.status };
+  // An interrupted answer may end mid-thought, so the note is always added.
+  const text =
+    result.status === 'interrupted'
+      ? [result.text, fallbackText.interrupted].filter(Boolean).join('\n\n')
+      : result.text || fallbackText[result.status];
+  return { text, status: result.status };
 }

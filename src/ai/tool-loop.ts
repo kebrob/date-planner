@@ -1,5 +1,6 @@
-import type Anthropic from '@anthropic-ai/sdk';
-import type { CostGuard } from '@/guard/guard';
+import Anthropic from '@anthropic-ai/sdk';
+import { GuardDeniedError, type CostGuard } from '@/guard/guard';
+import { AiTimeUpError } from './client';
 import { actualCostUsd, estimateMaxCostUsd } from './pricing';
 
 export type CreateMessage = (
@@ -28,7 +29,8 @@ export type ToolLoopOptions = {
 };
 
 export type ToolLoopResult = {
-  status: 'done' | 'iteration_limit' | 'refusal' | 'max_tokens';
+  /** `interrupted`: a later round was denied by the guard or ran out of time. */
+  status: 'done' | 'iteration_limit' | 'refusal' | 'max_tokens' | 'interrupted';
   text: string;
   messages: Anthropic.MessageParam[];
   iterations: number;
@@ -72,6 +74,11 @@ async function runClientTools(
   );
 }
 
+const isInterruption = (error: unknown) =>
+  error instanceof GuardDeniedError ||
+  error instanceof AiTimeUpError ||
+  error instanceof Anthropic.APIUserAbortError;
+
 /**
  * Agentic loop with hard upper bounds: at most `maxIterations` API calls and `maxWebSearches`
  * searches in total, every call reserved through the cost guard.
@@ -98,15 +105,6 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<ToolLoopRes
     };
     const estimate = estimateMaxCostUsd(params, JSON.stringify(params).length, remainingSearches);
 
-    const message = await options.guard.run('anthropic', estimate, async () => {
-      const response = await options.createMessage(params);
-      return { result: response, actualCostUsd: actualCostUsd(options.model, response.usage) };
-    });
-
-    webSearches += message.usage.server_tool_use?.web_search_requests ?? 0;
-    lastText = textOf(message) || lastText;
-    messages.push({ role: 'assistant', content: message.content });
-
     const result = (status: ToolLoopResult['status']): ToolLoopResult => ({
       status,
       text: lastText,
@@ -114,6 +112,22 @@ export async function runToolLoop(options: ToolLoopOptions): Promise<ToolLoopRes
       iterations: iteration,
       webSearches,
     });
+
+    let message: Anthropic.Message;
+    try {
+      message = await options.guard.run('anthropic', estimate, async () => {
+        const response = await options.createMessage(params);
+        return { result: response, actualCostUsd: actualCostUsd(options.model, response.usage) };
+      });
+    } catch (error) {
+      // Earlier rounds are paid for and may have produced results (e.g. plans), so keep them.
+      if (iteration > 1 && isInterruption(error)) return result('interrupted');
+      throw error;
+    }
+
+    webSearches += message.usage.server_tool_use?.web_search_requests ?? 0;
+    lastText = textOf(message) || lastText;
+    messages.push({ role: 'assistant', content: message.content });
 
     switch (message.stop_reason) {
       case 'tool_use': {
