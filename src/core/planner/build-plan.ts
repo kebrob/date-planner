@@ -12,15 +12,7 @@ import {
   needsPlace,
   score,
 } from './rules';
-import type {
-  Activity,
-  ChosenStop,
-  Plan,
-  PlanContext,
-  PlanItem,
-  PlanRequest,
-  Slot,
-} from './types';
+import type { Activity, ChosenStop, Plan, PlanContext, PlanItem, PlanRequest, Slot } from './types';
 import { weatherFactor } from './weather';
 import { resolveAnchors, scheduleAnchor, trimmed, withAnchors, type Anchor } from './anchors';
 import { autoAreaRadiusKm, probeFor, searchRegion } from './region';
