@@ -59,7 +59,7 @@
 - **Kontext:** Die inoffizielle bahn.de-/Navigator-Schnittstelle (`db-vendo-client`) wird von der DB aktiv blockiert (`OPS_BLOCKED`); die Maintainer raten ab. Transitous erlaubt nur Open-Source-Projekte, RIS::Stations ist nicht dauerhaft kostenlos, Overpass für Bahnhöfe zu unzuverlässig.
 - **Entscheidung:** DB Timetables API (Free) für Fahrpläne und Echtzeit; Bahnhofsliste aus StaDa (Free) als Datei im Repo. Nur Direktverbindungen; Umstiege bleiben Schätzung bzw. Link auf bahn.de.
 - **Begründung:** Offiziell, kostenlos, stabil; für Rosenheim → München/Salzburg/Kufstein meist direkt.
-- **Risiko:** API im Beta-Status, Horizont ~1 Tag (→ Kapitel 11).
+- **Risiko:** API im Beta-Status, Horizont gemessen ~18 h voraus und ~6 h zurück (2026-10-12, → Kapitel 11).
 - **Ergänzung (2026-10-12):** Verbindungen mit einem Umstieg über eine eigene Suche auf denselben Tafeln; für Dates jenseits des Horizonts voraussichtliche Züge aus einem Referenztag, die gespeicherte Pläne innerhalb des Horizonts durch echte ersetzen. Bundesweite GTFS-Daten mit eigenem Routing wären vollständiger (Busse, beliebig weit voraus), aber Import, Aktualisierung und Routing-Engine sind für zwei Nutzer zu aufwendig.
 
 ## ADR-010: Abhängigkeiten mit 7 Tagen Mindestalter
@@ -96,4 +96,4 @@
 - **Kontext:** Bewertungen sollen Vorschläge verbessern. Erwartet werden < 100 Bewertungen pro Jahr von einem gemeinsamen Account.
 - **Entscheidung:** Geglättete Mittelwerte je Aktivität, je Tag und je Wetterlage, mit Zeitverfall, als Faktoren im bestehenden Score. Bei jeder Planung neu aus allen Bewertungen berechnet (reine Funktion in `core/planner`), nichts wird inkrementell gespeichert.
 - **Begründung:** Mit so wenigen Daten würde ein ML-Modell Rauschen lernen und wäre nicht nachvollziehbar. Neuberechnung macht Änderungen und Löschungen exakt und ist bei wenigen hundert Zeilen schneller als jede Synchronisation.
-- **Verworfen:** ML-Modell (z. B. Regression), inkrementelle Tag-Gewichte in `tag_weight`.
+- **Verworfen:** ML-Modell (z. B. Regression), inkrementell gespeicherte Tag-Gewichte (Tabelle `tag_weight`, entfernt).
