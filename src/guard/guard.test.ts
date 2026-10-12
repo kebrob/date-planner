@@ -43,6 +43,14 @@ describe('CostGuard', () => {
     expect(store.entries[0]).toMatchObject({ status: 'success', actualCostUsd: 0.1 });
   });
 
+  it('returns a paid result even when recording its cost fails', async () => {
+    const { guard, store } = setup();
+    vi.spyOn(store, 'settle').mockRejectedValueOnce(new Error('connection lost'));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(guard.run('anthropic', 0.5, ok(0.1))).resolves.toBe('ok');
+    expect(store.entries[0]).toMatchObject({ status: 'reserved', estimatedCostUsd: 0.5 });
+  });
+
   it('denies a call whose worst-case cost would exceed the daily budget, without calling', async () => {
     const { guard } = setup();
     await guard.run('anthropic', 1.5, ok(1.5));
