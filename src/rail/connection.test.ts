@@ -273,8 +273,10 @@ describe('expected trains', () => {
     expect(referenceOffset(fromLocal('2026-10-21', '18:00'), now)).toBe(9);
     // Next Saturday: no Saturday available, so today evening (still ahead) is used.
     expect(referenceOffset(fromLocal('2026-10-17', '18:00'), now)).toBe(5);
-    // Morning trains of today are gone; tomorrow is used.
-    expect(referenceOffset(fromLocal('2026-10-21', '08:00'), now)).toBe(8);
+    // This morning's trains are still served a few hours back.
+    expect(referenceOffset(fromLocal('2026-10-21', '08:00'), now)).toBe(9);
+    // Early morning is neither still served today nor yet tomorrow; tomorrow is closest.
+    expect(referenceOffset(fromLocal('2026-10-21', '05:00'), now)).toBe(8);
   });
 
   it('moves the trains of the reference day to the requested day, without realtime data', async () => {

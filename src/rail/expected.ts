@@ -1,12 +1,12 @@
 import { fromLocal, localParts, toLocalDate, toLocalTime } from '@/lib/time';
 import type { RailTimetable, StationEvent, StationStop } from '@/ports/rail';
 
-// The timetable API only serves about a day ahead; later trains are derived from another day.
-export const REAL_TIMES_HORIZON_HOURS = 20;
+// Measured: planned timetables reach ~18 h ahead (and ~6 h back); searches look 2–4 h further.
+export const REAL_TIMES_HORIZON_HOURS = 16;
+const SERVED_BACK_HOURS = 6;
 
 const DAY_MS = 86_400_000;
-// Reference days must lie within what the API serves.
-const REFERENCE_MAX_HOURS = 24;
+const HOUR_MS = 3_600_000;
 
 /** Same wall-clock time `days` calendar days later (DST-safe). */
 export function shiftDays(date: Date, days: number): Date {
@@ -23,8 +23,8 @@ const dayType = (date: Date): DayType => {
 };
 
 /**
- * Days to go back from `target` to a day the API serves (today or tomorrow): the same kind of
- * day if possible, since regional trains mostly run the same pattern on all such days.
+ * Days to go back from `target` to a day the API serves (today or tomorrow, at the same time):
+ * the same kind of day if possible, since regional trains mostly run the same pattern on such days.
  */
 export function referenceOffset(target: Date, now: Date): number {
   const daysUntil = (day: Date) =>
@@ -36,14 +36,15 @@ export function referenceOffset(target: Date, now: Date): number {
   const ahead = (offset: number) => shiftDays(target, -offset).getTime() - now.getTime();
   const candidates = [now, new Date(now.getTime() + DAY_MS)]
     .map((day) => ({ offset: daysUntil(day), sameType: dayType(day) === dayType(target) }))
-    // The time on that day must still be ahead and within what the API serves.
-    .filter(({ offset }) => ahead(offset) > 0)
-    .sort((a, b) => ahead(a.offset) - ahead(b.offset));
-  const served = candidates.filter(
-    ({ offset }) => ahead(offset) <= REFERENCE_MAX_HOURS * 3_600_000,
-  );
-  const best = served.find((c) => c.sameType) ?? served[0] ?? candidates[0];
-  return best?.offset ?? 0;
+    .filter(
+      ({ offset }) =>
+        ahead(offset) >= -SERVED_BACK_HOURS * HOUR_MS &&
+        ahead(offset) <= REAL_TIMES_HORIZON_HOURS * HOUR_MS,
+    )
+    .sort((a, b) => Math.abs(ahead(a.offset)) - Math.abs(ahead(b.offset)));
+  const best = candidates.find((c) => c.sameType) ?? candidates[0];
+  // Nothing served (e.g. early morning trains seen from midday): tomorrow, likely partly served.
+  return best?.offset ?? daysUntil(new Date(now.getTime() + DAY_MS));
 }
 
 function shiftEvent(event: StationEvent | null, days: number): StationEvent | null {
