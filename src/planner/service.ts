@@ -65,7 +65,17 @@ export const chosenStopSchema = z
 
 export type ChosenStopInput = z.input<typeof chosenStopSchema>;
 
-export function customActivity(id: string, custom: z.output<typeof customStopSchema>): Activity {
+/** A stop that is not a stored idea; `query` null = no venue search (e.g. "a walk"). */
+export function customActivity(
+  id: string,
+  custom: {
+    title: string;
+    kind: 'activity' | 'meal' | 'snack';
+    durationMinutes: number;
+    costEur: number;
+    query: string | null;
+  },
+): Activity {
   return {
     id,
     title: custom.title,
@@ -79,7 +89,7 @@ export function customActivity(id: string, custom: z.output<typeof customStopSch
     transports: [],
     atHome: false,
     // Text search only: one-off stops have no provider-neutral type.
-    placeType: TEXT_SEARCH_TYPE,
+    placeType: custom.query ? TEXT_SEARCH_TYPE : null,
     placeQuery: custom.query,
     timesOfDay: [],
     seasons: [],
@@ -282,25 +292,9 @@ export async function generatePlan(
     loadHistory(now),
   ]);
 
-  const required = (input.requiredStops ?? []).map((stop, i): Activity => ({
-    id: `adhoc-${i}`,
-    title: stop.title,
-    description: '',
-    category: stop.kind === 'activity' ? 'activity' : 'food',
-    tags: stop.kind === 'activity' ? [] : ['food', stop.kind],
-    costMinEur: stop.costEur,
-    costMaxEur: stop.costEur,
-    durationMinutes: stop.durationMinutes,
-    weather: {},
-    transports: [],
-    atHome: false,
-    // Ad-hoc stops are searched by text (Google); there is no matching OSM category.
-    placeType: stop.searchQuery ? TEXT_SEARCH_TYPE : null,
-    placeQuery: stop.searchQuery,
-    timesOfDay: [],
-    seasons: [],
-    preparation: null,
-  }));
+  const required = (input.requiredStops ?? []).map((stop, i) =>
+    customActivity(`adhoc-${i}`, { ...stop, query: stop.searchQuery }),
+  );
   const catalog = activityRows.map(toActivity);
   required.push(...catalog.filter((a) => input.requiredActivityIds?.includes(a.id)));
 
