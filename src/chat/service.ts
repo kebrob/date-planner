@@ -11,7 +11,7 @@ import {
   MAX_HISTORY_TURNS,
   ToolUserError,
 } from '@/ai/chat';
-import { getAnthropic, MODEL } from '@/ai/client';
+import { createMessageUntil, MODEL } from '@/ai/client';
 import { toActivityInsert, withoutDuplicates } from '@/ai/ideas';
 import { getLimits } from '@/config/limits';
 import { summarizeWeather } from '@/core/planner/weather';
@@ -28,6 +28,8 @@ export type ChatReply = { text: string; plans: ChatPlan[] };
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MAX_MESSAGE_LENGTH = 1_000;
+// Within the chat page's 120 s function limit, leaving time to store the reply.
+const CHAT_TIME_BUDGET_MS = 105_000;
 
 function addDay(date: string): string {
   const [y, m, d] = date.split('-').map(Number);
@@ -196,11 +198,12 @@ export async function sendChatMessage(raw: string): Promise<ChatReply> {
   const limits = getLimits();
   if (!limits.ai.enabled) throw new ChatDisabledError();
 
-  const [home, history] = await Promise.all([getSettings(), loadHistory()]);
   const now = new Date();
+  const deadline = now.getTime() + CHAT_TIME_BUDGET_MS;
+  const [home, history] = await Promise.all([getSettings(), loadHistory()]);
   const plans: ChatPlan[] = [];
   const result = await runChat(history.slice(-MAX_HISTORY_TURNS), message, {
-    createMessage: (params) => getAnthropic().messages.create(params),
+    createMessage: createMessageUntil(deadline),
     guard: getCostGuard(),
     model: MODEL,
     tools: chatTools(handlers(plans)),

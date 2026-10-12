@@ -1,7 +1,7 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGeocoder } from '@/adapters';
-import { getAnthropic, MODEL } from '@/ai/client';
+import { getAnthropic, MODEL, untilDeadline } from '@/ai/client';
 import {
   buildExportPrompt,
   generateIdeas,
@@ -298,16 +298,20 @@ export const generateSchema = z.object({
   focus: z.string().trim().max(120).optional(),
 });
 
+// Within the admin page's 120 s function limit, leaving time to store the ideas.
+const IDEAS_TIME_BUDGET_MS = 105_000;
+
 export async function generateIdeasWithClaude(raw: unknown) {
   if (!getLimits().ai.enabled) {
     throw new AdminInputError(
       'Claude is disabled (AI_ENABLED=false). Use the prompt export instead.',
     );
   }
+  const deadline = Date.now() + IDEAS_TIME_BUDGET_MS;
   const { count, focus } = generateSchema.parse(raw);
   const ctx = await ideasContext(count, focus);
   const ideas = await generateIdeas(ctx, {
-    parse: (params) => getAnthropic().beta.messages.parse(params),
+    parse: (params) => getAnthropic().beta.messages.parse(params, untilDeadline(deadline)),
     guard: getCostGuard(),
     model: MODEL,
   });
